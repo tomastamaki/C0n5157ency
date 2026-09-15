@@ -1,0 +1,68 @@
+import type { LogsData, LoggedSet } from "../types/logs";
+import { isSetLogged } from "../types/logs";
+import type { Program } from "../types/program";
+
+/** Busca el último registro guardado de un mismo ejercicio + índice de serie, antes de un día dado del programa. */
+export function findLastLoggedSet(
+  logs: LogsData,
+  exerciseName: string,
+  setIndex: number,
+  beforeProgramIndex: number
+): LoggedSet | null {
+  const sessions = logs.sessions
+    .filter((s) => s.programIndex < beforeProgramIndex && s.status === "completed")
+    .sort((a, b) => b.programIndex - a.programIndex);
+
+  for (const session of sessions) {
+    const exercise = session.exercises.find((e) => e.exercise === exerciseName);
+    if (!exercise) continue;
+    const set = exercise.sets.find((s) => s.setIndex === setIndex && isSetLogged(s));
+    if (set) return set;
+  }
+  return null;
+}
+
+export interface ProgressionPoint {
+  sessionId: string;
+  date: string;
+  weekNumber: number;
+  weightKg: number;
+  reps: number;
+  rir: string;
+}
+
+/** Progresión histórica de un ejercicio para una serie dada (por defecto la primera serie de trabajo). */
+export function getExerciseProgression(
+  logs: LogsData,
+  exerciseName: string,
+  setIndex = 0
+): ProgressionPoint[] {
+  return logs.sessions
+    .filter((s) => s.status === "completed")
+    .sort((a, b) => a.programIndex - b.programIndex)
+    .flatMap((session) => {
+      const exercise = session.exercises.find((e) => e.exercise === exerciseName);
+      const set = exercise?.sets.find((s) => s.setIndex === setIndex);
+      if (!set || !isSetLogged(set)) return [];
+      return [
+        {
+          sessionId: session.id,
+          date: session.completedAt ?? session.startedAt,
+          weekNumber: session.weekNumber,
+          weightKg: set.weightKg as number,
+          reps: set.reps as number,
+          rir: set.rir as string,
+        },
+      ];
+    });
+}
+
+export function getAllExerciseNames(program: Program): string[] {
+  const names = new Set<string>();
+  program.blocks.forEach((b) =>
+    b.weeks.forEach((w) =>
+      w.days.forEach((d) => d.exerciseGroups.forEach((g) => names.add(g.exercise)))
+    )
+  );
+  return Array.from(names).sort((a, b) => a.localeCompare(b, "es"));
+}

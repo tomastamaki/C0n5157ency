@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+*.local
+*.tsbuildinfo
+.tsbuild-node
+
+# El PDF y el Excel de origen son grandes y no hace falta versionarlos;
+# el program.json generado sí se versiona.
+Min-Max_Phase_2_Peak_Physique_4X.pdf
