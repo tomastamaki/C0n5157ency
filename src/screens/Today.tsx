@@ -3,8 +3,11 @@ import { useApp } from "../context/AppContext";
 import { getCurrentFlatDay, getNextProgramIndex } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
 import { newId } from "../lib/id";
+import { formatDuration } from "../lib/time";
 import { ExerciseCard } from "../components/ExerciseCard";
 import { SyncIndicator } from "../components/SyncIndicator";
+import { SessionTimer } from "../components/SessionTimer";
+import { ProgramProgress } from "../components/ProgramProgress";
 import { isSetLogged, type WorkoutSession } from "../types/logs";
 import type { FlatProgramDay } from "../types/program";
 
@@ -55,9 +58,55 @@ function ProgramCompleteView() {
   );
 }
 
+function SummaryView({ session, onContinue }: { session: WorkoutSession; onContinue: () => void }) {
+  return (
+    <div className="space-y-4 pb-24">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
+        <h2 className="text-xl font-bold text-emerald-800 dark:text-emerald-200">
+          ¡Entrenamiento completado!
+        </h2>
+        <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+          {session.dayName} · Semana {session.weekNumber}
+          {session.durationSec !== null && ` · ${formatDuration(session.durationSec)}`}
+        </p>
+      </div>
+      <div className="space-y-2">
+        {session.exercises.map((ex, i) => (
+          <div
+            key={i}
+            className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900"
+          >
+            <p className="font-medium text-slate-800 dark:text-slate-100">
+              {ex.exercise}
+              {ex.originalExercise && (
+                <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
+                  sustituyó a {ex.originalExercise}
+                </span>
+              )}
+            </p>
+            <p className="text-slate-500 dark:text-slate-400">
+              {ex.sets
+                .filter(isSetLogged)
+                .map((s) => `${s.weightKg}kg×${s.reps} (RIR ${s.rir})`)
+                .join(" · ") || "sin registros"}
+            </p>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onContinue}
+        className="w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
+      >
+        Continuar
+      </button>
+    </div>
+  );
+}
+
 export function TodayScreen() {
   const { flatDays, logs, upsertSession } = useApp();
-  const [showSummary, setShowSummary] = useState(false);
+  const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
 
   const nextIndex = getNextProgramIndex(logs);
@@ -78,15 +127,18 @@ export function TodayScreen() {
       status: "in_progress",
       startedAt: now,
       completedAt: null,
+      durationSec: null,
       updatedAt: now,
       exercises: day.day.exerciseGroups.map((g) => ({
         exercise: g.exercise,
+        originalExercise: null,
         supersetGroup: g.supersetGroup,
         sets: getLiteralWorkingSets(g).map((_, i) => ({
           setIndex: i,
           weightKg: null,
           reps: null,
           rir: null,
+          confirmed: false,
         })),
       })),
     };
@@ -107,6 +159,7 @@ export function TodayScreen() {
       status: "skipped",
       startedAt: now,
       completedAt: now,
+      durationSec: null,
       updatedAt: now,
       exercises: [],
     });
@@ -117,11 +170,23 @@ export function TodayScreen() {
     upsertSession(updater(draft));
   }
 
-  if (!flatDay) return <ProgramCompleteView />;
+  if (completedSession) {
+    return <SummaryView session={completedSession} onContinue={() => setCompletedSession(null)} />;
+  }
+
+  if (!flatDay) {
+    return (
+      <div className="space-y-4 pb-24">
+        <ProgramProgress />
+        <ProgramCompleteView />
+      </div>
+    );
+  }
 
   if (!draft) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 pb-24">
+        <ProgramProgress />
         <StartCard flatDay={flatDay} onStart={() => startWorkout(flatDay)} onSkip={() => skipDay(flatDay)} />
       </div>
     );
@@ -129,45 +194,19 @@ export function TodayScreen() {
 
   const allDone = draft.exercises.every((ex) => ex.sets.every(isSetLogged));
 
-  if (showSummary || draft.status === "completed") {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
-          <h2 className="text-xl font-bold text-emerald-800 dark:text-emerald-200">
-            ¡Entrenamiento completado!
-          </h2>
-          <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
-            {draft.dayName} · Semana {draft.weekNumber}
-          </p>
-        </div>
-        <div className="space-y-2">
-          {draft.exercises.map((ex, i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900"
-            >
-              <p className="font-medium text-slate-800 dark:text-slate-100">{ex.exercise}</p>
-              <p className="text-slate-500 dark:text-slate-400">
-                {ex.sets
-                  .filter(isSetLogged)
-                  .map((s) => `${s.weightKg}kg×${s.reps} (RIR ${s.rir})`)
-                  .join(" · ") || "sin registros"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4 pb-24">
+      <ProgramProgress />
+
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {draft.blockName} · Semana {draft.weekNumber} de {flatDay.totalWeeks} · {draft.weekLabel}
           </p>
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{draft.dayName}</h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            <SessionTimer startedAtIso={draft.startedAt} />
+          </p>
         </div>
         <SyncIndicator />
       </div>
@@ -191,13 +230,20 @@ export function TodayScreen() {
         <button
           type="button"
           onClick={() => {
-            updateDraft((prev) => ({
-              ...prev,
+            const now = new Date().toISOString();
+            const durationSec = Math.max(
+              0,
+              Math.round((new Date(now).getTime() - new Date(draft.startedAt).getTime()) / 1000)
+            );
+            const finished: WorkoutSession = {
+              ...draft,
               status: "completed",
-              completedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }));
-            setShowSummary(true);
+              completedAt: now,
+              durationSec,
+              updatedAt: now,
+            };
+            upsertSession(finished);
+            setCompletedSession(finished);
           }}
           className="w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
         >

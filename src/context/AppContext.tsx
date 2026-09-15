@@ -275,6 +275,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => clearTimers, [clearTimers]);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", settings.theme === "dark");
+  }, [settings.theme]);
+
   const value: AppContextValue = {
     program,
     flatDays,

@@ -1,11 +1,20 @@
 import { EMPTY_LOGS, type LogsData } from "../types/logs";
 
+export type ThemeMode = "light" | "dark";
+
 export interface AppSettings {
   githubToken: string;
   githubOwner: string;
   githubRepo: string;
   githubBranch: string;
   startDate: string; // YYYY-MM-DD
+  theme: ThemeMode;
+  /** Incremento de peso (kg) sugerido por ejercicio; si no está, se infiere por nombre. */
+  exerciseIncrements: Record<string, number>;
+}
+
+function systemPrefersDark(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -14,6 +23,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   githubRepo: "",
   githubBranch: "main",
   startDate: new Date().toISOString().slice(0, 10),
+  theme: systemPrefersDark() ? "dark" : "light",
+  exerciseIncrements: {},
 };
 
 const SETTINGS_KEY = "minmax.settings.v1";

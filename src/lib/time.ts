@@ -18,3 +18,17 @@ export function formatDate(isoDate: string): string {
     year: "numeric",
   });
 }
+
+export function formatDuration(totalSec: number): string {
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Clave de fecha local (no UTC) para agrupar sesiones por día de calendario real. */
+export function localDateKey(isoDateOrDate: string | Date): string {
+  const d = typeof isoDateOrDate === "string" ? new Date(isoDateOrDate) : isoDateOrDate;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

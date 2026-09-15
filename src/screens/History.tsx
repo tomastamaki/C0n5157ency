@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { getAllExerciseNames, getExerciseProgression } from "../lib/history";
 import { isSetLogged } from "../types/logs";
-import { formatDate } from "../lib/time";
+import { formatDate, formatDuration } from "../lib/time";
 import { ProgressChart } from "../components/ProgressChart";
+import { TrainingCalendar } from "../components/TrainingCalendar";
 
-function OverviewTab() {
+function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => void }) {
   const { logs, program, flatDays } = useApp();
 
   const completed = logs.sessions.filter((s) => s.status === "completed");
@@ -51,9 +52,11 @@ function OverviewTab() {
           <p className="text-sm text-slate-500 dark:text-slate-400">Todavía no registraste entrenamientos.</p>
         )}
         {sessionsSorted.map((s) => (
-          <div
+          <button
             key={s.id}
-            className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+            type="button"
+            onClick={() => onSelectSession(s.id)}
+            className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900"
           >
             <div>
               <p className="font-medium text-slate-800 dark:text-slate-100">
@@ -61,6 +64,7 @@ function OverviewTab() {
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {formatDate(s.completedAt ?? s.startedAt)}
+                {s.durationSec !== null && ` · ${formatDuration(s.durationSec)}`}
               </p>
             </div>
             <span
@@ -72,7 +76,7 @@ function OverviewTab() {
             >
               {s.status === "completed" ? "completado" : "salteado"}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -144,37 +148,114 @@ function ExerciseTab() {
   );
 }
 
-export function HistoryScreen() {
-  const [tab, setTab] = useState<"overview" | "exercise">("overview");
+function CalendarTab({ onSelectSession }: { onSelectSession: (id: string) => void }) {
+  const { logs } = useApp();
+  const sessions = logs.sessions.filter((s) => s.status !== "in_progress");
+  return <TrainingCalendar sessions={sessions} onSelectSession={onSelectSession} />;
+}
+
+function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
+  const { logs } = useApp();
+  const session = logs.sessions.find((s) => s.id === sessionId);
+
+  if (!session) {
+    return (
+      <div className="space-y-4 pb-24">
+        <button type="button" onClick={onBack} className="text-sm font-medium text-accent-600 dark:text-accent-400">
+          ← Volver
+        </button>
+        <p className="text-sm text-slate-500 dark:text-slate-400">No se encontró esta sesión.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setTab("overview")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            tab === "overview"
-              ? "bg-accent-600 text-white"
-              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-          }`}
-        >
-          General
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("exercise")}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-            tab === "exercise"
-              ? "bg-accent-600 text-white"
-              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-          }`}
-        >
-          Por ejercicio
-        </button>
+      <button type="button" onClick={onBack} className="text-sm font-medium text-accent-600 dark:text-accent-400">
+        ← Volver
+      </button>
+
+      <div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+          {session.dayName} · Semana {session.weekNumber}
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {formatDate(session.completedAt ?? session.startedAt)} ·{" "}
+          {session.status === "completed" ? "Completado" : session.status === "skipped" ? "Salteado" : "En curso"}
+          {session.durationSec !== null && ` · ${formatDuration(session.durationSec)}`}
+        </p>
       </div>
 
-      {tab === "overview" ? <OverviewTab /> : <ExerciseTab />}
+      <div className="space-y-2">
+        {session.exercises.map((ex, i) => (
+          <div
+            key={i}
+            className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900"
+          >
+            <p className="font-medium text-slate-800 dark:text-slate-100">
+              {ex.exercise}
+              {ex.originalExercise && (
+                <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
+                  sustituyó a {ex.originalExercise}
+                </span>
+              )}
+            </p>
+            <ul className="mt-1 space-y-0.5 text-slate-500 dark:text-slate-400">
+              {ex.sets.map((s, j) => (
+                <li key={j}>
+                  Serie {j + 1}: {s.weightKg ?? "—"}kg × {s.reps ?? "—"} (RIR {s.rir ?? "—"})
+                  {isSetLogged(s) ? "" : " · sin confirmar"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {session.exercises.length === 0 && (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Día salteado, sin ejercicios registrados.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function HistoryScreen() {
+  const [tab, setTab] = useState<"overview" | "exercise" | "calendar">("overview");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  if (selectedSessionId) {
+    return <SessionDetailView sessionId={selectedSessionId} onBack={() => setSelectedSessionId(null)} />;
+  }
+
+  return (
+    <div className="space-y-4 pb-24">
+      <div className="flex gap-2 overflow-x-auto">
+        {(
+          [
+            { id: "overview", label: "General" },
+            { id: "exercise", label: "Por ejercicio" },
+            { id: "calendar", label: "Calendario" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
+              tab === t.id
+                ? "bg-accent-600 text-white"
+                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" && <OverviewTab onSelectSession={setSelectedSessionId} />}
+      {tab === "exercise" && <ExerciseTab />}
+      {tab === "calendar" && <CalendarTab onSelectSession={setSelectedSessionId} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 export type TabId = "today" | "history" | "settings";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "today", label: "Hoy" },
+  { id: "today", label: "Inicio" },
   { id: "history", label: "Historial" },
   { id: "settings", label: "Ajustes" },
 ];
