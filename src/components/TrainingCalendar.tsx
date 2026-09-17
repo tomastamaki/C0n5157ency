@@ -4,6 +4,12 @@ import { localDateKey } from "../lib/time";
 
 const WEEKDAY_LABELS = ["L", "M", "X", "J", "V", "S", "D"];
 
+const DAY_ABBREV: Record<string, string> = { Upper: "Up", Lower: "Lo", Push: "Ps", Pull: "Pl" };
+
+function dayAbbrev(dayName: string): string {
+  return DAY_ABBREV[dayName] ?? dayName.slice(0, 2);
+}
+
 interface Props {
   sessions: WorkoutSession[];
   onSelectSession: (id: string) => void;
@@ -74,7 +80,8 @@ export function TrainingCalendar({ sessions, onSelectSession }: Props) {
               type="button"
               disabled={!session}
               onClick={() => session && onSelectSession(session.id)}
-              className={`flex aspect-square items-center justify-center rounded-lg text-xs font-medium ${
+              title={session ? `${session.dayName} · ${session.status === "completed" ? "completado" : "salteado"}` : undefined}
+              className={`flex aspect-square flex-col items-center justify-center rounded-lg text-xs font-medium leading-tight ${
                 session
                   ? session.status === "completed"
                     ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
@@ -84,7 +91,8 @@ export function TrainingCalendar({ sessions, onSelectSession }: Props) {
                     : "text-slate-400 dark:text-slate-600"
               }`}
             >
-              {date.getDate()}
+              <span>{date.getDate()}</span>
+              {session && <span className="text-[9px] font-semibold opacity-80">{dayAbbrev(session.dayName)}</span>}
             </button>
           );
         })}

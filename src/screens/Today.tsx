@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { getCurrentFlatDay, getNextProgramIndex } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
+import { getPreferredExercise } from "../lib/history";
 import { newId } from "../lib/id";
 import { formatDuration } from "../lib/time";
 import { ExerciseCard } from "../components/ExerciseCard";
@@ -42,6 +43,37 @@ function StartCard({
         className="mt-3 text-sm text-slate-400 underline"
       >
         Saltear este día
+      </button>
+    </div>
+  );
+}
+
+function PausedCard({
+  draft,
+  onResume,
+}: {
+  draft: WorkoutSession;
+  onResume: () => void;
+}) {
+  const totalSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+  const doneSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.filter(isSetLogged).length, 0);
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900 dark:bg-amber-900/20">
+      <p className="text-sm text-amber-700 dark:text-amber-300">Entrenamiento en pausa</p>
+      <h2 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">{draft.dayName}</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Semana {draft.weekNumber} · {doneSets} de {totalSets} series confirmadas
+      </p>
+      <p className="mt-2 text-lg font-semibold text-slate-700 dark:text-slate-200">
+        <SessionTimer pausedElapsedSec={draft.pausedElapsedSec} runningSince={draft.runningSince} />
+      </p>
+      <button
+        type="button"
+        onClick={onResume}
+        className="mt-6 w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
+      >
+        Continuar entrenamiento
       </button>
     </div>
   );
@@ -104,6 +136,13 @@ function SummaryView({ session, onContinue }: { session: WorkoutSession; onConti
   );
 }
 
+/** Segundos acumulados de una sesión hasta este momento (corriendo o en pausa). */
+function currentElapsedSec(session: WorkoutSession): number {
+  if (!session.runningSince) return session.pausedElapsedSec;
+  const extra = (Date.now() - new Date(session.runningSince).getTime()) / 1000;
+  return session.pausedElapsedSec + extra;
+}
+
 export function TodayScreen() {
   const { flatDays, logs, upsertSession } = useApp();
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
@@ -128,19 +167,25 @@ export function TodayScreen() {
       startedAt: now,
       completedAt: null,
       durationSec: null,
+      runningSince: now,
+      pausedElapsedSec: 0,
       updatedAt: now,
-      exercises: day.day.exerciseGroups.map((g) => ({
-        exercise: g.exercise,
-        originalExercise: null,
-        supersetGroup: g.supersetGroup,
-        sets: getLiteralWorkingSets(g).map((_, i) => ({
-          setIndex: i,
-          weightKg: null,
-          reps: null,
-          rir: null,
-          confirmed: false,
-        })),
-      })),
+      exercises: day.day.exerciseGroups.map((g) => {
+        const preferred = getPreferredExercise(logs, g.exercise, day.index);
+        const chosen = preferred ?? g.exercise;
+        return {
+          exercise: chosen,
+          originalExercise: chosen === g.exercise ? null : g.exercise,
+          supersetGroup: g.supersetGroup,
+          sets: getLiteralWorkingSets(g).map((_, i) => ({
+            setIndex: i,
+            weightKg: null,
+            reps: null,
+            rir: null,
+            confirmed: false,
+          })),
+        };
+      }),
     };
     upsertSession(session);
     setActiveGroupIdx(0);
@@ -160,6 +205,8 @@ export function TodayScreen() {
       startedAt: now,
       completedAt: now,
       durationSec: null,
+      runningSince: null,
+      pausedElapsedSec: 0,
       updatedAt: now,
       exercises: [],
     });
@@ -168,6 +215,23 @@ export function TodayScreen() {
   function updateDraft(updater: (session: WorkoutSession) => WorkoutSession) {
     if (!draft) return;
     upsertSession(updater(draft));
+  }
+
+  function pauseWorkout() {
+    if (!draft || !draft.runningSince) return;
+    const now = new Date().toISOString();
+    updateDraft((prev) => ({
+      ...prev,
+      pausedElapsedSec: currentElapsedSec(prev),
+      runningSince: null,
+      updatedAt: now,
+    }));
+  }
+
+  function resumeWorkout() {
+    if (!draft) return;
+    const now = new Date().toISOString();
+    updateDraft((prev) => ({ ...prev, runningSince: now, updatedAt: now }));
   }
 
   if (completedSession) {
@@ -192,6 +256,15 @@ export function TodayScreen() {
     );
   }
 
+  if (!draft.runningSince) {
+    return (
+      <div className="space-y-4 pb-24">
+        <ProgramProgress />
+        <PausedCard draft={draft} onResume={resumeWorkout} />
+      </div>
+    );
+  }
+
   const allDone = draft.exercises.every((ex) => ex.sets.every(isSetLogged));
 
   return (
@@ -205,10 +278,19 @@ export function TodayScreen() {
           </p>
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{draft.dayName}</h2>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            <SessionTimer startedAtIso={draft.startedAt} />
+            <SessionTimer pausedElapsedSec={draft.pausedElapsedSec} runningSince={draft.runningSince} />
           </p>
         </div>
-        <SyncIndicator />
+        <div className="flex flex-col items-end gap-2">
+          <SyncIndicator />
+          <button
+            type="button"
+            onClick={pauseWorkout}
+            className="text-xs font-medium text-slate-400 underline"
+          >
+            Pausar y volver
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -231,15 +313,14 @@ export function TodayScreen() {
           type="button"
           onClick={() => {
             const now = new Date().toISOString();
-            const durationSec = Math.max(
-              0,
-              Math.round((new Date(now).getTime() - new Date(draft.startedAt).getTime()) / 1000)
-            );
+            const durationSec = Math.max(0, Math.round(currentElapsedSec(draft)));
             const finished: WorkoutSession = {
               ...draft,
               status: "completed",
               completedAt: now,
               durationSec,
+              runningSince: null,
+              pausedElapsedSec: durationSec,
               updatedAt: now,
             };
             upsertSession(finished);

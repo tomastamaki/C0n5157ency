@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>C0n5157ency — logo variants</title>
+<style>
+  :root{
+    --bg: #ffffff;
+    --card: #f5f4f0;
+    --text: #1c1c1a;
+    --muted: #5f5e5a;
+    --accent: #D85A30;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg: #14140f;
+      --card: #1f1f19;
+      --text: #f1efe8;
+      --muted: #b4b2a9;
+      --accent: #F0997B;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color:var(--text);
+    padding:40px 20px 80px;
+  }
+  h1{
+    text-align:center;
+    font-size:18px;
+    font-weight:600;
+    margin-bottom:48px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+    gap:24px;
+    max-width:980px;
+    margin:0 auto;
+  }
+  .item{
+    background:var(--card);
+    border-radius:20px;
+    padding:32px 20px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    min-height:150px;
+  }
+  .label{
+    font-size:11px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .mono{
+    font-family:'JetBrains Mono','Consolas',monospace;
+    font-weight:700;
+  }
+  /* Variant: icon 7 in circle */
+  .icon-circle{
+    width:72px;height:72px;border-radius:50%;
+    border:3px solid var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:36px;color:var(--accent);
+  }
+  /* Variant: icon 7 in square */
+  .icon-square{
+    width:72px;height:72px;border-radius:16px;
+    background:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:36px;color:var(--bg);
+  }
+  /* Variant: bare 7 */
+  .icon-bare{
+    font-size:72px;color:var(--accent);
+  }
+  /* Variant: full wordmark */
+  .wordmark{
+    font-size:32px;letter-spacing:0.5px;
+  }
+  .wordmark .num{color:var(--accent);}
+  /* Variant: compact wordmark */
+  .wordmark-sm{
+    font-size:20px;
+  }
+  .wordmark-sm .num{color:var(--accent);}
+  /* Variant: C0 monogram */
+  .monogram{
+    font-size:40px;
+  }
+  .monogram .num{color:var(--accent);}
+  /* Variant: stacked icon + text */
+  .stack{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .stack .icon-square{width:56px;height:56px;font-size:26px;border-radius:12px;}
+  .stack .stack-text{font-size:14px;color:var(--text);}
+  .stack .stack-text .num{color:var(--accent);}
+</style>
+</head>
+<body>
+  <h1>C0n5157ency — variantes de logo</h1>
+  <div class="grid">
+
+    <div class="item">
+      <div class="icon-circle mono">7</div>
+      <div class="label">Icono · círculo</div>
+    </div>
+
+    <div class="item">
+      <div class="icon-square mono">7</div>
+      <div class="label">Icono · cuadrado</div>
+    </div>
+
+    <div class="item">
+      <div class="icon-bare mono">7</div>
+      <div class="label">Icono · suelto</div>
+    </div>
+
+    <div class="item">
+      <div class="monogram mono">C<span class="num">0</span></div>
+      <div class="label">Monograma</div>
+    </div>
+
+    <div class="item">
+      <div class="wordmark mono">C<span class="num">0</span>n<span class="num">5157</span>ency</div>
+      <div class="label">Wordmark completo</div>
+    </div>
+
+    <div class="item">
+      <div class="wordmark-sm mono">C<span class="num">0</span>n<span class="num">5157</span>ency</div>
+      <div class="label">Wordmark · header</div>
+    </div>
+
+    <div class="item stack">
+      <div class="icon-square mono">7</div>
+      <div class="stack-text mono">C<span class="num">0</span>n<span class="num">5157</span>ency</div>
+      <div class="label">Lockup vertical</div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -32,6 +32,10 @@ export interface WorkoutSession {
   completedAt: string | null;
   /** Duración total del entrenamiento en segundos, calculada al terminarlo. */
   durationSec: number | null;
+  /** Marca desde la que corre el cronómetro; null si el entrenamiento está en pausa. */
+  runningSince: string | null;
+  /** Segundos acumulados hasta la última pausa (o hasta ahora, si no está corriendo). */
+  pausedElapsedSec: number;
   /** Se actualiza en cada cambio; se usa para resolver conflictos al sincronizar. */
   updatedAt: string;
   exercises: LoggedExercise[];

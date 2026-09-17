@@ -5,8 +5,9 @@ import { isSetFilled, isSetLogged } from "../types/logs";
 import { RIRSelector } from "./RIRSelector";
 import { VideoEmbed } from "./VideoEmbed";
 import { RestTimer } from "./RestTimer";
+import { ProgressChart } from "./ProgressChart";
 import { useApp } from "../context/AppContext";
-import { findLastLoggedSet } from "../lib/history";
+import { findLastLoggedSet, getExerciseProgression } from "../lib/history";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { getWeightSuggestion } from "../lib/suggestions";
@@ -37,8 +38,9 @@ export function ExerciseCard({
   session,
   onUpdateSession,
 }: Props) {
-  const { logs, settings } = useApp();
+  const { logs, settings, exerciseInfoIndex } = useApp();
   const [showSubs, setShowSubs] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const [restSignal, setRestSignal] = useState(0);
 
   const literalSets = useMemo(() => getLiteralWorkingSets(group), [group]);
@@ -50,6 +52,13 @@ export function ExerciseCard({
   const allLogged = loggedExercise?.sets.every(isSetLogged) ?? false;
   const incrementKg = getIncrementKg(settings.exerciseIncrements, displayName);
   const pr = useMemo(() => getPersonalRecord(logs, displayName), [logs, displayName]);
+  const progression = useMemo(
+    () => getExerciseProgression(logs, displayName, 0),
+    [logs, displayName]
+  );
+  const displayInfo = isSubstituted
+    ? exerciseInfoIndex[displayName] ?? { videoUrl: null, notes: null }
+    : { videoUrl: group.videoUrl, notes: group.notes };
 
   function updateSet(setIndex: number, patch: Partial<LoggedSet>) {
     onUpdateSession((prev) => {
@@ -149,10 +158,27 @@ export function ExerciseCard({
         )}
       </div>
 
-      {!isSubstituted && <VideoEmbed url={group.videoUrl} />}
+      {progression.length > 0 && (
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={() => setShowChart((s) => !s)}
+            className="text-sm font-medium text-accent-600 dark:text-accent-400"
+          >
+            {showChart ? "Ocultar progresión" : "Ver progresión"}
+          </button>
+          {showChart && (
+            <div className="mt-2 rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+              <ProgressChart points={progression} />
+            </div>
+          )}
+        </div>
+      )}
 
-      {!isSubstituted && group.notes && (
-        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{group.notes}</p>
+      <VideoEmbed url={displayInfo.videoUrl} />
+
+      {displayInfo.notes && (
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{displayInfo.notes}</p>
       )}
 
       {warmup && (

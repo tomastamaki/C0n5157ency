@@ -1,4 +1,4 @@
-import type { ExerciseGroup } from "../types/program";
+import type { ExerciseGroup, Program } from "../types/program";
 
 export interface LiteralWorkingSet {
   reps: string;
@@ -25,4 +25,30 @@ export function getLiteralWorkingSets(group: ExerciseGroup): LiteralWorkingSet[]
     }
   }
   return literal;
+}
+
+export interface ExerciseInfo {
+  videoUrl: string | null;
+  notes: string | null;
+}
+
+/**
+ * Video/notas de técnica por nombre de ejercicio, buscando en todo el programa.
+ * Sirve para mostrar el video correcto de un sustituto: si ese nombre aparece
+ * en algún otro día como ejercicio prescripto, reusamos su video y notas.
+ */
+export function buildExerciseInfoIndex(program: Program): Record<string, ExerciseInfo> {
+  const index: Record<string, ExerciseInfo> = {};
+  for (const block of program.blocks) {
+    for (const week of block.weeks) {
+      for (const day of week.days) {
+        for (const group of day.exerciseGroups) {
+          if (!index[group.exercise] && (group.videoUrl || group.notes)) {
+            index[group.exercise] = { videoUrl: group.videoUrl, notes: group.notes };
+          }
+        }
+      }
+    }
+  }
+  return index;
 }

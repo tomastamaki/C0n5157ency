@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { getAllExerciseNames, getExerciseProgression } from "../lib/history";
+import { getCurrentFlatDay } from "../lib/schedule";
+import { getLiteralWorkingSets } from "../lib/program";
 import { isSetLogged } from "../types/logs";
 import { formatDate, formatDuration } from "../lib/time";
 import { ProgressChart } from "../components/ProgressChart";
@@ -220,8 +222,51 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
   );
 }
 
+function UpcomingTab() {
+  const { flatDays, logs, program } = useApp();
+  const currentDay = getCurrentFlatDay(flatDays, logs);
+  const currentWeekNumber = currentDay?.weekNumber ?? flatDays[flatDays.length - 1]?.weekNumber;
+  const nextWeekNumber = (currentWeekNumber ?? 0) + 1;
+  const nextWeek = program.blocks.flatMap((b) => b.weeks).find((w) => w.weekNumber === nextWeekNumber);
+
+  if (!nextWeek) {
+    return (
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        No hay más semanas programadas después de esta.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Semana {nextWeek.weekNumber} · {nextWeek.label}
+      </p>
+      {nextWeek.days.map((day) => (
+        <div
+          key={day.name}
+          className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <h3 className="mb-2 font-semibold text-slate-800 dark:text-slate-100">{day.name}</h3>
+          <ul className="space-y-1 text-sm text-slate-500 dark:text-slate-400">
+            {day.exerciseGroups.map((g, i) => {
+              const literal = getLiteralWorkingSets(g);
+              return (
+                <li key={i}>
+                  {g.exercise} — {literal.length} serie{literal.length !== 1 ? "s" : ""}
+                  {literal[0] ? ` · ${literal[0].reps} reps` : ""}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function HistoryScreen() {
-  const [tab, setTab] = useState<"overview" | "exercise" | "calendar">("overview");
+  const [tab, setTab] = useState<"overview" | "exercise" | "calendar" | "upcoming">("overview");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   if (selectedSessionId) {
@@ -236,6 +281,7 @@ export function HistoryScreen() {
             { id: "overview", label: "General" },
             { id: "exercise", label: "Por ejercicio" },
             { id: "calendar", label: "Calendario" },
+            { id: "upcoming", label: "Próxima semana" },
           ] as const
         ).map((t) => (
           <button
@@ -256,6 +302,7 @@ export function HistoryScreen() {
       {tab === "overview" && <OverviewTab onSelectSession={setSelectedSessionId} />}
       {tab === "exercise" && <ExerciseTab />}
       {tab === "calendar" && <CalendarTab onSelectSession={setSelectedSessionId} />}
+      {tab === "upcoming" && <UpcomingTab />}
     </div>
   );
 }

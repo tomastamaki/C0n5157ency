@@ -57,6 +57,29 @@ export function getExerciseProgression(
     });
 }
 
+/**
+ * Si la última vez que apareció esta prescripción (mismo ejercicio original)
+ * el usuario la sustituyó (o la hizo tal cual), devuelve el nombre elegido
+ * esa vez, para preseleccionarlo la próxima. Si nunca se tocó, devuelve null.
+ */
+export function getPreferredExercise(
+  logs: LogsData,
+  originalExerciseName: string,
+  beforeProgramIndex: number
+): string | null {
+  const past = logs.sessions
+    .filter((s) => s.programIndex < beforeProgramIndex && s.status !== "in_progress")
+    .sort((a, b) => b.programIndex - a.programIndex);
+
+  for (const session of past) {
+    const ex = session.exercises.find(
+      (e) => (e.originalExercise ?? e.exercise) === originalExerciseName
+    );
+    if (ex) return ex.exercise;
+  }
+  return null;
+}
+
 export function getAllExerciseNames(program: Program): string[] {
   const names = new Set<string>();
   program.blocks.forEach((b) =>

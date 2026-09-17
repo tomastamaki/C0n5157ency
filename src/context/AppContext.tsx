@@ -26,8 +26,10 @@ import {
 import { fetchLogsFile, GitHubApiError, putLogsFile, type GitHubTarget } from "../lib/github";
 import { mergeLogs } from "../lib/sync";
 import { flattenProgram } from "../lib/schedule";
+import { buildExerciseInfoIndex, type ExerciseInfo } from "../lib/program";
 
 const program = programJson as unknown as Program;
+const exerciseInfoIndex = buildExerciseInfoIndex(program);
 
 export type SyncStatus = "not-configured" | "idle" | "pending" | "syncing" | "saved" | "error";
 
@@ -36,6 +38,7 @@ const RETRY_DELAYS_MS = [5000, 15000, 60000];
 
 interface AppContextValue {
   program: Program;
+  exerciseInfoIndex: Record<string, ExerciseInfo>;
   flatDays: ReturnType<typeof flattenProgram>;
   settings: AppSettings;
   updateSettings: (patch: Partial<AppSettings>) => void;
@@ -281,6 +284,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: AppContextValue = {
     program,
+    exerciseInfoIndex,
     flatDays,
     settings,
     updateSettings,
