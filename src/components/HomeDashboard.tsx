@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
+import { useWorkoutActions } from "../lib/useWorkoutActions";
 import type { WeekDayStatus } from "../lib/schedule";
-import type { FlatProgramDay } from "../types/program";
+import type { WorkoutSession } from "../types/logs";
 import {
   countPRsInSession,
   getAttentionFlags,
@@ -15,16 +16,19 @@ import {
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
 import { IconFlame, IconTrophy } from "./icons";
+import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 
 interface Props {
   weekDays: WeekDayStatus[];
-  onStart: (flatDay: FlatProgramDay) => void;
-  onSkip: (flatDay: FlatProgramDay) => void;
+  activeDraft: WorkoutSession | null;
   onNavigateHistory: () => void;
+  /** Se llama después de empezar un entrenamiento nuevo o al tocar el banner de "retomar". */
+  onEnterWorkout: () => void;
 }
 
-export function HomeDashboard({ weekDays, onStart, onSkip, onNavigateHistory }: Props) {
+export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnterWorkout }: Props) {
   const { logs, program } = useApp();
+  const { startWorkout, skipDay } = useWorkoutActions();
 
   const pendingDays = weekDays.filter((d) => !d.session);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -47,9 +51,7 @@ export function HomeDashboard({ weekDays, onStart, onSkip, onNavigateHistory }: 
   const currentWeekNumber = weekDays[0]?.flatDay.weekNumber ?? 1;
   const weeksUntilDeload = getWeeksUntilDeload(program, currentWeekNumber);
 
-  if (!selected) return null;
-
-  const chips = getMuscleChips(selected.flatDay.day.name);
+  const chips = selected ? getMuscleChips(selected.flatDay.day.name) : [];
 
   return (
     <div className="space-y-4 pb-24">
@@ -79,66 +81,81 @@ export function HomeDashboard({ weekDays, onStart, onSkip, onNavigateHistory }: 
         </div>
       </div>
 
-      <div className="rounded-card border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-5 shadow-elevated">
-        <p className="text-sm text-muted">
-          {selected.flatDay.blockName} · Semana {selected.flatDay.weekNumber} de {selected.flatDay.totalWeeks}
-        </p>
-        <h2 className="mt-1 text-2xl font-bold text-ink">{selected.flatDay.day.name}</h2>
-        {chips.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {chips.map((c) => (
-              <span key={c} className="rounded-pill bg-surface2 px-2 py-0.5 text-xs text-muted">
-                {c}
-              </span>
-            ))}
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={() => onStart(selected.flatDay)}
-          className="mt-4 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white shadow-elevated-sm active:scale-[0.98]"
-        >
-          Empezar entrenamiento
-        </button>
-        <button
-          type="button"
-          onClick={() => onSkip(selected.flatDay)}
-          className="mt-2 w-full text-sm text-faint underline"
-        >
-          Saltear este día
-        </button>
+      {activeDraft && <ActiveWorkoutBanner draft={activeDraft} onResume={onEnterWorkout} />}
 
-        {weekDays.length > 1 && (
-          <div className="mt-4 border-t border-border pt-3">
-            <p className="mb-2 text-xs text-muted">Días de esta semana · elegí cuál hacer</p>
-            <div className="flex flex-wrap gap-2">
-              {weekDays.map((d, i) => {
-                const pendingIdx = pendingDays.indexOf(d);
-                const isDone = Boolean(d.session);
-                const isSelected = !isDone && selected.flatDay.index === d.flatDay.index;
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={isDone}
-                    onClick={() => pendingIdx >= 0 && setSelectedIdx(pendingIdx)}
-                    className={`rounded-pill px-3 py-1.5 text-sm font-medium ${
-                      isDone
-                        ? "bg-success/10 text-success"
-                        : isSelected
-                          ? "bg-primary text-white"
-                          : "bg-surface2 text-muted"
-                    }`}
-                  >
-                    {d.flatDay.day.name}
-                    {isDone && " ✓"}
-                  </button>
-                );
-              })}
+      {!activeDraft && selected && (
+        <div className="rounded-card border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-5 shadow-elevated">
+          <p className="text-sm text-muted">
+            {selected.flatDay.blockName} · Semana {selected.flatDay.weekNumber} de {selected.flatDay.totalWeeks}
+          </p>
+          <h2 className="mt-1 text-2xl font-bold text-ink">{selected.flatDay.day.name}</h2>
+          {chips.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {chips.map((c) => (
+                <span key={c} className="rounded-pill bg-surface2 px-2 py-0.5 text-xs text-muted">
+                  {c}
+                </span>
+              ))}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              startWorkout(selected.flatDay);
+              onEnterWorkout();
+            }}
+            className="mt-4 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white shadow-elevated-sm active:scale-[0.98]"
+          >
+            Empezar entrenamiento
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `¿Marcar "${selected.flatDay.day.name}" (semana ${selected.flatDay.weekNumber}) como salteado?`
+                )
+              ) {
+                skipDay(selected.flatDay);
+              }
+            }}
+            className="mt-2 w-full text-sm text-faint underline"
+          >
+            Saltear este día
+          </button>
+
+          {weekDays.length > 1 && (
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="mb-2 text-xs text-muted">Días de esta semana · elegí cuál hacer</p>
+              <div className="flex flex-wrap gap-2">
+                {weekDays.map((d, i) => {
+                  const pendingIdx = pendingDays.indexOf(d);
+                  const isDone = Boolean(d.session);
+                  const isSelected = !isDone && selected.flatDay.index === d.flatDay.index;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={isDone}
+                      onClick={() => pendingIdx >= 0 && setSelectedIdx(pendingIdx)}
+                      className={`rounded-pill px-3 py-1.5 text-sm font-medium ${
+                        isDone
+                          ? "bg-success/10 text-success"
+                          : isSelected
+                            ? "bg-primary text-white"
+                            : "bg-surface2 text-muted"
+                      }`}
+                    >
+                      {d.flatDay.day.name}
+                      {isDone && " ✓"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {attention.length > 0 && (
         <div className="space-y-2">

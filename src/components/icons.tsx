@@ -95,6 +95,14 @@ export function IconFlame(props: IconProps) {
   );
 }
 
+export function IconPlay(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 4.5v15l13-7.5-13-7.5z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconTrophy(props: IconProps) {
   return (
     <svg {...base(props)}>

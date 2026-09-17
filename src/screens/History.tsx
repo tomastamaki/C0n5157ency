@@ -7,7 +7,9 @@ import { isSetLogged } from "../types/logs";
 import { formatDate, formatDuration } from "../lib/time";
 import { ProgressChart } from "../components/ProgressChart";
 import { TrainingCalendar } from "../components/TrainingCalendar";
+import { ActiveWorkoutBanner } from "../components/ActiveWorkoutBanner";
 import { IconChevronLeft } from "../components/icons";
+import type { WorkoutSession } from "../types/logs";
 
 function StatTile({ value, label, tone }: { value: number; label: string; tone?: "success" | "warning" }) {
   const toneClass = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-ink";
@@ -260,7 +262,12 @@ function UpcomingTab() {
   );
 }
 
-export function HistoryScreen() {
+interface HistoryScreenProps {
+  activeDraft: WorkoutSession | null;
+  onResumeWorkout: () => void;
+}
+
+export function HistoryScreen({ activeDraft, onResumeWorkout }: HistoryScreenProps) {
   const [tab, setTab] = useState<"overview" | "exercise" | "calendar" | "upcoming">("overview");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
@@ -270,6 +277,8 @@ export function HistoryScreen() {
 
   return (
     <div className="space-y-4 pb-24">
+      {activeDraft && <ActiveWorkoutBanner draft={activeDraft} onResume={onResumeWorkout} />}
+
       <div className="no-scrollbar flex gap-2 overflow-x-auto">
         {(
           [
