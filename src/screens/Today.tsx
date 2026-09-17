@@ -9,6 +9,7 @@ import { ExerciseCard } from "../components/ExerciseCard";
 import { SyncIndicator } from "../components/SyncIndicator";
 import { SessionTimer } from "../components/SessionTimer";
 import { ProgramProgress } from "../components/ProgramProgress";
+import { IconPause } from "../components/icons";
 import { isSetLogged, type WorkoutSession } from "../types/logs";
 import type { FlatProgramDay } from "../types/program";
 
@@ -22,56 +23,44 @@ function StartCard({
   onSkip: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 text-center dark:border-slate-800 dark:bg-slate-900">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+    <div className="rounded-card border border-border bg-surface p-6 text-center shadow-elevated-sm">
+      <p className="text-sm text-faint">
         {flatDay.blockName} · Semana {flatDay.weekNumber} de {flatDay.totalWeeks} · {flatDay.weekLabel}
       </p>
-      <h2 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">{flatDay.day.name}</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        {flatDay.day.exerciseGroups.length} ejercicios
-      </p>
+      <h2 className="mt-1 text-2xl font-bold text-ink">{flatDay.day.name}</h2>
+      <p className="mt-1 text-sm text-faint">{flatDay.day.exerciseGroups.length} ejercicios</p>
       <button
         type="button"
         onClick={onStart}
-        className="mt-6 w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
+        className="mt-6 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white active:scale-[0.98]"
       >
         Empezar entrenamiento de hoy
       </button>
-      <button
-        type="button"
-        onClick={onSkip}
-        className="mt-3 text-sm text-slate-400 underline"
-      >
+      <button type="button" onClick={onSkip} className="mt-3 text-sm text-faint underline">
         Saltear este día
       </button>
     </div>
   );
 }
 
-function PausedCard({
-  draft,
-  onResume,
-}: {
-  draft: WorkoutSession;
-  onResume: () => void;
-}) {
+function PausedCard({ draft, onResume }: { draft: WorkoutSession; onResume: () => void }) {
   const totalSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
   const doneSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.filter(isSetLogged).length, 0);
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900 dark:bg-amber-900/20">
-      <p className="text-sm text-amber-700 dark:text-amber-300">Entrenamiento en pausa</p>
-      <h2 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">{draft.dayName}</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+    <div className="rounded-card border border-warning/35 bg-warning/10 p-6 text-center shadow-elevated-sm">
+      <p className="text-sm font-medium text-warning">Entrenamiento en pausa</p>
+      <h2 className="mt-1 text-2xl font-bold text-ink">{draft.dayName}</h2>
+      <p className="mt-1 font-mono text-sm text-faint">
         Semana {draft.weekNumber} · {doneSets} de {totalSets} series confirmadas
       </p>
-      <p className="mt-2 text-lg font-semibold text-slate-700 dark:text-slate-200">
+      <p className="mt-2 text-lg font-semibold text-ink">
         <SessionTimer pausedElapsedSec={draft.pausedElapsedSec} runningSince={draft.runningSince} />
       </p>
       <button
         type="button"
         onClick={onResume}
-        className="mt-6 w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
+        className="mt-6 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white active:scale-[0.98]"
       >
         Continuar entrenamiento
       </button>
@@ -81,9 +70,9 @@ function PausedCard({
 
 function ProgramCompleteView() {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 text-center dark:border-slate-800 dark:bg-slate-900">
-      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">¡Programa completo!</h2>
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+    <div className="rounded-card border border-border bg-surface p-6 text-center shadow-elevated-sm">
+      <h2 className="text-xl font-bold text-ink">¡Programa completo!</h2>
+      <p className="mt-2 text-sm text-faint">
         Completaste las 12 semanas de Min-Max Phase 2. Revisá tu progreso en Historial.
       </p>
     </div>
@@ -93,30 +82,23 @@ function ProgramCompleteView() {
 function SummaryView({ session, onContinue }: { session: WorkoutSession; onContinue: () => void }) {
   return (
     <div className="space-y-4 pb-24">
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900 dark:bg-emerald-900/20">
-        <h2 className="text-xl font-bold text-emerald-800 dark:text-emerald-200">
-          ¡Entrenamiento completado!
-        </h2>
-        <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+      <div className="rounded-card border border-success/35 bg-success/10 p-6 text-center shadow-elevated-sm">
+        <h2 className="text-xl font-bold text-success">¡Entrenamiento completado!</h2>
+        <p className="mt-1 font-mono text-sm text-success">
           {session.dayName} · Semana {session.weekNumber}
           {session.durationSec !== null && ` · ${formatDuration(session.durationSec)}`}
         </p>
       </div>
       <div className="space-y-2">
         {session.exercises.map((ex, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900"
-          >
-            <p className="font-medium text-slate-800 dark:text-slate-100">
+          <div key={i} className="rounded-block border border-border bg-surface p-3 text-sm">
+            <p className="font-medium text-ink">
               {ex.exercise}
               {ex.originalExercise && (
-                <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
-                  sustituyó a {ex.originalExercise}
-                </span>
+                <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
               )}
             </p>
-            <p className="text-slate-500 dark:text-slate-400">
+            <p className="font-mono text-faint">
               {ex.sets
                 .filter(isSetLogged)
                 .map((s) => `${s.weightKg}kg×${s.reps} (RIR ${s.rir})`)
@@ -128,7 +110,7 @@ function SummaryView({ session, onContinue }: { session: WorkoutSession; onConti
       <button
         type="button"
         onClick={onContinue}
-        className="w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
+        className="w-full rounded-pill bg-primary py-3 text-base font-semibold text-white active:scale-[0.98]"
       >
         Continuar
       </button>
@@ -271,26 +253,28 @@ export function TodayScreen() {
     <div className="space-y-4 pb-24">
       <ProgramProgress />
 
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {draft.blockName} · Semana {draft.weekNumber} de {flatDay.totalWeeks} · {draft.weekLabel}
-          </p>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">{draft.dayName}</h2>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            <SessionTimer pausedElapsedSec={draft.pausedElapsedSec} runningSince={draft.runningSince} />
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <SyncIndicator />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
           <button
             type="button"
             onClick={pauseWorkout}
-            className="text-xs font-medium text-slate-400 underline"
+            aria-label="Pausar y volver"
+            title="Pausar y volver"
+            className="mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill border border-primary/35 bg-primary/8 text-primary"
           >
-            Pausar y volver
+            <IconPause className="h-4 w-4" />
           </button>
+          <div>
+            <p className="text-sm text-faint">
+              {draft.blockName} · Semana {draft.weekNumber} de {flatDay.totalWeeks} · {draft.weekLabel}
+            </p>
+            <h2 className="text-xl font-bold text-ink">{draft.dayName}</h2>
+            <p className="mt-0.5 text-sm text-faint">
+              <SessionTimer pausedElapsedSec={draft.pausedElapsedSec} runningSince={draft.runningSince} />
+            </p>
+          </div>
         </div>
+        <SyncIndicator />
       </div>
 
       <div className="space-y-3">
@@ -326,7 +310,7 @@ export function TodayScreen() {
             upsertSession(finished);
             setCompletedSession(finished);
           }}
-          className="w-full rounded-xl bg-accent-600 py-3 text-base font-semibold text-white active:scale-[0.98]"
+          className="w-full rounded-pill bg-primary py-3 text-base font-semibold text-white active:scale-[0.98]"
         >
           Terminar entrenamiento
         </button>

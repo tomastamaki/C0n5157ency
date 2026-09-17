@@ -17,10 +17,8 @@ export function RIRSelector({ value, onChange }: Props) {
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
-            className={`h-12 rounded-xl text-base font-semibold transition-colors active:scale-95 ${
-              selected
-                ? "bg-accent-600 text-white"
-                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            className={`h-12 rounded-pill font-mono text-base font-semibold transition-colors active:scale-95 ${
+              selected ? "bg-primary text-white" : "bg-surface2 text-faint"
             }`}
           >
             {opt}

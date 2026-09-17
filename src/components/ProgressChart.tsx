@@ -6,17 +6,17 @@ const PADDING = 24;
 
 export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
   if (points.length === 0) {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Todavía no hay registros de este ejercicio.
-      </p>
-    );
+    return <p className="text-sm text-faint">Todavía no hay registros de este ejercicio.</p>;
   }
 
   if (points.length === 1) {
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Un solo registro por ahora: {points[0].weightKg}kg × {points[0].reps} (RIR {points[0].rir}).
+      <p className="text-sm text-faint">
+        Un solo registro por ahora:{" "}
+        <span className="font-mono">
+          {points[0].weightKg}kg × {points[0].reps} (RIR {points[0].rir})
+        </span>
+        .
       </p>
     );
   }
@@ -41,7 +41,7 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
     <div>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="w-full text-accent-600 dark:text-accent-400"
+        className="w-full text-primary"
         role="img"
         aria-label="Progresión de peso a lo largo del tiempo"
       >
@@ -54,7 +54,7 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
           </circle>
         ))}
       </svg>
-      <div className="flex justify-between text-xs text-slate-400">
+      <div className="flex justify-between font-mono text-xs text-faint">
         <span>{min}kg</span>
         <span>{max}kg</span>
       </div>

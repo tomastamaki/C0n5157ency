@@ -5,18 +5,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        accent: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          300: "#93c5fd",
-          400: "#60a5fa",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          800: "#1e40af",
-          900: "#1e3a8a",
-        },
+        bg: "rgb(var(--bg) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        surface2: "rgb(var(--surface-2) / <alpha-value>)",
+        border: "rgb(var(--border) / <alpha-value>)",
+        ink: "rgb(var(--text) / <alpha-value>)",
+        faint: "rgb(var(--text-faint) / <alpha-value>)",
+        accent: "rgb(var(--accent) / <alpha-value>)",
+        primary: "rgb(var(--primary) / <alpha-value>)",
+        success: "rgb(var(--success) / <alpha-value>)",
+        warning: "rgb(var(--warning) / <alpha-value>)",
+      },
+      fontFamily: {
+        mono: ['"JetBrains Mono"', "ui-monospace", "Consolas", "monospace"],
+      },
+      borderRadius: {
+        card: "20px",
+        block: "14px",
+        pill: "10px",
+      },
+      boxShadow: {
+        elevated: "0 8px 24px rgb(0 0 0 / 0.22)",
+        "elevated-sm": "0 6px 16px rgb(0 0 0 / 0.18)",
       },
     },
   },

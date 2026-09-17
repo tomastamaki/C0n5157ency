@@ -25,7 +25,7 @@ export function RestTimer({ startSignal, targetLabel }: Props) {
   const s = elapsedSec % 60;
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700 dark:bg-accent-900/30 dark:text-accent-300">
+    <div className="flex items-center gap-2 rounded-block bg-primary/10 px-3 py-2 text-sm text-primary">
       <span className="font-mono text-base font-semibold tabular-nums">
         {m}:{s.toString().padStart(2, "0")}
       </span>

@@ -1,9 +1,11 @@
+import { IconHistory, IconHome, IconSettings } from "./icons";
+
 export type TabId = "today" | "history" | "settings";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "today", label: "Inicio" },
-  { id: "history", label: "Historial" },
-  { id: "settings", label: "Ajustes" },
+const TABS: { id: TabId; label: string; Icon: typeof IconHome }[] = [
+  { id: "today", label: "Inicio", Icon: IconHome },
+  { id: "history", label: "Historial", Icon: IconHistory },
+  { id: "settings", label: "Ajustes", Icon: IconSettings },
 ];
 
 interface Props {
@@ -14,25 +16,23 @@ interface Props {
 export function TabBar({ active, onChange }: Props) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 backdrop-blur
-                 dark:border-slate-800 dark:bg-slate-950/95
-                 md:static md:border-none md:bg-transparent md:backdrop-blur-0 md:dark:bg-transparent"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface/95 backdrop-blur
+                 md:static md:border-none md:bg-transparent md:backdrop-blur-0"
     >
       <div className="mx-auto flex max-w-3xl justify-around md:justify-start md:gap-1 md:px-0">
-        {TABS.map((tab) => {
-          const isActive = tab.id === active;
+        {TABS.map(({ id, label, Icon }) => {
+          const isActive = id === active;
           return (
             <button
-              key={tab.id}
+              key={id}
               type="button"
-              onClick={() => onChange(tab.id)}
-              className={`flex-1 py-3 text-sm font-medium transition-colors md:flex-none md:rounded-lg md:px-4 md:py-2 ${
-                isActive
-                  ? "text-accent-600 dark:text-accent-400 md:bg-accent-50 md:dark:bg-accent-900/30"
-                  : "text-slate-500 dark:text-slate-400"
+              onClick={() => onChange(id)}
+              className={`flex flex-1 flex-col items-center gap-1 py-3 transition-colors md:flex-none md:flex-row md:gap-2 md:rounded-pill md:px-4 md:py-2 ${
+                isActive ? "text-primary md:bg-primary/10" : "text-faint"
               }`}
             >
-              {tab.label}
+              <Icon className="h-[22px] w-[22px]" />
+              <span className="text-[11px] font-medium md:text-sm">{label}</span>
             </button>
           );
         })}

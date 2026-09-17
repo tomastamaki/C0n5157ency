@@ -29,7 +29,7 @@ export function SessionTimer({ pausedElapsedSec, runningSince }: Props) {
   return (
     <span className="font-mono tabular-nums">
       {formatDuration(elapsedSec)}
-      {!runningSince && <span className="ml-1 text-xs text-amber-500">(en pausa)</span>}
+      {!runningSince && <span className="ml-1 text-xs text-warning">(en pausa)</span>}
     </span>
   );
 }

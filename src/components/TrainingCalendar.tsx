@@ -40,30 +40,30 @@ export function TrainingCalendar({ sessions, onSelectSession }: Props) {
   for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
           onClick={() => setMonthCursor(new Date(year, month - 1, 1))}
-          className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          className="rounded-pill px-2 py-1 text-faint hover:bg-surface2"
           aria-label="Mes anterior"
         >
           ‹
         </button>
-        <p className="font-medium capitalize text-slate-700 dark:text-slate-200">
+        <p className="font-medium capitalize text-ink">
           {monthCursor.toLocaleDateString("es-AR", { month: "long", year: "numeric" })}
         </p>
         <button
           type="button"
           onClick={() => setMonthCursor(new Date(year, month + 1, 1))}
-          className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          className="rounded-pill px-2 py-1 text-faint hover:bg-surface2"
           aria-label="Mes siguiente"
         >
           ›
         </button>
       </div>
 
-      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-xs text-faint">
         {WEEKDAY_LABELS.map((d) => (
           <div key={d}>{d}</div>
         ))}
@@ -81,14 +81,14 @@ export function TrainingCalendar({ sessions, onSelectSession }: Props) {
               disabled={!session}
               onClick={() => session && onSelectSession(session.id)}
               title={session ? `${session.dayName} · ${session.status === "completed" ? "completado" : "salteado"}` : undefined}
-              className={`flex aspect-square flex-col items-center justify-center rounded-lg text-xs font-medium leading-tight ${
+              className={`flex aspect-square flex-col items-center justify-center rounded-pill font-mono text-xs font-medium leading-tight ${
                 session
                   ? session.status === "completed"
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                    ? "bg-success/15 text-success"
+                    : "bg-warning/15 text-warning"
                   : isToday
-                    ? "border border-accent-300 text-slate-500 dark:border-accent-700 dark:text-slate-400"
-                    : "text-slate-400 dark:text-slate-600"
+                    ? "border border-primary/40 text-faint"
+                    : "text-faint/60"
               }`}
             >
               <span>{date.getDate()}</span>
@@ -98,12 +98,12 @@ export function TrainingCalendar({ sessions, onSelectSession }: Props) {
         })}
       </div>
 
-      <div className="mt-3 flex gap-4 text-xs text-slate-500 dark:text-slate-400">
+      <div className="mt-3 flex gap-4 text-xs text-faint">
         <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" /> completado
+          <span className="h-2.5 w-2.5 rounded-full bg-success" /> completado
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> salteado
+          <span className="h-2.5 w-2.5 rounded-full bg-warning" /> salteado
         </span>
       </div>
     </div>

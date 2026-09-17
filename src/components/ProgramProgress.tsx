@@ -20,17 +20,21 @@ export function ProgramProgress() {
   const pct = Math.min(100, Math.round((finishedDays / flatDays.length) * 100));
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-slate-700 dark:text-slate-200">
-          Semana {currentWeekNumber} de {totalWeeks}
+        <span className="font-medium text-ink">
+          Semana <span className="font-mono">{currentWeekNumber}</span> de{" "}
+          <span className="font-mono">{totalWeeks}</span>
         </span>
-        <span className="text-slate-500 dark:text-slate-400">
+        <span className="font-mono text-faint">
           {completedThisWeek} de {daysPerWeek} esta semana
         </span>
       </div>
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-        <div className="h-full rounded-full bg-accent-600 transition-all" style={{ width: `${pct}%` }} />
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface2">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-primary to-sky-300 transition-all"
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );

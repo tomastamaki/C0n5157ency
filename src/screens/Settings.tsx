@@ -40,75 +40,73 @@ export function SettingsScreen() {
 
   return (
     <div className="space-y-6 pb-24">
-      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-3 font-semibold text-slate-800 dark:text-slate-100">Apariencia</h2>
+      <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+        <h2 className="mb-3 font-semibold text-ink">Apariencia</h2>
         <ThemeToggle />
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-3 font-semibold text-slate-800 dark:text-slate-100">Programa</h2>
+      <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+        <h2 className="mb-3 font-semibold text-ink">Programa</h2>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Fecha de inicio</span>
+          <span className="mb-1 block text-sm text-faint">Fecha de inicio</span>
           <input
             type="date"
             value={form.startDate}
             onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-ink"
           />
         </label>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-faint">
           Es solo informativa: el próximo día de entrenamiento siempre se calcula por los
           entrenamientos que marcaste como completados o salteados, nunca por la fecha, para
           que nunca se desincronice.
         </p>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-3 font-semibold text-slate-800 dark:text-slate-100">Sincronización con GitHub</h2>
+      <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+        <h2 className="mb-3 font-semibold text-ink">Sincronización con GitHub</h2>
         <div className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-500 dark:text-slate-400">
-              Personal Access Token
-            </span>
+            <span className="mb-1 block text-sm text-faint">Personal Access Token</span>
             <input
               type="password"
               autoComplete="off"
               value={form.githubToken}
               onChange={(e) => setForm({ ...form, githubToken: e.target.value })}
               placeholder="github_pat_..."
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 font-mono text-sm text-ink"
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Usuario/Org</span>
+              <span className="mb-1 block text-sm text-faint">Usuario/Org</span>
               <input
                 type="text"
                 value={form.githubOwner}
                 onChange={(e) => setForm({ ...form, githubOwner: e.target.value })}
                 placeholder="tomastamaki"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-sm text-ink"
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Repositorio</span>
+              <span className="mb-1 block text-sm text-faint">Repositorio</span>
               <input
                 type="text"
                 value={form.githubRepo}
                 onChange={(e) => setForm({ ...form, githubRepo: e.target.value })}
                 placeholder="C0n5157ency"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-sm text-ink"
               />
             </label>
           </div>
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Branch</span>
+            <span className="mb-1 block text-sm text-faint">Branch</span>
             <input
               type="text"
               value={form.githubBranch}
               onChange={(e) => setForm({ ...form, githubBranch: e.target.value })}
               placeholder="main"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-sm text-ink"
             />
           </label>
         </div>
@@ -117,7 +115,7 @@ export function SettingsScreen() {
           <button
             type="button"
             onClick={save}
-            className="flex-1 rounded-lg bg-accent-600 py-2 text-sm font-semibold text-white"
+            className="flex-1 rounded-pill bg-primary py-2 text-sm font-semibold text-white"
           >
             Guardar
           </button>
@@ -125,37 +123,33 @@ export function SettingsScreen() {
             type="button"
             onClick={handleTest}
             disabled={testing}
-            className="flex-1 rounded-lg bg-slate-100 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
+            className="flex-1 rounded-pill bg-surface2 py-2 text-sm font-semibold text-ink disabled:opacity-50"
           >
             {testing ? "Probando…" : "Probar conexión"}
           </button>
         </div>
 
         {testResult && (
-          <p
-            className={`mt-2 text-sm ${
-              testResult.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-            }`}
-          >
+          <p className={`mt-2 text-sm ${testResult.ok ? "text-success" : "text-red-500"}`}>
             {testResult.message}
           </p>
         )}
 
-        <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+        <div className="mt-4 border-t border-border pt-3">
           <SyncIndicator />
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
         <button
           type="button"
           onClick={() => setShowIncrements((s) => !s)}
-          className="flex w-full items-center justify-between font-semibold text-slate-800 dark:text-slate-100"
+          className="flex w-full items-center justify-between font-semibold text-ink"
         >
           <span>Incrementos de peso por ejercicio</span>
-          <span className="text-sm font-normal text-slate-400">{showIncrements ? "ocultar" : "mostrar"}</span>
+          <span className="text-sm font-normal text-faint">{showIncrements ? "ocultar" : "mostrar"}</span>
         </button>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-faint">
           Se usan para sugerir el próximo peso según el RIR de la vez anterior. Si no
           ajustás uno, se infiere por el nombre del ejercicio (por defecto 2.5kg).
         </p>
@@ -165,7 +159,7 @@ export function SettingsScreen() {
             <div className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
               {exercises.map((name) => (
                 <div key={name} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-600 dark:text-slate-300">{name}</span>
+                  <span className="text-faint">{name}</span>
                   <input
                     type="number"
                     step="0.5"
@@ -174,7 +168,7 @@ export function SettingsScreen() {
                     onChange={(e) =>
                       setIncrementsForm({ ...incrementsForm, [name]: Number(e.target.value) })
                     }
-                    className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-right dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    className="w-20 rounded-pill border border-border bg-surface2 px-2 py-1 text-right font-mono text-ink"
                   />
                 </div>
               ))}
@@ -182,7 +176,7 @@ export function SettingsScreen() {
             <button
               type="button"
               onClick={saveIncrements}
-              className="mt-3 w-full rounded-lg bg-accent-600 py-2 text-sm font-semibold text-white"
+              className="mt-3 w-full rounded-pill bg-primary py-2 text-sm font-semibold text-white"
             >
               Guardar incrementos
             </button>
@@ -190,7 +184,7 @@ export function SettingsScreen() {
         )}
       </section>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-faint">
         El token se guarda solo en este dispositivo (localStorage) y nunca se sube al
         repositorio. Ver el README para cómo generar un token con permisos mínimos.
       </p>

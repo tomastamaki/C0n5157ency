@@ -6,6 +6,7 @@ import { RIRSelector } from "./RIRSelector";
 import { VideoEmbed } from "./VideoEmbed";
 import { RestTimer } from "./RestTimer";
 import { ProgressChart } from "./ProgressChart";
+import { IconTrophy } from "./icons";
 import { useApp } from "../context/AppContext";
 import { findLastLoggedSet, getExerciseProgression } from "../lib/history";
 import { getLiteralWorkingSets } from "../lib/program";
@@ -106,19 +107,17 @@ export function ExerciseCard({
       <button
         type="button"
         onClick={onActivate}
-        className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900"
+        className="flex w-full items-center justify-between rounded-card border border-border bg-surface px-4 py-3 text-left"
       >
         <div>
-          <p className="font-medium text-slate-800 dark:text-slate-100">
+          <p className="font-medium text-ink">
             {displayName}
-            {isSubstituted && (
-              <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">sustituto</span>
-            )}
+            {isSubstituted && <span className="ml-2 text-xs font-normal text-warning">sustituto</span>}
           </p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{summarizeSets(group)}</p>
+          <p className="text-sm text-faint">{summarizeSets(group)}</p>
         </div>
         {allLogged && (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          <span className="rounded-pill border border-success/35 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
             hecho
           </span>
         )}
@@ -127,48 +126,37 @@ export function ExerciseCard({
   }
 
   return (
-    <div className="rounded-xl border border-accent-200 bg-white p-4 shadow-sm dark:border-accent-800/60 dark:bg-slate-900">
+    <div className="rounded-card border border-primary bg-surface p-4 shadow-elevated-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">{displayName}</h3>
+          <h3 className="text-lg font-semibold text-ink">{displayName}</h3>
           {isSubstituted && (
-            <button
-              type="button"
-              onClick={() => substituteExercise(null)}
-              className="text-sm font-medium text-amber-600 underline dark:text-amber-400"
-            >
+            <button type="button" onClick={() => substituteExercise(null)} className="text-sm font-medium text-warning underline">
               sustituyendo a {group.exercise} · volver al original
             </button>
           )}
           {group.intensityTechnique && (
-            <p className="text-sm font-medium text-accent-600 dark:text-accent-400">
-              {group.intensityTechnique}
-            </p>
+            <p className="text-sm font-medium text-primary">{group.intensityTechnique}</p>
           )}
           {pr && (
-            <p className="text-xs text-slate-400">
-              PR: {pr.weightKg}kg × {pr.reps}
+            <p className="flex items-center gap-1 text-xs text-faint">
+              <IconTrophy className="h-3.5 w-3.5 text-accent" />
+              <span className="font-mono">
+                PR: {pr.weightKg}kg × {pr.reps}
+              </span>
             </p>
           )}
         </div>
-        {group.rest && (
-          <span className="whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
-            descanso {group.rest}
-          </span>
-        )}
+        {group.rest && <span className="whitespace-nowrap text-xs text-faint">descanso {group.rest}</span>}
       </div>
 
       {progression.length > 0 && (
         <div className="mb-3">
-          <button
-            type="button"
-            onClick={() => setShowChart((s) => !s)}
-            className="text-sm font-medium text-accent-600 dark:text-accent-400"
-          >
+          <button type="button" onClick={() => setShowChart((s) => !s)} className="text-sm font-medium text-primary">
             {showChart ? "Ocultar progresión" : "Ver progresión"}
           </button>
           {showChart && (
-            <div className="mt-2 rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+            <div className="mt-2 rounded-block border border-border p-3">
               <ProgressChart points={progression} />
             </div>
           )}
@@ -177,12 +165,10 @@ export function ExerciseCard({
 
       <VideoEmbed url={displayInfo.videoUrl} />
 
-      {displayInfo.notes && (
-        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{displayInfo.notes}</p>
-      )}
+      {displayInfo.notes && <p className="mt-3 text-sm text-faint">{displayInfo.notes}</p>}
 
       {warmup && (
-        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-3 text-sm text-faint">
           Calentamiento: {warmup.count} serie{warmup.count !== "1" ? "s" : ""} livianas
         </p>
       )}
@@ -205,27 +191,28 @@ export function ExerciseCard({
           return (
             <div
               key={i}
-              className={`rounded-lg border p-3 ${
-                done
-                  ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-900/10"
-                  : "border-slate-200 dark:border-slate-800"
-              }`}
+              className={`rounded-block border p-3 ${done ? "border-success bg-success/5" : "border-border"}`}
             >
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                <span className="text-sm font-medium text-ink">
                   Serie {i + 1} · objetivo {set.reps} reps
                   {set.targetRIR !== "-" ? ` · RIR ${set.targetRIR}` : ""}
                 </span>
-                {lastTime && (
-                  <span className="text-xs text-slate-400">
-                    última vez: {lastTime.weightKg}kg × {lastTime.reps}, RIR {lastTime.rir}
+                {done && (
+                  <span className="rounded-pill border border-success/35 bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+                    Confirmado
                   </span>
                 )}
               </div>
+              {lastTime && (
+                <p className="mb-2 font-mono text-xs text-faint">
+                  última vez: {lastTime.weightKg}kg × {lastTime.reps}, RIR {lastTime.rir}
+                </p>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Peso (kg)</span>
+                  <span className="mb-1 block text-xs text-faint">Peso (kg)</span>
                   <input
                     type="number"
                     inputMode="decimal"
@@ -234,11 +221,11 @@ export function ExerciseCard({
                     onChange={(e) =>
                       updateSet(i, { weightKg: e.target.value === "" ? null : Number(e.target.value) })
                     }
-                    className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-lg font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    className="h-12 w-full rounded-pill border border-border bg-surface2 px-3 font-mono text-lg font-semibold text-ink"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Reps</span>
+                  <span className="mb-1 block text-xs text-faint">Reps</span>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -247,7 +234,7 @@ export function ExerciseCard({
                     onChange={(e) =>
                       updateSet(i, { reps: e.target.value === "" ? null : Number(e.target.value) })
                     }
-                    className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-lg font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    className="h-12 w-full rounded-pill border border-border bg-surface2 px-3 font-mono text-lg font-semibold text-ink"
                   />
                 </label>
               </div>
@@ -256,20 +243,21 @@ export function ExerciseCard({
                 <button
                   type="button"
                   onClick={() => updateSet(i, { weightKg: suggestion.weightKg })}
-                  className="mt-2 text-xs font-medium text-accent-600 dark:text-accent-400"
+                  className="mt-2 font-mono text-xs font-medium text-primary"
                 >
                   Sugerido: {suggestion.weightKg}kg ({suggestion.reason})
                 </button>
               )}
 
               {isNewPR && (
-                <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-400">
-                  🏆 Nuevo récord personal
+                <p className="mt-2 flex items-center gap-1 text-xs font-semibold text-accent">
+                  <IconTrophy className="h-3.5 w-3.5" />
+                  Nuevo récord personal
                 </p>
               )}
 
               <div className="mt-3">
-                <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">RIR</span>
+                <span className="mb-1 block text-xs text-faint">RIR</span>
                 <RIRSelector value={logged.rir} onChange={(rir: RIRValue) => updateSet(i, { rir })} />
               </div>
 
@@ -281,10 +269,8 @@ export function ExerciseCard({
                   updateSet(i, { confirmed: nowConfirmed });
                   if (nowConfirmed) setRestSignal((n) => n + 1);
                 }}
-                className={`mt-3 w-full rounded-lg py-2 text-sm font-semibold transition-colors ${
-                  done
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-100 text-slate-400 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-500"
+                className={`mt-3 w-full rounded-pill py-2 text-sm font-semibold transition-colors ${
+                  done ? "bg-success text-white" : "bg-surface2 text-faint disabled:opacity-50"
                 }`}
               >
                 {done ? "✓ Serie confirmada" : "Confirmar serie ✓"}
@@ -299,40 +285,36 @@ export function ExerciseCard({
       </div>
 
       {(group.substitutions.length > 0 || isSubstituted) && (
-      <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
-        <button
-          type="button"
-          onClick={() => setShowSubs((s) => !s)}
-          className="text-sm font-medium text-slate-500 dark:text-slate-400"
-        >
-          {showSubs ? "Ocultar sustituciones" : "¿No tenés el equipo? Ver sustituciones"}
-        </button>
-        {showSubs && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {isSubstituted && (
-              <button
-                type="button"
-                onClick={() => substituteExercise(null)}
-                className="rounded-full border border-accent-300 px-3 py-1 text-sm text-accent-700 dark:border-accent-700 dark:text-accent-300"
-              >
-                ← {group.exercise} (original)
-              </button>
-            )}
-            {group.substitutions
-              .filter((sub) => sub !== displayName)
-              .map((sub) => (
+        <div className="mt-4 border-t border-border pt-3">
+          <button type="button" onClick={() => setShowSubs((s) => !s)} className="text-sm font-medium text-faint">
+            {showSubs ? "Ocultar sustituciones" : "¿No tenés el equipo? Ver sustituciones"}
+          </button>
+          {showSubs && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {isSubstituted && (
                 <button
-                  key={sub}
                   type="button"
-                  onClick={() => substituteExercise(sub)}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                  onClick={() => substituteExercise(null)}
+                  className="rounded-pill border border-primary/35 bg-primary/10 px-3 py-1 text-sm text-primary"
                 >
-                  {sub}
+                  ← {group.exercise} (original)
                 </button>
-              ))}
-          </div>
-        )}
-      </div>
+              )}
+              {group.substitutions
+                .filter((sub) => sub !== displayName)
+                .map((sub) => (
+                  <button
+                    key={sub}
+                    type="button"
+                    onClick={() => substituteExercise(sub)}
+                    className="rounded-pill border border-border bg-surface2 px-3 py-1 text-sm text-faint"
+                  >
+                    {sub}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

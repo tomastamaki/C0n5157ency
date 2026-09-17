@@ -7,6 +7,17 @@ import { isSetLogged } from "../types/logs";
 import { formatDate, formatDuration } from "../lib/time";
 import { ProgressChart } from "../components/ProgressChart";
 import { TrainingCalendar } from "../components/TrainingCalendar";
+import { IconChevronLeft } from "../components/icons";
+
+function StatTile({ value, label, tone }: { value: number; label: string; tone?: "success" | "warning" }) {
+  const toneClass = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-ink";
+  return (
+    <div className="rounded-card border border-border bg-surface p-3 text-center shadow-elevated-sm">
+      <p className={`font-mono text-2xl font-bold ${toneClass}`}>{value}</p>
+      <p className="text-xs text-faint">{label}</p>
+    </div>
+  );
+}
 
 function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => void }) {
   const { logs, program, flatDays } = useApp();
@@ -29,51 +40,42 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-slate-200 bg-white p-3 text-center dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-50">{finished}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">de {flatDays.length} días</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3 text-center dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completed.length}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">completados</p>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3 text-center dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{skipped.length}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">salteados</p>
-        </div>
+        <StatTile value={finished} label={`de ${flatDays.length} días`} />
+        <StatTile value={completed.length} label="completados" tone="success" />
+        <StatTile value={skipped.length} label="salteados" tone="warning" />
       </div>
 
       {nextDeload && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Próxima semana de deload: <span className="font-medium">Semana {nextDeload.weekNumber}</span>
+        <p className="text-sm text-faint">
+          Próxima semana de deload: <span className="font-mono font-medium text-ink">Semana {nextDeload.weekNumber}</span>
         </p>
       )}
 
       <div className="space-y-2">
         {sessionsSorted.length === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Todavía no registraste entrenamientos.</p>
+          <p className="text-sm text-faint">Todavía no registraste entrenamientos.</p>
         )}
         {sessionsSorted.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => onSelectSession(s.id)}
-            className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left dark:border-slate-800 dark:bg-slate-900"
+            className={`flex w-full items-center justify-between rounded-block border border-l-[3px] border-border bg-surface px-4 py-3 text-left ${
+              s.status === "completed" ? "border-l-success" : "border-l-warning"
+            }`}
           >
             <div>
-              <p className="font-medium text-slate-800 dark:text-slate-100">
+              <p className="font-medium text-ink">
                 {s.dayName} · Semana {s.weekNumber}
               </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="font-mono text-xs text-faint">
                 {formatDate(s.completedAt ?? s.startedAt)}
                 {s.durationSec !== null && ` · ${formatDuration(s.durationSec)}`}
               </p>
             </div>
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                s.status === "completed"
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+              className={`rounded-pill px-2 py-0.5 text-xs font-medium ${
+                s.status === "completed" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
               }`}
             >
               {s.status === "completed" ? "completado" : "salteado"}
@@ -104,7 +106,7 @@ function ExerciseTab() {
       <select
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-sm text-ink"
       >
         {exercises.map((name) => (
           <option key={name} value={name}>
@@ -113,10 +115,8 @@ function ExerciseTab() {
         ))}
       </select>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-          Progresión (serie principal)
-        </p>
+      <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+        <p className="mb-2 text-sm font-medium text-ink">Progresión (serie principal)</p>
         <ProgressChart points={progression} />
       </div>
 
@@ -124,14 +124,11 @@ function ExerciseTab() {
         {pastSessions.map((s) => {
           const ex = s.exercises.find((e) => e.exercise === selected)!;
           return (
-            <div
-              key={s.id}
-              className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900"
-            >
-              <p className="font-medium text-slate-700 dark:text-slate-200">
+            <div key={s.id} className="rounded-block border border-border bg-surface p-3 text-sm">
+              <p className="font-medium text-ink">
                 Semana {s.weekNumber} · {formatDate(s.completedAt ?? s.startedAt)}
               </p>
-              <p className="text-slate-500 dark:text-slate-400">
+              <p className="font-mono text-faint">
                 {ex.sets
                   .filter(isSetLogged)
                   .map((set) => `${set.weightKg}kg×${set.reps} (RIR ${set.rir})`)
@@ -141,9 +138,7 @@ function ExerciseTab() {
           );
         })}
         {pastSessions.length === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Todavía no hay sesiones registradas para este ejercicio.
-          </p>
+          <p className="text-sm text-faint">Todavía no hay sesiones registradas para este ejercicio.</p>
         )}
       </div>
     </div>
@@ -160,28 +155,35 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
   const { logs } = useApp();
   const session = logs.sessions.find((s) => s.id === sessionId);
 
+  const backButton = (
+    <button
+      type="button"
+      onClick={onBack}
+      aria-label="Volver"
+      className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink"
+    >
+      <IconChevronLeft className="h-[18px] w-[18px]" />
+    </button>
+  );
+
   if (!session) {
     return (
       <div className="space-y-4 pb-24">
-        <button type="button" onClick={onBack} className="text-sm font-medium text-accent-600 dark:text-accent-400">
-          ← Volver
-        </button>
-        <p className="text-sm text-slate-500 dark:text-slate-400">No se encontró esta sesión.</p>
+        {backButton}
+        <p className="text-sm text-faint">No se encontró esta sesión.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 pb-24">
-      <button type="button" onClick={onBack} className="text-sm font-medium text-accent-600 dark:text-accent-400">
-        ← Volver
-      </button>
+      {backButton}
 
       <div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+        <h2 className="text-xl font-bold text-ink">
           {session.dayName} · Semana {session.weekNumber}
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="font-mono text-sm text-faint">
           {formatDate(session.completedAt ?? session.startedAt)} ·{" "}
           {session.status === "completed" ? "Completado" : session.status === "skipped" ? "Salteado" : "En curso"}
           {session.durationSec !== null && ` · ${formatDuration(session.durationSec)}`}
@@ -190,19 +192,14 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
 
       <div className="space-y-2">
         {session.exercises.map((ex, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900"
-          >
-            <p className="font-medium text-slate-800 dark:text-slate-100">
+          <div key={i} className="rounded-block border border-border bg-surface p-3 text-sm">
+            <p className="font-medium text-ink">
               {ex.exercise}
               {ex.originalExercise && (
-                <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-400">
-                  sustituyó a {ex.originalExercise}
-                </span>
+                <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
               )}
             </p>
-            <ul className="mt-1 space-y-0.5 text-slate-500 dark:text-slate-400">
+            <ul className="mt-1 space-y-0.5 font-mono text-faint">
               {ex.sets.map((s, j) => (
                 <li key={j}>
                   Serie {j + 1}: {s.weightKg ?? "—"}kg × {s.reps ?? "—"} (RIR {s.rir ?? "—"})
@@ -213,9 +210,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
           </div>
         ))}
         {session.exercises.length === 0 && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Día salteado, sin ejercicios registrados.
-          </p>
+          <p className="text-sm text-faint">Día salteado, sin ejercicios registrados.</p>
         )}
       </div>
     </div>
@@ -230,31 +225,27 @@ function UpcomingTab() {
   const nextWeek = program.blocks.flatMap((b) => b.weeks).find((w) => w.weekNumber === nextWeekNumber);
 
   if (!nextWeek) {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        No hay más semanas programadas después de esta.
-      </p>
-    );
+    return <p className="text-sm text-faint">No hay más semanas programadas después de esta.</p>;
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="font-mono text-sm text-faint">
         Semana {nextWeek.weekNumber} · {nextWeek.label}
       </p>
       {nextWeek.days.map((day) => (
-        <div
-          key={day.name}
-          className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
-        >
-          <h3 className="mb-2 font-semibold text-slate-800 dark:text-slate-100">{day.name}</h3>
-          <ul className="space-y-1 text-sm text-slate-500 dark:text-slate-400">
+        <div key={day.name} className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+          <h3 className="mb-2 font-semibold text-ink">{day.name}</h3>
+          <ul className="space-y-1 text-sm text-faint">
             {day.exerciseGroups.map((g, i) => {
               const literal = getLiteralWorkingSets(g);
               return (
                 <li key={i}>
-                  {g.exercise} — {literal.length} serie{literal.length !== 1 ? "s" : ""}
-                  {literal[0] ? ` · ${literal[0].reps} reps` : ""}
+                  {g.exercise} —{" "}
+                  <span className="font-mono">
+                    {literal.length} serie{literal.length !== 1 ? "s" : ""}
+                    {literal[0] ? ` · ${literal[0].reps} reps` : ""}
+                  </span>
                 </li>
               );
             })}
@@ -275,7 +266,7 @@ export function HistoryScreen() {
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="no-scrollbar flex gap-2 overflow-x-auto">
         {(
           [
             { id: "overview", label: "General" },
@@ -288,10 +279,8 @@ export function HistoryScreen() {
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium ${
-              tab === t.id
-                ? "bg-accent-600 text-white"
-                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            className={`shrink-0 rounded-pill px-3 py-1.5 text-sm font-medium ${
+              tab === t.id ? "bg-primary text-white" : "bg-surface2 text-faint"
             }`}
           >
             {t.label}

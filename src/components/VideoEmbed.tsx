@@ -9,12 +9,12 @@ export function VideoEmbed({ url }: { url: string | null }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="text-sm font-medium text-accent-600 dark:text-accent-400"
+        className="text-sm font-medium text-primary"
       >
         {open ? "Ocultar video de técnica" : "Ver video de técnica"}
       </button>
       {open && (
-        <div className="mt-2 aspect-video w-full overflow-hidden rounded-lg bg-black">
+        <div className="mt-2 aspect-video w-full overflow-hidden rounded-block bg-black">
           <iframe
             src={url}
             title="Técnica del ejercicio"

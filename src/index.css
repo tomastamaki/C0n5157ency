@@ -4,6 +4,29 @@
 
 :root {
   color-scheme: light dark;
+  --bg: 247 247 245;
+  --surface: 255 255 255;
+  --surface-2: 240 240 238;
+  --border: 227 227 223;
+  --text: 22 23 28;
+  --text-faint: 107 109 118;
+  --accent: 255 122 69;
+  --primary: 59 130 246;
+  --success: 34 197 134;
+  --warning: 240 168 60;
+}
+
+.dark {
+  --bg: 13 14 19;
+  --surface: 22 24 33;
+  --surface-2: 30 33 48;
+  --border: 42 45 61;
+  --text: 241 241 244;
+  --text-faint: 139 141 152;
+  --accent: 255 122 69;
+  --primary: 59 130 246;
+  --success: 34 197 134;
+  --warning: 240 168 60;
 }
 
 html,
@@ -13,7 +36,7 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-bg text-ink;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -24,4 +47,12 @@ input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
