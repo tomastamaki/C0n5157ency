@@ -10,6 +10,7 @@ export default {
         surface2: "rgb(var(--surface-2) / <alpha-value>)",
         border: "rgb(var(--border) / <alpha-value>)",
         ink: "rgb(var(--text) / <alpha-value>)",
+        muted: "rgb(var(--text-secondary) / <alpha-value>)",
         faint: "rgb(var(--text-faint) / <alpha-value>)",
         accent: "rgb(var(--accent) / <alpha-value>)",
         primary: "rgb(var(--primary) / <alpha-value>)",

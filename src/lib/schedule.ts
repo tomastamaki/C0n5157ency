@@ -1,9 +1,9 @@
 import type { FlatProgramDay, Program } from "../types/program";
-import type { LogsData } from "../types/logs";
+import type { LogsData, WorkoutSession } from "../types/logs";
 
 /**
  * Convierte el programa (bloques -> semanas -> días) en una secuencia plana de
- * 48 días de entrenamiento, en el orden en que se hacen.
+ * 48 días de entrenamiento, en el orden en que aparecen en el programa.
  */
 export function flattenProgram(program: Program): FlatProgramDay[] {
   const totalWeeks = program.blocks.reduce((sum, b) => sum + b.weeks.length, 0);
@@ -32,26 +32,49 @@ export function flattenProgram(program: Program): FlatProgramDay[] {
   return flat;
 }
 
+export interface WeekDayStatus {
+  flatDay: FlatProgramDay;
+  session: WorkoutSession | null;
+}
+
 /**
- * El progreso real del programa se basa en cuántas sesiones ya se
- * completaron o saltearon (no en la fecha del calendario ni en sesiones
- * "en curso"). Así, si un día se saltea o se entrena tarde, el "próximo
- * día" nunca se desincroniza: avanza un lugar por cada sesión que el
- * usuario cierra, ni más ni menos.
+ * Dentro de una semana, los 4 días (Upper/Lower/Push/Pull) se pueden hacer en
+ * cualquier orden: lo único que importa es completarlos todos antes de pasar
+ * a la semana siguiente. Devuelve el estado de cada día de la PRIMERA semana
+ * que todavía no está completa (lista vacía si el programa terminó).
  */
-export function getNextProgramIndex(logs: LogsData): number {
-  return logs.sessions.filter((s) => s.status === "completed" || s.status === "skipped").length;
+export function getCurrentWeekDays(flat: FlatProgramDay[], logs: LogsData): WeekDayStatus[] {
+  const finishedByIndex = new Map<number, WorkoutSession>();
+  for (const s of logs.sessions) {
+    if (s.status === "completed" || s.status === "skipped") finishedByIndex.set(s.programIndex, s);
+  }
+
+  const byWeek = new Map<number, FlatProgramDay[]>();
+  for (const fd of flat) {
+    if (!byWeek.has(fd.weekNumber)) byWeek.set(fd.weekNumber, []);
+    byWeek.get(fd.weekNumber)!.push(fd);
+  }
+
+  const weekNumbers = [...byWeek.keys()].sort((a, b) => a - b);
+  for (const weekNumber of weekNumbers) {
+    const statuses = byWeek.get(weekNumber)!.map((flatDay) => ({
+      flatDay,
+      session: finishedByIndex.get(flatDay.index) ?? null,
+    }));
+    if (statuses.some((s) => !s.session)) return statuses;
+  }
+  return [];
 }
 
-export function getCurrentFlatDay(
-  flat: FlatProgramDay[],
-  logs: LogsData
-): FlatProgramDay | null {
-  const nextIndex = getNextProgramIndex(logs);
-  if (nextIndex >= flat.length) return null;
-  return flat[nextIndex];
+/** El primer día pendiente de la semana actual (sugerido por defecto), o null si el programa terminó. */
+export function getCurrentFlatDay(flat: FlatProgramDay[], logs: LogsData): FlatProgramDay | null {
+  const week = getCurrentWeekDays(flat, logs);
+  if (week.length === 0) return null;
+  const pending = week.find((s) => !s.session);
+  return (pending ?? week[0]).flatDay;
 }
 
-export function isProgramComplete(flat: FlatProgramDay[], logs: LogsData): boolean {
-  return getNextProgramIndex(logs) >= flat.length;
+/** La sesión en curso, sin importar a qué día de qué semana corresponda (solo puede haber una a la vez). */
+export function findActiveDraft(logs: LogsData): WorkoutSession | null {
+  return logs.sessions.find((s) => s.status === "in_progress") ?? null;
 }

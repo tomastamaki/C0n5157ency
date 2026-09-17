@@ -56,7 +56,7 @@ export function SettingsScreen() {
             className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-ink"
           />
         </label>
-        <p className="mt-2 text-xs text-faint">
+        <p className="mt-2 text-xs text-muted">
           Es solo informativa: el próximo día de entrenamiento siempre se calcula por los
           entrenamientos que marcaste como completados o salteados, nunca por la fecha, para
           que nunca se desincronice.
@@ -149,7 +149,7 @@ export function SettingsScreen() {
           <span>Incrementos de peso por ejercicio</span>
           <span className="text-sm font-normal text-faint">{showIncrements ? "ocultar" : "mostrar"}</span>
         </button>
-        <p className="mt-1 text-xs text-faint">
+        <p className="mt-1 text-xs text-muted">
           Se usan para sugerir el próximo peso según el RIR de la vez anterior. Si no
           ajustás uno, se infiere por el nombre del ejercicio (por defecto 2.5kg).
         </p>
@@ -159,7 +159,7 @@ export function SettingsScreen() {
             <div className="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
               {exercises.map((name) => (
                 <div key={name} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-faint">{name}</span>
+                  <span className="text-muted">{name}</span>
                   <input
                     type="number"
                     step="0.5"
@@ -184,7 +184,7 @@ export function SettingsScreen() {
         )}
       </section>
 
-      <p className="text-xs text-faint">
+      <p className="text-xs text-muted">
         El token se guarda solo en este dispositivo (localStorage) y nunca se sube al
         repositorio. Ver el README para cómo generar un token con permisos mínimos.
       </p>

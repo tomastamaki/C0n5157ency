@@ -1,9 +1,10 @@
 import { useApp } from "../context/AppContext";
-import { IconMoon } from "./icons";
+import { IconMoon, IconSun } from "./icons";
 
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { settings, updateSettings } = useApp();
   const isDark = settings.theme === "dark";
+  const Icon = isDark ? IconMoon : IconSun;
 
   return (
     <button
@@ -14,15 +15,11 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       title={isDark ? "Tema oscuro" : "Tema claro"}
       className={
         compact
-          ? `flex h-9 w-9 items-center justify-center rounded-pill border text-accent transition-colors ${
-              isDark ? "border-accent/35 bg-accent/8" : "border-border"
-            }`
-          : `flex items-center gap-2 rounded-pill border px-3 py-2 text-sm font-medium text-faint transition-colors ${
-              isDark ? "border-accent/35 bg-accent/8" : "border-border"
-            }`
+          ? "flex h-9 w-9 items-center justify-center rounded-pill border border-accent/35 bg-accent/8 text-accent transition-transform hover:bg-accent/14 active:scale-95"
+          : "flex items-center gap-2 rounded-pill border border-accent/35 bg-accent/8 px-3 py-2 text-sm font-medium text-muted transition-transform hover:bg-accent/14 active:scale-95"
       }
     >
-      <IconMoon className="h-[18px] w-[18px] text-accent" />
+      <Icon className="h-[18px] w-[18px] text-accent" />
       {!compact && <span>{isDark ? "Oscuro" : "Claro"}</span>}
     </button>
   );

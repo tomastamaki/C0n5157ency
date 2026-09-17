@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { getAllExerciseNames, getExerciseProgression } from "../lib/history";
+import { getExerciseNamesByDay, getExerciseProgression } from "../lib/history";
 import { getCurrentFlatDay } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
 import { isSetLogged } from "../types/logs";
@@ -46,14 +46,14 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
       </div>
 
       {nextDeload && (
-        <p className="text-sm text-faint">
+        <p className="text-sm text-muted">
           Próxima semana de deload: <span className="font-mono font-medium text-ink">Semana {nextDeload.weekNumber}</span>
         </p>
       )}
 
       <div className="space-y-2">
         {sessionsSorted.length === 0 && (
-          <p className="text-sm text-faint">Todavía no registraste entrenamientos.</p>
+          <p className="text-sm text-muted">Todavía no registraste entrenamientos.</p>
         )}
         {sessionsSorted.map((s) => (
           <button
@@ -68,7 +68,7 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
               <p className="font-medium text-ink">
                 {s.dayName} · Semana {s.weekNumber}
               </p>
-              <p className="font-mono text-xs text-faint">
+              <p className="font-mono text-xs text-muted">
                 {formatDate(s.completedAt ?? s.startedAt)}
                 {s.durationSec !== null && ` · ${formatDuration(s.durationSec)}`}
               </p>
@@ -89,8 +89,8 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
 
 function ExerciseTab() {
   const { program, logs } = useApp();
-  const exercises = useMemo(() => getAllExerciseNames(program), [program]);
-  const [selected, setSelected] = useState(exercises[0] ?? "");
+  const exercisesByDay = useMemo(() => getExerciseNamesByDay(program), [program]);
+  const [selected, setSelected] = useState(exercisesByDay[0]?.exercises[0] ?? "");
 
   const progression = useMemo(
     () => getExerciseProgression(logs, selected, 0),
@@ -108,10 +108,14 @@ function ExerciseTab() {
         onChange={(e) => setSelected(e.target.value)}
         className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-sm text-ink"
       >
-        {exercises.map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
+        {exercisesByDay.map(({ day, exercises }) => (
+          <optgroup key={day} label={day}>
+            {exercises.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </optgroup>
         ))}
       </select>
 
@@ -128,7 +132,7 @@ function ExerciseTab() {
               <p className="font-medium text-ink">
                 Semana {s.weekNumber} · {formatDate(s.completedAt ?? s.startedAt)}
               </p>
-              <p className="font-mono text-faint">
+              <p className="font-mono text-muted">
                 {ex.sets
                   .filter(isSetLogged)
                   .map((set) => `${set.weightKg}kg×${set.reps} (RIR ${set.rir})`)
@@ -138,7 +142,7 @@ function ExerciseTab() {
           );
         })}
         {pastSessions.length === 0 && (
-          <p className="text-sm text-faint">Todavía no hay sesiones registradas para este ejercicio.</p>
+          <p className="text-sm text-muted">Todavía no hay sesiones registradas para este ejercicio.</p>
         )}
       </div>
     </div>
@@ -160,7 +164,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
       type="button"
       onClick={onBack}
       aria-label="Volver"
-      className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink"
+      className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink transition-transform hover:bg-border/60 active:scale-95 active:bg-border"
     >
       <IconChevronLeft className="h-[18px] w-[18px]" />
     </button>
@@ -170,7 +174,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
     return (
       <div className="space-y-4 pb-24">
         {backButton}
-        <p className="text-sm text-faint">No se encontró esta sesión.</p>
+        <p className="text-sm text-muted">No se encontró esta sesión.</p>
       </div>
     );
   }
@@ -183,7 +187,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
         <h2 className="text-xl font-bold text-ink">
           {session.dayName} · Semana {session.weekNumber}
         </h2>
-        <p className="font-mono text-sm text-faint">
+        <p className="font-mono text-sm text-muted">
           {formatDate(session.completedAt ?? session.startedAt)} ·{" "}
           {session.status === "completed" ? "Completado" : session.status === "skipped" ? "Salteado" : "En curso"}
           {session.durationSec !== null && ` · ${formatDuration(session.durationSec)}`}
@@ -199,7 +203,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
                 <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
               )}
             </p>
-            <ul className="mt-1 space-y-0.5 font-mono text-faint">
+            <ul className="mt-1 space-y-0.5 font-mono text-muted">
               {ex.sets.map((s, j) => (
                 <li key={j}>
                   Serie {j + 1}: {s.weightKg ?? "—"}kg × {s.reps ?? "—"} (RIR {s.rir ?? "—"})
@@ -210,7 +214,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
           </div>
         ))}
         {session.exercises.length === 0 && (
-          <p className="text-sm text-faint">Día salteado, sin ejercicios registrados.</p>
+          <p className="text-sm text-muted">Día salteado, sin ejercicios registrados.</p>
         )}
       </div>
     </div>
@@ -225,18 +229,18 @@ function UpcomingTab() {
   const nextWeek = program.blocks.flatMap((b) => b.weeks).find((w) => w.weekNumber === nextWeekNumber);
 
   if (!nextWeek) {
-    return <p className="text-sm text-faint">No hay más semanas programadas después de esta.</p>;
+    return <p className="text-sm text-muted">No hay más semanas programadas después de esta.</p>;
   }
 
   return (
     <div className="space-y-3">
-      <p className="font-mono text-sm text-faint">
+      <p className="font-mono text-sm text-muted">
         Semana {nextWeek.weekNumber} · {nextWeek.label}
       </p>
       {nextWeek.days.map((day) => (
         <div key={day.name} className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
           <h3 className="mb-2 font-semibold text-ink">{day.name}</h3>
-          <ul className="space-y-1 text-sm text-faint">
+          <ul className="space-y-1 text-sm text-muted">
             {day.exerciseGroups.map((g, i) => {
               const literal = getLiteralWorkingSets(g);
               return (
@@ -279,7 +283,7 @@ export function HistoryScreen() {
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-pill px-3 py-1.5 text-sm font-medium ${
+            className={`shrink-0 rounded-pill px-3 py-1.5 text-sm font-medium transition-opacity active:opacity-70 ${
               tab === t.id ? "bg-primary text-white" : "bg-surface2 text-faint"
             }`}
           >

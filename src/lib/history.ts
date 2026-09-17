@@ -57,6 +57,15 @@ export function getExerciseProgression(
     });
 }
 
+/** % de mejora entre el primer y el último registro histórico (null si hay menos de 2). */
+export function getPctImprovement(points: ProgressionPoint[]): number | null {
+  if (points.length < 2) return null;
+  const first = points[0].weightKg;
+  const last = points[points.length - 1].weightKg;
+  if (first === 0) return null;
+  return ((last - first) / first) * 100;
+}
+
 /**
  * Si la última vez que apareció esta prescripción (mismo ejercicio original)
  * el usuario la sustituyó (o la hizo tal cual), devuelve el nombre elegido
@@ -88,4 +97,29 @@ export function getAllExerciseNames(program: Program): string[] {
     )
   );
   return Array.from(names).sort((a, b) => a.localeCompare(b, "es"));
+}
+
+const DAY_ORDER = ["Upper", "Lower", "Push", "Pull"];
+
+/** Nombres de ejercicio únicos, agrupados por el primer tipo de día donde aparecen. */
+export function getExerciseNamesByDay(program: Program): { day: string; exercises: string[] }[] {
+  const seen = new Set<string>();
+  const byDay = new Map<string, string[]>();
+
+  program.blocks.forEach((b) =>
+    b.weeks.forEach((w) =>
+      w.days.forEach((d) =>
+        d.exerciseGroups.forEach((g) => {
+          if (seen.has(g.exercise)) return;
+          seen.add(g.exercise);
+          if (!byDay.has(d.name)) byDay.set(d.name, []);
+          byDay.get(d.name)!.push(g.exercise);
+        })
+      )
+    )
+  );
+
+  for (const list of byDay.values()) list.sort((a, b) => a.localeCompare(b, "es"));
+
+  return DAY_ORDER.filter((d) => byDay.has(d)).map((day) => ({ day, exercises: byDay.get(day)! }));
 }

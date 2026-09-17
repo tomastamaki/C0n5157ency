@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { getCurrentFlatDay, getNextProgramIndex } from "../lib/schedule";
+import { findActiveDraft, getCurrentWeekDays } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getPreferredExercise } from "../lib/history";
 import { newId } from "../lib/id";
@@ -8,40 +8,10 @@ import { formatDuration } from "../lib/time";
 import { ExerciseCard } from "../components/ExerciseCard";
 import { SyncIndicator } from "../components/SyncIndicator";
 import { SessionTimer } from "../components/SessionTimer";
-import { ProgramProgress } from "../components/ProgramProgress";
+import { HomeDashboard } from "../components/HomeDashboard";
 import { IconPause } from "../components/icons";
 import { isSetLogged, type WorkoutSession } from "../types/logs";
 import type { FlatProgramDay } from "../types/program";
-
-function StartCard({
-  flatDay,
-  onStart,
-  onSkip,
-}: {
-  flatDay: FlatProgramDay;
-  onStart: () => void;
-  onSkip: () => void;
-}) {
-  return (
-    <div className="rounded-card border border-border bg-surface p-6 text-center shadow-elevated-sm">
-      <p className="text-sm text-faint">
-        {flatDay.blockName} · Semana {flatDay.weekNumber} de {flatDay.totalWeeks} · {flatDay.weekLabel}
-      </p>
-      <h2 className="mt-1 text-2xl font-bold text-ink">{flatDay.day.name}</h2>
-      <p className="mt-1 text-sm text-faint">{flatDay.day.exerciseGroups.length} ejercicios</p>
-      <button
-        type="button"
-        onClick={onStart}
-        className="mt-6 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white active:scale-[0.98]"
-      >
-        Empezar entrenamiento de hoy
-      </button>
-      <button type="button" onClick={onSkip} className="mt-3 text-sm text-faint underline">
-        Saltear este día
-      </button>
-    </div>
-  );
-}
 
 function PausedCard({ draft, onResume }: { draft: WorkoutSession; onResume: () => void }) {
   const totalSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
@@ -51,7 +21,7 @@ function PausedCard({ draft, onResume }: { draft: WorkoutSession; onResume: () =
     <div className="rounded-card border border-warning/35 bg-warning/10 p-6 text-center shadow-elevated-sm">
       <p className="text-sm font-medium text-warning">Entrenamiento en pausa</p>
       <h2 className="mt-1 text-2xl font-bold text-ink">{draft.dayName}</h2>
-      <p className="mt-1 font-mono text-sm text-faint">
+      <p className="mt-1 font-mono text-sm text-muted">
         Semana {draft.weekNumber} · {doneSets} de {totalSets} series confirmadas
       </p>
       <p className="mt-2 text-lg font-semibold text-ink">
@@ -72,7 +42,7 @@ function ProgramCompleteView() {
   return (
     <div className="rounded-card border border-border bg-surface p-6 text-center shadow-elevated-sm">
       <h2 className="text-xl font-bold text-ink">¡Programa completo!</h2>
-      <p className="mt-2 text-sm text-faint">
+      <p className="mt-2 text-sm text-muted">
         Completaste las 12 semanas de Min-Max Phase 2. Revisá tu progreso en Historial.
       </p>
     </div>
@@ -98,7 +68,7 @@ function SummaryView({ session, onContinue }: { session: WorkoutSession; onConti
                 <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
               )}
             </p>
-            <p className="font-mono text-faint">
+            <p className="font-mono text-muted">
               {ex.sets
                 .filter(isSetLogged)
                 .map((s) => `${s.weightKg}kg×${s.reps} (RIR ${s.rir})`)
@@ -125,16 +95,14 @@ function currentElapsedSec(session: WorkoutSession): number {
   return session.pausedElapsedSec + extra;
 }
 
-export function TodayScreen() {
+export function TodayScreen({ onNavigateHistory }: { onNavigateHistory: () => void }) {
   const { flatDays, logs, upsertSession } = useApp();
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
 
-  const nextIndex = getNextProgramIndex(logs);
-  const flatDay = getCurrentFlatDay(flatDays, logs);
-  const draft = flatDay
-    ? logs.sessions.find((s) => s.programIndex === nextIndex && s.status === "in_progress") ?? null
-    : null;
+  const weekDays = getCurrentWeekDays(flatDays, logs);
+  const activeDraft = findActiveDraft(logs);
+  const draftFlatDay = activeDraft ? flatDays[activeDraft.programIndex] ?? null : null;
 
   function startWorkout(day: FlatProgramDay) {
     const now = new Date().toISOString();
@@ -195,12 +163,12 @@ export function TodayScreen() {
   }
 
   function updateDraft(updater: (session: WorkoutSession) => WorkoutSession) {
-    if (!draft) return;
-    upsertSession(updater(draft));
+    if (!activeDraft) return;
+    upsertSession(updater(activeDraft));
   }
 
   function pauseWorkout() {
-    if (!draft || !draft.runningSince) return;
+    if (!activeDraft || !activeDraft.runningSince) return;
     const now = new Date().toISOString();
     updateDraft((prev) => ({
       ...prev,
@@ -211,7 +179,7 @@ export function TodayScreen() {
   }
 
   function resumeWorkout() {
-    if (!draft) return;
+    if (!activeDraft) return;
     const now = new Date().toISOString();
     updateDraft((prev) => ({ ...prev, runningSince: now, updatedAt: now }));
   }
@@ -220,39 +188,37 @@ export function TodayScreen() {
     return <SummaryView session={completedSession} onContinue={() => setCompletedSession(null)} />;
   }
 
-  if (!flatDay) {
+  if (weekDays.length === 0) {
     return (
       <div className="space-y-4 pb-24">
-        <ProgramProgress />
         <ProgramCompleteView />
       </div>
     );
   }
 
-  if (!draft) {
+  if (!activeDraft || !draftFlatDay) {
+    return (
+      <HomeDashboard
+        weekDays={weekDays}
+        onStart={startWorkout}
+        onSkip={skipDay}
+        onNavigateHistory={onNavigateHistory}
+      />
+    );
+  }
+
+  if (!activeDraft.runningSince) {
     return (
       <div className="space-y-4 pb-24">
-        <ProgramProgress />
-        <StartCard flatDay={flatDay} onStart={() => startWorkout(flatDay)} onSkip={() => skipDay(flatDay)} />
+        <PausedCard draft={activeDraft} onResume={resumeWorkout} />
       </div>
     );
   }
 
-  if (!draft.runningSince) {
-    return (
-      <div className="space-y-4 pb-24">
-        <ProgramProgress />
-        <PausedCard draft={draft} onResume={resumeWorkout} />
-      </div>
-    );
-  }
-
-  const allDone = draft.exercises.every((ex) => ex.sets.every(isSetLogged));
+  const allDone = activeDraft.exercises.every((ex) => ex.sets.every(isSetLogged));
 
   return (
     <div className="space-y-4 pb-24">
-      <ProgramProgress />
-
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <button
@@ -260,17 +226,18 @@ export function TodayScreen() {
             onClick={pauseWorkout}
             aria-label="Pausar y volver"
             title="Pausar y volver"
-            className="mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill border border-primary/35 bg-primary/8 text-primary"
+            className="mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill border border-primary/35 bg-primary/8 text-primary transition-transform hover:bg-primary/14 active:scale-95"
           >
             <IconPause className="h-4 w-4" />
           </button>
           <div>
-            <p className="text-sm text-faint">
-              {draft.blockName} · Semana {draft.weekNumber} de {flatDay.totalWeeks} · {draft.weekLabel}
+            <p className="text-sm text-muted">
+              {activeDraft.blockName} · Semana {activeDraft.weekNumber} de {draftFlatDay.totalWeeks} ·{" "}
+              {activeDraft.weekLabel}
             </p>
-            <h2 className="text-xl font-bold text-ink">{draft.dayName}</h2>
-            <p className="mt-0.5 text-sm text-faint">
-              <SessionTimer pausedElapsedSec={draft.pausedElapsedSec} runningSince={draft.runningSince} />
+            <h2 className="text-xl font-bold text-ink">{activeDraft.dayName}</h2>
+            <p className="mt-0.5 text-sm text-muted">
+              <SessionTimer pausedElapsedSec={activeDraft.pausedElapsedSec} runningSince={activeDraft.runningSince} />
             </p>
           </div>
         </div>
@@ -278,15 +245,15 @@ export function TodayScreen() {
       </div>
 
       <div className="space-y-3">
-        {flatDay.day.exerciseGroups.map((group, i) => (
+        {draftFlatDay.day.exerciseGroups.map((group, i) => (
           <ExerciseCard
             key={i}
             group={group}
             groupIndexInDay={i}
-            programIndex={flatDay.index}
+            programIndex={draftFlatDay.index}
             active={i === activeGroupIdx}
             onActivate={() => setActiveGroupIdx(i)}
-            session={draft}
+            session={activeDraft}
             onUpdateSession={updateDraft}
           />
         ))}
@@ -297,9 +264,9 @@ export function TodayScreen() {
           type="button"
           onClick={() => {
             const now = new Date().toISOString();
-            const durationSec = Math.max(0, Math.round(currentElapsedSec(draft)));
+            const durationSec = Math.max(0, Math.round(currentElapsedSec(activeDraft)));
             const finished: WorkoutSession = {
-              ...draft,
+              ...activeDraft,
               status: "completed",
               completedAt: now,
               durationSec,

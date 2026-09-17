@@ -1,17 +1,33 @@
-import type { ProgressionPoint } from "../lib/history";
+import { getPctImprovement, type ProgressionPoint } from "../lib/history";
 
 const WIDTH = 320;
 const HEIGHT = 120;
 const PADDING = 24;
 
+function ImprovementBadge({ points }: { points: ProgressionPoint[] }) {
+  const pct = getPctImprovement(points);
+  if (pct === null) return null;
+  const positive = pct >= 0;
+  return (
+    <span
+      className={`rounded-pill px-2 py-0.5 font-mono text-xs font-semibold ${
+        positive ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
+      }`}
+    >
+      {positive ? "+" : ""}
+      {pct.toFixed(0)}%
+    </span>
+  );
+}
+
 export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
   if (points.length === 0) {
-    return <p className="text-sm text-faint">Todavía no hay registros de este ejercicio.</p>;
+    return <p className="text-sm text-muted">Todavía no hay registros de este ejercicio.</p>;
   }
 
   if (points.length === 1) {
     return (
-      <p className="text-sm text-faint">
+      <p className="text-sm text-muted">
         Un solo registro por ahora:{" "}
         <span className="font-mono">
           {points[0].weightKg}kg × {points[0].reps} (RIR {points[0].rir})
@@ -39,6 +55,9 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
 
   return (
     <div>
+      <div className="mb-1 flex justify-end">
+        <ImprovementBadge points={points} />
+      </div>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full text-primary"

@@ -114,7 +114,7 @@ export function ExerciseCard({
             {displayName}
             {isSubstituted && <span className="ml-2 text-xs font-normal text-warning">sustituto</span>}
           </p>
-          <p className="text-sm text-faint">{summarizeSets(group)}</p>
+          <p className="text-sm text-muted">{summarizeSets(group)}</p>
         </div>
         {allLogged && (
           <span className="rounded-pill border border-success/35 bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
@@ -139,7 +139,7 @@ export function ExerciseCard({
             <p className="text-sm font-medium text-primary">{group.intensityTechnique}</p>
           )}
           {pr && (
-            <p className="flex items-center gap-1 text-xs text-faint">
+            <p className="flex items-center gap-1 text-xs text-muted">
               <IconTrophy className="h-3.5 w-3.5 text-accent" />
               <span className="font-mono">
                 PR: {pr.weightKg}kg × {pr.reps}
@@ -147,7 +147,7 @@ export function ExerciseCard({
             </p>
           )}
         </div>
-        {group.rest && <span className="whitespace-nowrap text-xs text-faint">descanso {group.rest}</span>}
+        {group.rest && <span className="whitespace-nowrap text-xs text-muted">descanso {group.rest}</span>}
       </div>
 
       {progression.length > 0 && (
@@ -163,12 +163,20 @@ export function ExerciseCard({
         </div>
       )}
 
-      <VideoEmbed url={displayInfo.videoUrl} />
+      {displayInfo.videoUrl ? (
+        <VideoEmbed url={displayInfo.videoUrl} />
+      ) : (
+        isSubstituted && (
+          <p className="text-sm text-faint">
+            Sin video de técnica disponible para este sustituto (no está en el programa original).
+          </p>
+        )
+      )}
 
-      {displayInfo.notes && <p className="mt-3 text-sm text-faint">{displayInfo.notes}</p>}
+      {displayInfo.notes && <p className="mt-3 text-sm text-muted">{displayInfo.notes}</p>}
 
       {warmup && (
-        <p className="mt-3 text-sm text-faint">
+        <p className="mt-3 text-sm text-muted">
           Calentamiento: {warmup.count} serie{warmup.count !== "1" ? "s" : ""} livianas
         </p>
       )}
@@ -205,7 +213,7 @@ export function ExerciseCard({
                 )}
               </div>
               {lastTime && (
-                <p className="mb-2 font-mono text-xs text-faint">
+                <p className="mb-2 font-mono text-xs text-muted">
                   última vez: {lastTime.weightKg}kg × {lastTime.reps}, RIR {lastTime.rir}
                 </p>
               )}
@@ -286,7 +294,7 @@ export function ExerciseCard({
 
       {(group.substitutions.length > 0 || isSubstituted) && (
         <div className="mt-4 border-t border-border pt-3">
-          <button type="button" onClick={() => setShowSubs((s) => !s)} className="text-sm font-medium text-faint">
+          <button type="button" onClick={() => setShowSubs((s) => !s)} className="text-sm font-medium text-muted">
             {showSubs ? "Ocultar sustituciones" : "¿No tenés el equipo? Ver sustituciones"}
           </button>
           {showSubs && (

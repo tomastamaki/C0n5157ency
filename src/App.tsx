@@ -8,10 +8,10 @@ import { TodayScreen } from "./screens/Today";
 import { HistoryScreen } from "./screens/History";
 import { SettingsScreen } from "./screens/Settings";
 
-function Screen({ tab }: { tab: TabId }) {
+function Screen({ tab, onNavigateHistory }: { tab: TabId; onNavigateHistory: () => void }) {
   switch (tab) {
     case "today":
-      return <TodayScreen />;
+      return <TodayScreen onNavigateHistory={onNavigateHistory} />;
     case "history":
       return <HistoryScreen />;
     case "settings":
@@ -40,7 +40,7 @@ export default function App() {
             <Wordmark className="text-lg" />
             <ThemeToggle compact />
           </div>
-          <Screen tab={tab} />
+          <Screen tab={tab} onNavigateHistory={() => setTab("history")} />
         </main>
         <div className="relative z-10 md:hidden">
           <TabBar active={tab} onChange={setTab} />

@@ -4,16 +4,17 @@
 
 :root {
   color-scheme: light dark;
-  --bg: 247 247 245;
+  --bg: 247 247 250;
   --surface: 255 255 255;
-  --surface-2: 240 240 238;
-  --border: 227 227 223;
-  --text: 22 23 28;
-  --text-faint: 107 109 118;
+  --surface-2: 240 241 245;
+  --border: 226 228 236;
+  --text: 20 21 28;
+  --text-secondary: 92 95 114;
+  --text-faint: 154 157 176;
   --accent: 255 122 69;
   --primary: 59 130 246;
-  --success: 34 197 134;
-  --warning: 240 168 60;
+  --success: 30 166 114;
+  --warning: 217 138 31;
 }
 
 .dark {
@@ -21,8 +22,9 @@
   --surface: 22 24 33;
   --surface-2: 30 33 48;
   --border: 42 45 61;
-  --text: 241 241 244;
-  --text-faint: 139 141 152;
+  --text: 245 246 250;
+  --text-secondary: 154 157 176;
+  --text-faint: 92 95 114;
   --accent: 255 122 69;
   --primary: 59 130 246;
   --success: 34 197 134;

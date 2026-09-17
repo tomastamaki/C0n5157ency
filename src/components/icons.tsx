@@ -74,6 +74,27 @@ export function IconMoon(props: IconProps) {
   );
 }
 
+export function IconSun(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+    </svg>
+  );
+}
+
+export function IconFlame(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        d="M12 2.5c.5 3-3.5 4.6-3.5 9a3.5 3.5 0 1 0 7 0c0-.6-.1-1.1-.3-1.6
+           .1 1.5-.7 2.4-1.7 2.4-1.1 0-1.8-.9-1.5-2.2.6-.4 1-1.1 1-1.9
+           0-1.6-1.5-2.7-1-5.7z"
+      />
+    </svg>
+  );
+}
+
 export function IconTrophy(props: IconProps) {
   return (
     <svg {...base(props)}>

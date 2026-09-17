@@ -23,7 +23,7 @@ export function SyncIndicator() {
   };
 
   return (
-    <div className="flex items-center gap-2 text-xs text-faint">
+    <div className="flex items-center gap-2 text-xs text-muted">
       <span className={`h-2 w-2 rounded-full ${dotColor[syncStatus]}`} />
       <span>{label[syncStatus]}</span>
       {syncStatus === "error" && (

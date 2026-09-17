@@ -27,7 +27,7 @@ export function TabBar({ active, onChange }: Props) {
               key={id}
               type="button"
               onClick={() => onChange(id)}
-              className={`flex flex-1 flex-col items-center gap-1 py-3 transition-colors md:flex-none md:flex-row md:gap-2 md:rounded-pill md:px-4 md:py-2 ${
+              className={`flex flex-1 flex-col items-center gap-1 py-3 transition-opacity active:opacity-70 md:flex-none md:flex-row md:gap-2 md:rounded-pill md:px-4 md:py-2 md:transition-colors md:hover:bg-surface2 ${
                 isActive ? "text-primary md:bg-primary/10" : "text-faint"
               }`}
             >
