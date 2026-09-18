@@ -11,11 +11,12 @@ import {
   getHighlightExercise,
   getLastCompletedSession,
   getMuscleChips,
-  getPRsThisMonth,
+  getPRsInWeek,
   getWeeksUntilDeload,
+  type PREvent,
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
-import { IconFlame, IconTrophy } from "./icons";
+import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 
 interface Props {
@@ -26,19 +27,70 @@ interface Props {
   onEnterWorkout: () => void;
 }
 
+function PRDetailView({
+  events,
+  weekNumber,
+  onBack,
+}: {
+  events: PREvent[];
+  weekNumber: number;
+  onBack: () => void;
+}) {
+  return (
+    <div className="space-y-4 pb-24">
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="Volver"
+        className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink transition-transform hover:bg-border/60 active:scale-95"
+      >
+        <IconChevronLeft className="h-[18px] w-[18px]" />
+      </button>
+      <h2 className="text-xl font-bold text-ink">PRs · Semana {weekNumber}</h2>
+      {events.length === 0 ? (
+        <p className="text-sm text-muted">Todavía no hay récords personales esta semana.</p>
+      ) : (
+        <div className="space-y-2">
+          {events.map((e, i) => (
+            <div key={i} className="rounded-block border border-border bg-surface p-3 shadow-elevated-sm">
+              <p className="font-medium text-ink">{e.exercise}</p>
+              <p className="font-mono text-sm text-success">
+                {e.newWeight}kg
+                {e.previousWeight !== null ? (
+                  <span className="text-muted"> (superó {e.previousWeight}kg)</span>
+                ) : (
+                  <span className="text-muted"> (primer registro)</span>
+                )}
+              </p>
+              <p className="text-xs text-faint">{formatDate(e.date)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnterWorkout }: Props) {
-  const { logs, program } = useApp();
+  const { logs, program, settings } = useApp();
   const { startWorkout, skipDay } = useWorkoutActions();
+  const cycle = settings.programCycle;
+  const [showPRDetail, setShowPRDetail] = useState(false);
 
   const pendingDays = weekDays.filter((d) => !d.session);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = pendingDays[Math.min(selectedIdx, pendingDays.length - 1)];
 
-  const streak = useMemo(() => getCurrentStreak(logs), [logs]);
-  const prsThisMonth = useMemo(() => getPRsThisMonth(logs), [logs]);
-  const attention = useMemo(() => getAttentionFlags(logs), [logs]);
-  const highlight = useMemo(() => getHighlightExercise(logs), [logs]);
-  const lastSession = useMemo(() => getLastCompletedSession(logs), [logs]);
+  const currentWeekNumber = weekDays[0]?.flatDay.weekNumber ?? 1;
+
+  const streak = useMemo(() => getCurrentStreak(logs, cycle), [logs, cycle]);
+  const prsThisWeek = useMemo(
+    () => getPRsInWeek(logs, currentWeekNumber, cycle),
+    [logs, currentWeekNumber, cycle]
+  );
+  const attention = useMemo(() => getAttentionFlags(logs, cycle), [logs, cycle]);
+  const highlight = useMemo(() => getHighlightExercise(logs, cycle), [logs, cycle]);
+  const lastSession = useMemo(() => getLastCompletedSession(logs, cycle), [logs, cycle]);
   const lastSessionPRs = useMemo(
     () => (lastSession ? countPRsInSession(logs, lastSession) : 0),
     [logs, lastSession]
@@ -48,10 +100,15 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
   const weekTotal = weekDays.length;
   const weekPct = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
 
-  const currentWeekNumber = weekDays[0]?.flatDay.weekNumber ?? 1;
   const weeksUntilDeload = getWeeksUntilDeload(program, currentWeekNumber);
 
   const chips = selected ? getMuscleChips(selected.flatDay.day.name) : [];
+
+  if (showPRDetail) {
+    return (
+      <PRDetailView events={prsThisWeek} weekNumber={currentWeekNumber} onBack={() => setShowPRDetail(false)} />
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -72,13 +129,18 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
             {weekCompleted} de {weekTotal} esta semana
           </p>
         </div>
-        <div className="rounded-card border border-border bg-surface p-3 shadow-elevated-sm">
+        <button
+          type="button"
+          onClick={() => setShowPRDetail(true)}
+          disabled={prsThisWeek.length === 0}
+          className="rounded-card border border-border bg-surface p-3 text-left shadow-elevated-sm disabled:opacity-70"
+        >
           <p className="flex items-center gap-1 font-mono text-2xl font-bold text-accent">
             <IconTrophy className="h-5 w-5" />
-            {prsThisMonth}
+            {prsThisWeek.length}
           </p>
-          <p className="text-xs text-muted">PRs este mes</p>
-        </div>
+          <p className="text-xs text-muted">PRs esta semana</p>
+        </button>
       </div>
 
       {activeDraft && <ActiveWorkoutBanner draft={activeDraft} onResume={onEnterWorkout} />}

@@ -1,6 +1,7 @@
 import { useApp } from "../context/AppContext";
 import { getLiteralWorkingSets } from "./program";
 import { getPreferredExercise } from "./history";
+import { globalSeq } from "./cycle";
 import { newId } from "./id";
 import type { WorkoutSession } from "../types/logs";
 import type { FlatProgramDay } from "../types/program";
@@ -19,12 +20,15 @@ export function currentElapsedSec(session: WorkoutSession): number {
  * lógica sin depender de en qué pestaña esté montado cada uno.
  */
 export function useWorkoutActions() {
-  const { logs, upsertSession } = useApp();
+  const { logs, upsertSession, settings } = useApp();
+  const cycle = settings.programCycle;
 
   function startWorkout(day: FlatProgramDay): WorkoutSession {
     const now = new Date().toISOString();
+    const beforeGlobalSeq = globalSeq({ programIndex: day.index, cycle });
     const session: WorkoutSession = {
       id: newId(),
+      cycle,
       programIndex: day.index,
       blockName: day.blockName,
       weekLabel: day.weekLabel,
@@ -38,7 +42,7 @@ export function useWorkoutActions() {
       pausedElapsedSec: 0,
       updatedAt: now,
       exercises: day.day.exerciseGroups.map((g) => {
-        const preferred = getPreferredExercise(logs, g.exercise, day.index);
+        const preferred = getPreferredExercise(logs, g.exercise, beforeGlobalSeq);
         const chosen = preferred ?? g.exercise;
         return {
           exercise: chosen,
@@ -62,6 +66,7 @@ export function useWorkoutActions() {
     const now = new Date().toISOString();
     upsertSession({
       id: newId(),
+      cycle,
       programIndex: day.index,
       blockName: day.blockName,
       weekLabel: day.weekLabel,

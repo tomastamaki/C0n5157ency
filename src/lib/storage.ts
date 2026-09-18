@@ -11,6 +11,8 @@ export interface AppSettings {
   theme: ThemeMode;
   /** Incremento de peso (kg) sugerido por ejercicio; si no está, se infiere por nombre. */
   exerciseIncrements: Record<string, number>;
+  /** Se incrementa al "reiniciar el programa" desde Ajustes; las sesiones nuevas quedan marcadas con este número. */
+  programCycle: number;
 }
 
 function systemPrefersDark(): boolean {
@@ -25,6 +27,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   startDate: new Date().toISOString().slice(0, 10),
   theme: systemPrefersDark() ? "dark" : "light",
   exerciseIncrements: {},
+  programCycle: 0,
 };
 
 const SETTINGS_KEY = "minmax.settings.v1";

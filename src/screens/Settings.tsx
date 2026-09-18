@@ -7,7 +7,7 @@ import { getAllExerciseNames } from "../lib/history";
 import { guessIncrementKg } from "../lib/increments";
 
 export function SettingsScreen() {
-  const { settings, updateSettings, program } = useApp();
+  const { settings, updateSettings, program, clearAllLogs } = useApp();
   const [form, setForm] = useState(settings);
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string }>(null);
   const [testing, setTesting] = useState(false);
@@ -36,6 +36,31 @@ export function SettingsScreen() {
 
   function saveIncrements() {
     updateSettings({ exerciseIncrements: incrementsForm });
+  }
+
+  function handleClearAllData() {
+    if (
+      !window.confirm(
+        "¿Borrar TODOS los datos de entrenamiento? Se elimina por completo el historial, los PRs y el progreso. Esta acción no se puede deshacer."
+      )
+    ) {
+      return;
+    }
+    clearAllLogs();
+  }
+
+  function handleRestartProgram() {
+    if (
+      !window.confirm(
+        "¿Reiniciar el programa desde la Semana 1 (Intro Week)? Tu historial actual se conserva como referencia en Historial, pero deja de contar para el progreso, la racha y las alertas actuales."
+      )
+    ) {
+      return;
+    }
+    updateSettings({
+      programCycle: settings.programCycle + 1,
+      startDate: new Date().toISOString().slice(0, 10),
+    });
   }
 
   return (
@@ -182,6 +207,41 @@ export function SettingsScreen() {
             </button>
           </>
         )}
+      </section>
+
+      <section className="rounded-card border border-red-500/30 bg-red-500/5 p-4 shadow-elevated-sm">
+        <h2 className="mb-1 font-semibold text-red-500">Zona de riesgo</h2>
+        <p className="mb-3 text-xs text-muted">Estas acciones son irreversibles.</p>
+
+        <div className="space-y-3">
+          <div>
+            <button
+              type="button"
+              onClick={handleRestartProgram}
+              className="w-full rounded-pill border border-warning/40 bg-warning/10 py-2 text-sm font-semibold text-warning"
+            >
+              Reiniciar programa (mantener historial)
+            </button>
+            <p className="mt-1 text-xs text-muted">
+              Vuelve a la Semana 1 hoy mismo. Lo ya registrado queda visible en Historial, pero
+              no cuenta más para el progreso, la racha ni las alertas.
+            </p>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={handleClearAllData}
+              className="w-full rounded-pill border border-red-500/40 bg-red-500/10 py-2 text-sm font-semibold text-red-500"
+            >
+              Borrar todos los datos de sesiones
+            </button>
+            <p className="mt-1 text-xs text-muted">
+              Elimina por completo el historial, los PRs y el progreso. La app queda como recién
+              instalada.
+            </p>
+          </div>
+        </div>
       </section>
 
       <p className="text-xs text-muted">

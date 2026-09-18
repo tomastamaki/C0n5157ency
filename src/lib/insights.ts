@@ -2,11 +2,17 @@ import type { LogsData, WorkoutSession } from "../types/logs";
 import { isSetLogged } from "../types/logs";
 import type { Program } from "../types/program";
 import { getExerciseProgression, getPctImprovement } from "./history";
+import { globalSeq } from "./cycle";
 
-/** Racha de días consecutivos completados, mirando hacia atrás desde el más reciente. Se corta en el primer salteado. */
-export function getCurrentStreak(logs: LogsData): number {
-  const sessions = [...logs.sessions]
-    .filter((s) => s.status !== "in_progress")
+/** Los KPIs de "momentum" (racha, atención, destacado, último entrenamiento) solo miran el ciclo actual. */
+function filterByCycle(logs: LogsData, cycle: number): LogsData {
+  return { ...logs, sessions: logs.sessions.filter((s) => (s.cycle ?? 0) === cycle) };
+}
+
+/** Racha de días consecutivos completados en el ciclo actual, mirando hacia atrás. Se corta en el primer salteado. */
+export function getCurrentStreak(logs: LogsData, cycle: number): number {
+  const sessions = filterByCycle(logs, cycle)
+    .sessions.filter((s) => s.status !== "in_progress")
     .sort((a, b) => b.programIndex - a.programIndex);
   let streak = 0;
   for (const s of sessions) {
@@ -16,34 +22,50 @@ export function getCurrentStreak(logs: LogsData): number {
   return streak;
 }
 
-/** Cantidad de veces que se superó un récord personal (por ejercicio) durante el mes calendario actual. */
-export function getPRsThisMonth(logs: LogsData): number {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+export interface PREvent {
+  exercise: string;
+  newWeight: number;
+  previousWeight: number | null;
+  date: string;
+  sessionId: string;
+}
 
+/**
+ * Récords personales logrados durante una semana de programa puntual del
+ * ciclo actual. La base de comparación ("¿es un récord?") es siempre el
+ * historial completo (todos los ciclos): un PR de peso es real sin importar
+ * si se reinició el programa.
+ */
+export function getPRsInWeek(logs: LogsData, weekNumber: number, cycle: number): PREvent[] {
   const sessions = [...logs.sessions]
     .filter((s) => s.status === "completed")
-    .sort((a, b) => a.programIndex - b.programIndex);
+    .sort((a, b) => globalSeq(a) - globalSeq(b));
 
   const bestByExercise = new Map<string, number>();
-  let count = 0;
+  const events: PREvent[] = [];
 
   for (const session of sessions) {
-    const date = new Date(session.completedAt ?? session.startedAt);
-    const inMonth = date.getFullYear() === year && date.getMonth() === month;
+    const isTargetWeek = session.weekNumber === weekNumber && (session.cycle ?? 0) === cycle;
     for (const ex of session.exercises) {
       for (const set of ex.sets) {
         if (!isSetLogged(set) || set.weightKg === null) continue;
-        const prev = bestByExercise.get(ex.exercise) ?? -Infinity;
-        if (set.weightKg > prev) {
+        const prev = bestByExercise.get(ex.exercise) ?? null;
+        if (prev === null || set.weightKg > prev) {
+          if (isTargetWeek) {
+            events.push({
+              exercise: ex.exercise,
+              newWeight: set.weightKg,
+              previousWeight: prev,
+              date: session.completedAt ?? session.startedAt,
+              sessionId: session.id,
+            });
+          }
           bestByExercise.set(ex.exercise, set.weightKg);
-          if (inMonth) count++;
         }
       }
     }
   }
-  return count;
+  return events;
 }
 
 export interface AttentionFlag {
@@ -53,15 +75,15 @@ export interface AttentionFlag {
 }
 
 /**
- * Señales calculadas puramente sobre lo ya registrado (sin re-derivar el plan
- * del programa, que cambia semana a semana): bajó de peso respecto a la vez
- * anterior, se repitió el mismo peso 3 veces seguidas, o llegó a RIR 0 cuando
- * antes le sobraban reps.
+ * Señales calculadas puramente sobre lo ya registrado en el ciclo actual
+ * (sin re-derivar el plan del programa, que cambia semana a semana): bajó de
+ * peso respecto a la vez anterior, se repitió el mismo peso 3 veces
+ * seguidas, o llegó a RIR 0 cuando antes le sobraban reps.
  */
-export function getAttentionFlags(logs: LogsData, limit = 3): AttentionFlag[] {
+export function getAttentionFlags(logs: LogsData, cycle: number, limit = 3): AttentionFlag[] {
   const byExercise = new Map<string, { weightKg: number; rir: string }[]>();
-  const completed = [...logs.sessions]
-    .filter((s) => s.status === "completed")
+  const completed = filterByCycle(logs, cycle)
+    .sessions.filter((s) => s.status === "completed")
     .sort((a, b) => a.programIndex - b.programIndex);
 
   for (const session of completed) {
@@ -110,17 +132,18 @@ export interface HighlightExercise {
   pct: number;
 }
 
-/** El ejercicio con mayor % de mejora histórico (primer registro vs. más reciente). */
-export function getHighlightExercise(logs: LogsData): HighlightExercise | null {
+/** El ejercicio con mayor % de mejora en el ciclo actual (primer registro vs. más reciente de ese ciclo). */
+export function getHighlightExercise(logs: LogsData, cycle: number): HighlightExercise | null {
+  const scoped = filterByCycle(logs, cycle);
   const names = new Set<string>();
-  for (const s of logs.sessions) {
+  for (const s of scoped.sessions) {
     if (s.status !== "completed") continue;
     for (const ex of s.exercises) names.add(ex.exercise);
   }
 
   let best: HighlightExercise | null = null;
   for (const name of names) {
-    const pct = getPctImprovement(getExerciseProgression(logs, name, 0));
+    const pct = getPctImprovement(getExerciseProgression(scoped, name, 0));
     if (pct !== null && pct > 0 && (!best || pct > best.pct)) {
       best = { exercise: name, pct };
     }
@@ -128,19 +151,24 @@ export function getHighlightExercise(logs: LogsData): HighlightExercise | null {
   return best;
 }
 
-export function getLastCompletedSession(logs: LogsData): WorkoutSession | null {
-  const completed = [...logs.sessions]
-    .filter((s) => s.status === "completed")
+export function getLastCompletedSession(logs: LogsData, cycle: number): WorkoutSession | null {
+  const completed = filterByCycle(logs, cycle)
+    .sessions.filter((s) => s.status === "completed")
     .sort((a, b) => b.programIndex - a.programIndex);
   return completed[0] ?? null;
 }
 
-/** Cuántos sets de una sesión superaron el récord previo a esa sesión (por ejercicio). */
+/**
+ * Cuántos sets de una sesión superaron el récord previo a esa sesión (por
+ * ejercicio). Compara contra TODO el historial (todos los ciclos): un PR de
+ * peso es real sin importar si el programa se reinició.
+ */
 export function countPRsInSession(logs: LogsData, session: WorkoutSession): number {
+  const sessionSeq = globalSeq(session);
   let count = 0;
   for (const ex of session.exercises) {
     const priorBest = logs.sessions
-      .filter((s) => s.status === "completed" && s.programIndex < session.programIndex)
+      .filter((s) => s.status === "completed" && globalSeq(s) < sessionSeq)
       .flatMap((s) => s.exercises.filter((e) => e.exercise === ex.exercise))
       .flatMap((e) => e.sets)
       .filter((s) => isSetLogged(s) && s.weightKg !== null)

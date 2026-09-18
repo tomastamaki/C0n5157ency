@@ -1,17 +1,22 @@
 import type { LogsData, LoggedSet } from "../types/logs";
 import { isSetLogged } from "../types/logs";
 import type { Program } from "../types/program";
+import { globalSeq } from "./cycle";
 
-/** Busca el último registro guardado de un mismo ejercicio + índice de serie, antes de un día dado del programa. */
+/**
+ * Busca el último registro guardado de un mismo ejercicio + índice de serie,
+ * antes de un punto dado (combina ciclo + día de programa, para que un
+ * reinicio del programa no rompa la comparación cronológica).
+ */
 export function findLastLoggedSet(
   logs: LogsData,
   exerciseName: string,
   setIndex: number,
-  beforeProgramIndex: number
+  beforeGlobalSeq: number
 ): LoggedSet | null {
   const sessions = logs.sessions
-    .filter((s) => s.programIndex < beforeProgramIndex && s.status === "completed")
-    .sort((a, b) => b.programIndex - a.programIndex);
+    .filter((s) => globalSeq(s) < beforeGlobalSeq && s.status === "completed")
+    .sort((a, b) => globalSeq(b) - globalSeq(a));
 
   for (const session of sessions) {
     const exercise = session.exercises.find((e) => e.exercise === exerciseName);
@@ -74,11 +79,11 @@ export function getPctImprovement(points: ProgressionPoint[]): number | null {
 export function getPreferredExercise(
   logs: LogsData,
   originalExerciseName: string,
-  beforeProgramIndex: number
+  beforeGlobalSeq: number
 ): string | null {
   const past = logs.sessions
-    .filter((s) => s.programIndex < beforeProgramIndex && s.status !== "in_progress")
-    .sort((a, b) => b.programIndex - a.programIndex);
+    .filter((s) => globalSeq(s) < beforeGlobalSeq && s.status !== "in_progress")
+    .sort((a, b) => globalSeq(b) - globalSeq(a));
 
   for (const session of past) {
     const ex = session.exercises.find(

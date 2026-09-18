@@ -127,9 +127,15 @@ def parse_exercise_row(ws, row):
 
     substitutions = []
     for key in ("sub1", "sub2"):
-        sub = to_text_or_none(ws.cell(row=row, column=COL[key]))
-        if sub:
-            substitutions.append(sub)
+        sub_cell = ws.cell(row=row, column=COL[key])
+        sub_name = to_text_or_none(sub_cell)
+        if sub_name:
+            substitutions.append(
+                {
+                    "name": sub_name,
+                    "videoUrl": to_embed_url(sub_cell.hyperlink.target if sub_cell.hyperlink else None),
+                }
+            )
 
     return {
         "name": name,

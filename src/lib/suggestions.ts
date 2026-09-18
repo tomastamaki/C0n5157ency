@@ -22,10 +22,10 @@ export function getWeightSuggestion(
   logs: LogsData,
   exerciseName: string,
   setIndex: number,
-  beforeProgramIndex: number,
+  beforeGlobalSeq: number,
   incrementKg: number
 ): WeightSuggestion | null {
-  const last = findLastLoggedSet(logs, exerciseName, setIndex, beforeProgramIndex);
+  const last = findLastLoggedSet(logs, exerciseName, setIndex, beforeGlobalSeq);
   if (!last || last.weightKg === null || last.rir === null) return null;
 
   if (last.rir === "3+") {

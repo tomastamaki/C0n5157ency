@@ -3,6 +3,7 @@ import type { ExerciseGroup } from "../types/program";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 import { isSetFilled, isSetLogged } from "../types/logs";
 import { RIRSelector } from "./RIRSelector";
+import { NumericInput } from "./NumericInput";
 import { VideoEmbed } from "./VideoEmbed";
 import { RestTimer } from "./RestTimer";
 import { ProgressChart } from "./ProgressChart";
@@ -13,6 +14,7 @@ import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { getWeightSuggestion } from "../lib/suggestions";
 import { getPersonalRecord } from "../lib/records";
+import { globalSeq } from "../lib/cycle";
 
 interface Props {
   group: ExerciseGroup;
@@ -46,6 +48,7 @@ export function ExerciseCard({
 
   const literalSets = useMemo(() => getLiteralWorkingSets(group), [group]);
   const warmup = group.sets.find((s) => s.type === "warmup");
+  const beforeGlobalSeq = globalSeq({ programIndex, cycle: session.cycle });
 
   const loggedExercise = session.exercises[groupIndexInDay];
   const displayName = loggedExercise?.exercise ?? group.exercise;
@@ -57,8 +60,12 @@ export function ExerciseCard({
     () => getExerciseProgression(logs, displayName, 0),
     [logs, displayName]
   );
+  const substitutionInfo = isSubstituted
+    ? group.substitutions.find((s) => s.name === displayName) ?? null
+    : null;
+  const fallbackInfo = isSubstituted ? exerciseInfoIndex[displayName] : null;
   const displayInfo = isSubstituted
-    ? exerciseInfoIndex[displayName] ?? { videoUrl: null, notes: null }
+    ? { videoUrl: substitutionInfo?.videoUrl ?? fallbackInfo?.videoUrl ?? null, notes: fallbackInfo?.notes ?? null }
     : { videoUrl: group.videoUrl, notes: group.notes };
 
   function updateSet(setIndex: number, patch: Partial<LoggedSet>) {
@@ -167,9 +174,7 @@ export function ExerciseCard({
         <VideoEmbed url={displayInfo.videoUrl} />
       ) : (
         isSubstituted && (
-          <p className="text-sm text-faint">
-            Sin video de técnica disponible para este sustituto (no está en el programa original).
-          </p>
+          <p className="text-sm text-faint">Sin video de técnica disponible para este sustituto.</p>
         )
       )}
 
@@ -190,8 +195,8 @@ export function ExerciseCard({
             rir: null,
             confirmed: false,
           };
-          const lastTime = findLastLoggedSet(logs, displayName, i, programIndex);
-          const suggestion = getWeightSuggestion(logs, displayName, i, programIndex, incrementKg);
+          const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
+          const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
           const filled = isSetFilled(logged);
           const done = isSetLogged(logged);
           const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
@@ -221,27 +226,19 @@ export function ExerciseCard({
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="mb-1 block text-xs text-faint">Peso (kg)</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.25"
-                    value={logged.weightKg ?? ""}
-                    onChange={(e) =>
-                      updateSet(i, { weightKg: e.target.value === "" ? null : Number(e.target.value) })
-                    }
+                  <NumericInput
+                    value={logged.weightKg}
+                    onChange={(weightKg) => updateSet(i, { weightKg })}
+                    allowDecimal
                     className="h-12 w-full rounded-pill border border-border bg-surface2 px-3 font-mono text-lg font-semibold text-ink"
                   />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-faint">Reps</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    step="1"
-                    value={logged.reps ?? ""}
-                    onChange={(e) =>
-                      updateSet(i, { reps: e.target.value === "" ? null : Number(e.target.value) })
-                    }
+                  <NumericInput
+                    value={logged.reps}
+                    onChange={(reps) => updateSet(i, { reps })}
+                    allowDecimal={false}
                     className="h-12 w-full rounded-pill border border-border bg-surface2 px-3 font-mono text-lg font-semibold text-ink"
                   />
                 </label>
@@ -309,15 +306,15 @@ export function ExerciseCard({
                 </button>
               )}
               {group.substitutions
-                .filter((sub) => sub !== displayName)
+                .filter((sub) => sub.name !== displayName)
                 .map((sub) => (
                   <button
-                    key={sub}
+                    key={sub.name}
                     type="button"
-                    onClick={() => substituteExercise(sub)}
+                    onClick={() => substituteExercise(sub.name)}
                     className="rounded-pill border border-border bg-surface2 px-3 py-1 text-sm text-faint"
                   >
-                    {sub}
+                    {sub.name}
                   </button>
                 ))}
             </div>

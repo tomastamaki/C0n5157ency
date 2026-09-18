@@ -21,8 +21,8 @@ interface Props {
 }
 
 export function TodayScreen({ activeDraft, onNavigateHistory, onResumeWorkout }: Props) {
-  const { flatDays, logs } = useApp();
-  const weekDays = getCurrentWeekDays(flatDays, logs);
+  const { flatDays, logs, settings } = useApp();
+  const weekDays = getCurrentWeekDays(flatDays, logs, settings.programCycle);
 
   if (weekDays.length === 0) {
     return (

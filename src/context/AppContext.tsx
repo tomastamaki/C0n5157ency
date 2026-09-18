@@ -46,6 +46,7 @@ interface AppContextValue {
   logs: LogsData;
   upsertSession: (session: WorkoutSession) => void;
   removeSession: (id: string) => void;
+  clearAllLogs: () => void;
   syncStatus: SyncStatus;
   syncError: string | null;
   lastSyncedAt: string | null;
@@ -196,6 +197,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutateLogs]
   );
 
+  const clearAllLogs = useCallback(() => {
+    mutateLogs(() => ({ ...EMPTY_LOGS }));
+  }, [mutateLogs]);
+
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
@@ -292,6 +297,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     logs,
     upsertSession,
     removeSession,
+    clearAllLogs,
     syncStatus,
     syncError,
     lastSyncedAt,

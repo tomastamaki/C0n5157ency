@@ -11,13 +11,18 @@ export interface WorkingSet {
 
 export type SetPrescription = WarmupSet | WorkingSet;
 
+export interface Substitution {
+  name: string;
+  videoUrl: string | null;
+}
+
 export interface ExerciseGroup {
   exercise: string;
   videoUrl: string | null;
   supersetGroup: string | null;
   intensityTechnique: string | null;
   notes: string | null;
-  substitutions: string[];
+  substitutions: Substitution[];
   rest: string | null;
   sets: SetPrescription[];
 }

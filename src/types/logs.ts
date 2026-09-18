@@ -21,6 +21,13 @@ export interface LoggedExercise {
 
 export interface WorkoutSession {
   id: string;
+  /**
+   * Número de "vuelta" del programa a la que pertenece esta sesión (0 = la
+   * primera). Reiniciar el programa desde Ajustes incrementa el ciclo actual
+   * sin borrar las sesiones de ciclos anteriores, que quedan como referencia
+   * en el historial pero dejan de contar para el progreso/racha actual.
+   */
+  cycle: number;
   /** Posición (0-based) en la secuencia aplanada de los 48 días del programa. */
   programIndex: number;
   blockName: string;

@@ -7,15 +7,17 @@ const PADDING = 24;
 function ImprovementBadge({ points }: { points: ProgressionPoint[] }) {
   const pct = getPctImprovement(points);
   if (pct === null) return null;
-  const positive = pct >= 0;
+  const rounded = Math.round(pct);
+  const tone =
+    rounded > 0
+      ? "bg-success/15 text-success"
+      : rounded < 0
+        ? "bg-red-500/15 text-red-500"
+        : "bg-surface2 text-faint";
   return (
-    <span
-      className={`rounded-pill px-2 py-0.5 font-mono text-xs font-semibold ${
-        positive ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
-      }`}
-    >
-      {positive ? "+" : ""}
-      {pct.toFixed(0)}%
+    <span className={`rounded-pill px-2 py-0.5 font-mono text-xs font-semibold ${tone}`}>
+      {rounded > 0 ? "+" : ""}
+      {rounded}%
     </span>
   );
 }

@@ -12,12 +12,12 @@ import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import type { WorkoutSession } from "./types/logs";
 
 function AppShell() {
-  const { flatDays, logs } = useApp();
+  const { flatDays, logs, settings } = useApp();
   const [tab, setTab] = useState<TabId>("today");
   const [viewingWorkout, setViewingWorkout] = useState(false);
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
 
-  const activeDraft = findActiveDraft(logs);
+  const activeDraft = findActiveDraft(logs, settings.programCycle);
   const draftFlatDay = activeDraft ? flatDays[activeDraft.programIndex] ?? null : null;
 
   function handleTabChange(next: TabId) {

@@ -3,13 +3,16 @@ import { useApp } from "../context/AppContext";
 import { getExerciseNamesByDay, getExerciseProgression } from "../lib/history";
 import { getCurrentFlatDay } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
+import { patchLoggedSet, clearLoggedSet } from "../lib/sessionEdit";
 import { isSetLogged } from "../types/logs";
 import { formatDate, formatDuration } from "../lib/time";
 import { ProgressChart } from "../components/ProgressChart";
 import { TrainingCalendar } from "../components/TrainingCalendar";
 import { ActiveWorkoutBanner } from "../components/ActiveWorkoutBanner";
-import { IconChevronLeft } from "../components/icons";
-import type { WorkoutSession } from "../types/logs";
+import { RIRSelector } from "../components/RIRSelector";
+import { NumericInput } from "../components/NumericInput";
+import { IconChevronLeft, IconPencil, IconRotateCcw, IconTrash } from "../components/icons";
+import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 
 function StatTile({ value, label, tone }: { value: number; label: string; tone?: "success" | "warning" }) {
   const toneClass = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-ink";
@@ -157,6 +160,130 @@ function CalendarTab({ onSelectSession }: { onSelectSession: (id: string) => voi
   return <TrainingCalendar sessions={sessions} onSelectSession={onSelectSession} />;
 }
 
+function EditableSetRow({
+  session,
+  exerciseIdx,
+  set,
+  index,
+}: {
+  session: WorkoutSession;
+  exerciseIdx: number;
+  set: LoggedSet;
+  index: number;
+}) {
+  const { upsertSession } = useApp();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<{ weightKg: number | null; reps: number | null; rir: RIRValue | null }>({
+    weightKg: set.weightKg,
+    reps: set.reps,
+    rir: set.rir,
+  });
+
+  function startEdit() {
+    setDraft({ weightKg: set.weightKg, reps: set.reps, rir: set.rir });
+    setEditing(true);
+  }
+
+  function save() {
+    upsertSession(
+      patchLoggedSet(session, exerciseIdx, set.setIndex, {
+        weightKg: draft.weightKg,
+        reps: draft.reps,
+        rir: draft.rir,
+        confirmed: draft.weightKg !== null && draft.reps !== null && draft.rir !== null,
+      })
+    );
+    setEditing(false);
+  }
+
+  function remove() {
+    if (!window.confirm("¿Eliminar esta serie? Se borran el peso, las reps y el RIR registrados.")) return;
+    upsertSession(clearLoggedSet(session, exerciseIdx, set.setIndex));
+  }
+
+  function redo() {
+    if (!window.confirm("¿Volver a hacer esta serie? Se borra lo cargado para completarla de nuevo ahora.")) {
+      return;
+    }
+    upsertSession(clearLoggedSet(session, exerciseIdx, set.setIndex));
+    setDraft({ weightKg: null, reps: null, rir: null });
+    setEditing(true);
+  }
+
+  if (editing) {
+    return (
+      <li className="rounded-block border border-primary/40 bg-surface2 p-2">
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <NumericInput
+            value={draft.weightKg}
+            onChange={(weightKg) => setDraft((d) => ({ ...d, weightKg }))}
+            allowDecimal
+            className="h-10 w-full rounded-pill border border-border bg-surface px-2 font-mono text-sm text-ink"
+          />
+          <NumericInput
+            value={draft.reps}
+            onChange={(reps) => setDraft((d) => ({ ...d, reps }))}
+            allowDecimal={false}
+            className="h-10 w-full rounded-pill border border-border bg-surface px-2 font-mono text-sm text-ink"
+          />
+        </div>
+        <RIRSelector value={draft.rir} onChange={(rir) => setDraft((d) => ({ ...d, rir }))} />
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={save}
+            className="flex-1 rounded-pill bg-primary py-1.5 text-xs font-semibold text-white"
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="flex-1 rounded-pill bg-surface py-1.5 text-xs font-semibold text-muted"
+          >
+            Cancelar
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-2 py-0.5">
+      <span>
+        Serie {index + 1}: {set.weightKg ?? "—"}kg × {set.reps ?? "—"} (RIR {set.rir ?? "—"})
+        {isSetLogged(set) ? "" : " · sin confirmar"}
+      </span>
+      <span className="flex shrink-0 gap-1">
+        <button
+          type="button"
+          onClick={startEdit}
+          aria-label="Editar serie"
+          className="rounded-pill p-1 text-faint hover:bg-surface2"
+        >
+          <IconPencil className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={redo}
+          aria-label="Rehacer serie"
+          className="rounded-pill p-1 text-faint hover:bg-surface2"
+        >
+          <IconRotateCcw className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={remove}
+          aria-label="Eliminar serie"
+          className="rounded-pill p-1 text-faint hover:bg-surface2"
+        >
+          <IconTrash className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    </li>
+  );
+}
+
 function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
   const { logs } = useApp();
   const session = logs.sessions.find((s) => s.id === sessionId);
@@ -207,10 +334,7 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
             </p>
             <ul className="mt-1 space-y-0.5 font-mono text-muted">
               {ex.sets.map((s, j) => (
-                <li key={j}>
-                  Serie {j + 1}: {s.weightKg ?? "—"}kg × {s.reps ?? "—"} (RIR {s.rir ?? "—"})
-                  {isSetLogged(s) ? "" : " · sin confirmar"}
-                </li>
+                <EditableSetRow key={s.setIndex} session={session} exerciseIdx={i} set={s} index={j} />
               ))}
             </ul>
           </div>
@@ -224,8 +348,8 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
 }
 
 function UpcomingTab() {
-  const { flatDays, logs, program } = useApp();
-  const currentDay = getCurrentFlatDay(flatDays, logs);
+  const { flatDays, logs, program, settings } = useApp();
+  const currentDay = getCurrentFlatDay(flatDays, logs, settings.programCycle);
   const currentWeekNumber = currentDay?.weekNumber ?? flatDays[flatDays.length - 1]?.weekNumber;
   const nextWeekNumber = (currentWeekNumber ?? 0) + 1;
   const nextWeek = program.blocks.flatMap((b) => b.weeks).find((w) => w.weekNumber === nextWeekNumber);
