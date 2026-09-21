@@ -10,7 +10,7 @@ import {
 } from "react";
 import programJson from "../data/program.json";
 import type { Program } from "../types/program";
-import type { LogsData, WorkoutSession } from "../types/logs";
+import type { BodyWeightEntry, LogsData, SleepEntry, WorkoutSession } from "../types/logs";
 import { EMPTY_LOGS } from "../types/logs";
 import {
   type AppSettings,
@@ -18,6 +18,7 @@ import {
   loadLogs,
   loadRemoteSha,
   loadSettings,
+  normalizeLogs,
   saveDirtyFlag,
   saveLogsLocal,
   saveRemoteSha,
@@ -46,6 +47,10 @@ interface AppContextValue {
   logs: LogsData;
   upsertSession: (session: WorkoutSession) => void;
   removeSession: (id: string) => void;
+  upsertBodyWeightEntry: (entry: BodyWeightEntry) => void;
+  removeBodyWeightEntry: (id: string) => void;
+  upsertSleepEntry: (entry: SleepEntry) => void;
+  removeSleepEntry: (id: string) => void;
   clearAllLogs: () => void;
   syncStatus: SyncStatus;
   syncError: string | null;
@@ -111,7 +116,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (err instanceof GitHubApiError && err.status === 409) {
         try {
           const remote = await fetchLogsFile(target);
-          const merged = remote ? mergeLogs(dataToPush, remote.data) : dataToPush;
+          const remoteData = remote ? (normalizeLogs(remote.data) ?? remote.data) : null;
+          const merged = remoteData ? mergeLogs(dataToPush, remoteData) : dataToPush;
           const newSha = await putLogsFile(target, merged, remote?.sha ?? null);
           remoteShaRef.current = newSha;
           saveRemoteSha(newSha);
@@ -197,6 +203,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutateLogs]
   );
 
+  const upsertBodyWeightEntry = useCallback(
+    (entry: BodyWeightEntry) => {
+      mutateLogs((prev) => {
+        const idx = prev.bodyWeightEntries.findIndex((e) => e.id === entry.id);
+        const entries = [...prev.bodyWeightEntries];
+        if (idx >= 0) entries[idx] = entry;
+        else entries.push(entry);
+        entries.sort((a, b) => a.date.localeCompare(b.date));
+        return { ...prev, bodyWeightEntries: entries };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const removeBodyWeightEntry = useCallback(
+    (id: string) => {
+      mutateLogs((prev) => ({ ...prev, bodyWeightEntries: prev.bodyWeightEntries.filter((e) => e.id !== id) }));
+    },
+    [mutateLogs]
+  );
+
+  const upsertSleepEntry = useCallback(
+    (entry: SleepEntry) => {
+      mutateLogs((prev) => {
+        const idx = prev.sleepEntries.findIndex((e) => e.id === entry.id);
+        const entries = [...prev.sleepEntries];
+        if (idx >= 0) entries[idx] = entry;
+        else entries.push(entry);
+        entries.sort((a, b) => a.date.localeCompare(b.date));
+        return { ...prev, sleepEntries: entries };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const removeSleepEntry = useCallback(
+    (id: string) => {
+      mutateLogs((prev) => ({ ...prev, sleepEntries: prev.sleepEntries.filter((e) => e.id !== id) }));
+    },
+    [mutateLogs]
+  );
+
   const clearAllLogs = useCallback(() => {
     mutateLogs(() => ({ ...EMPTY_LOGS }));
   }, [mutateLogs]);
@@ -248,8 +296,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        const remoteData = normalizeLogs(remote.data) ?? remote.data;
+
         if (dirtyRef.current) {
-          const merged = mergeLogs(logs, remote.data);
+          const merged = mergeLogs(logs, remoteData);
           const sha = await putLogsFile(target, merged, remote.sha);
           remoteShaRef.current = sha;
           saveRemoteSha(sha);
@@ -262,8 +312,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           remoteShaRef.current = remote.sha;
           saveRemoteSha(remote.sha);
-          saveLogsLocal(remote.data);
-          setLogs(remote.data);
+          saveLogsLocal(remoteData);
+          setLogs(remoteData);
           setSyncStatus("saved");
           setLastSyncedAt(new Date().toISOString());
         }
@@ -297,6 +347,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     logs,
     upsertSession,
     removeSession,
+    upsertBodyWeightEntry,
+    removeBodyWeightEntry,
+    upsertSleepEntry,
+    removeSleepEntry,
     clearAllLogs,
     syncStatus,
     syncError,

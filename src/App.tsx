@@ -7,6 +7,7 @@ import { Wordmark } from "./components/Wordmark";
 import { Watermark } from "./components/Watermark";
 import { TodayScreen } from "./screens/Today";
 import { HistoryScreen } from "./screens/History";
+import { PerformanceScreen } from "./screens/Performance";
 import { SettingsScreen } from "./screens/Settings";
 import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import type { WorkoutSession } from "./types/logs";
@@ -51,6 +52,8 @@ function AppShell() {
     );
   } else if (tab === "history") {
     content = <HistoryScreen activeDraft={activeDraft} onResumeWorkout={() => setViewingWorkout(true)} />;
+  } else if (tab === "performance") {
+    content = <PerformanceScreen />;
   } else {
     content = <SettingsScreen />;
   }

@@ -49,6 +49,14 @@ export function IconSettings(props: IconProps) {
   );
 }
 
+export function IconActivity(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 12h4l2-7 4 14 2-7h6" />
+    </svg>
+  );
+}
+
 export function IconChevronLeft(props: IconProps) {
   return (
     <svg {...base(props)}>

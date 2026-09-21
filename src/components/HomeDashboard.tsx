@@ -16,8 +16,11 @@ import {
   type PREvent,
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
+import { getRecommendation } from "../lib/recommendation";
 import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
+import { RecommendationCard } from "./RecommendationCard";
+import { WorkoutPreviewScreen } from "../screens/WorkoutPreview";
 
 interface Props {
   weekDays: WeekDayStatus[];
@@ -72,10 +75,11 @@ function PRDetailView({
 }
 
 export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnterWorkout }: Props) {
-  const { logs, program, settings } = useApp();
+  const { logs, program, settings, flatDays } = useApp();
   const { startWorkout, skipDay } = useWorkoutActions();
   const cycle = settings.programCycle;
   const [showPRDetail, setShowPRDetail] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const pendingDays = weekDays.filter((d) => !d.session);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -104,9 +108,30 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
 
   const chips = selected ? getMuscleChips(selected.flatDay.day.name) : [];
 
+  const recommendation = useMemo(
+    () =>
+      selected
+        ? getRecommendation(logs, program, flatDays, selected.flatDay.day.name, selected.flatDay.weekNumber, cycle)
+        : null,
+    [logs, program, flatDays, selected, cycle]
+  );
+
   if (showPRDetail) {
     return (
       <PRDetailView events={prsThisWeek} weekNumber={currentWeekNumber} onBack={() => setShowPRDetail(false)} />
+    );
+  }
+
+  if (showPreview && selected) {
+    return (
+      <WorkoutPreviewScreen
+        flatDay={selected.flatDay}
+        onBack={() => setShowPreview(false)}
+        onStart={() => {
+          startWorkout(selected.flatDay);
+          onEnterWorkout();
+        }}
+      />
     );
   }
 
@@ -160,15 +185,25 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
               ))}
             </div>
           )}
+
+          {recommendation && <RecommendationCard recommendation={recommendation} />}
+
           <button
             type="button"
             onClick={() => {
               startWorkout(selected.flatDay);
               onEnterWorkout();
             }}
-            className="mt-4 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white shadow-elevated-sm active:scale-[0.98]"
+            className="mt-1 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white shadow-elevated-sm active:scale-[0.98]"
           >
             Empezar entrenamiento
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="mt-2 w-full text-sm text-primary underline"
+          >
+            Vista previa del entrenamiento
           </button>
           <button
             type="button"

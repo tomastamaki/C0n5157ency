@@ -20,12 +20,17 @@ export function currentElapsedSec(session: WorkoutSession): number {
  * lógica sin depender de en qué pestaña esté montado cada uno.
  */
 export function useWorkoutActions() {
-  const { logs, upsertSession, settings } = useApp();
+  const { logs, upsertSession, settings, updateSettings } = useApp();
   const cycle = settings.programCycle;
 
   function startWorkout(day: FlatProgramDay): WorkoutSession {
     const now = new Date().toISOString();
     const beforeGlobalSeq = globalSeq({ programIndex: day.index, cycle });
+
+    // Sustituciones elegidas de antemano en la vista previa tienen prioridad
+    // sobre la última preferencia recordada del historial.
+    const pendingKeysToClear: string[] = [];
+
     const session: WorkoutSession = {
       id: newId(),
       cycle,
@@ -41,8 +46,12 @@ export function useWorkoutActions() {
       runningSince: now,
       pausedElapsedSec: 0,
       updatedAt: now,
-      exercises: day.day.exerciseGroups.map((g) => {
-        const preferred = getPreferredExercise(logs, g.exercise, beforeGlobalSeq);
+      feeling: null,
+      exercises: day.day.exerciseGroups.map((g, groupIdx) => {
+        const pendingKey = `${day.index}-${groupIdx}`;
+        const pending = settings.pendingSubstitutions[pendingKey];
+        if (pending) pendingKeysToClear.push(pendingKey);
+        const preferred = pending ?? getPreferredExercise(logs, g.exercise, beforeGlobalSeq);
         const chosen = preferred ?? g.exercise;
         return {
           exercise: chosen,
@@ -59,6 +68,13 @@ export function useWorkoutActions() {
       }),
     };
     upsertSession(session);
+
+    if (pendingKeysToClear.length > 0) {
+      const remaining = { ...settings.pendingSubstitutions };
+      for (const key of pendingKeysToClear) delete remaining[key];
+      updateSettings({ pendingSubstitutions: remaining });
+    }
+
     return session;
   }
 
@@ -79,8 +95,13 @@ export function useWorkoutActions() {
       runningSince: null,
       pausedElapsedSec: 0,
       updatedAt: now,
+      feeling: null,
       exercises: [],
     });
+  }
+
+  function setFeeling(session: WorkoutSession, feeling: number) {
+    upsertSession({ ...session, feeling, updatedAt: new Date().toISOString() });
   }
 
   function updateDraft(draft: WorkoutSession, updater: (session: WorkoutSession) => WorkoutSession) {
@@ -119,5 +140,5 @@ export function useWorkoutActions() {
     return finished;
   }
 
-  return { startWorkout, skipDay, updateDraft, pauseWorkout, resumeWorkout, finishWorkout };
+  return { startWorkout, skipDay, updateDraft, pauseWorkout, resumeWorkout, finishWorkout, setFeeling };
 }

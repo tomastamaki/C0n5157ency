@@ -19,6 +19,21 @@ export function formatDate(isoDate: string): string {
   });
 }
 
+/**
+ * Igual que `formatDate` pero para fechas puras "YYYY-MM-DD" (sin hora), como
+ * las de peso corporal/sueño: las arma en el timezone local en vez de UTC
+ * para no correrse un día en zonas horarias negativas (`new Date("2026-09-10")`
+ * es medianoche UTC, que en UTC-3 cae el día anterior).
+ */
+export function formatDateOnly(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function formatDuration(totalSec: number): string {
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);

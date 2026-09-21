@@ -46,14 +46,42 @@ export interface WorkoutSession {
   /** Se actualiza en cada cambio; se usa para resolver conflictos al sincronizar. */
   updatedAt: string;
   exercises: LoggedExercise[];
+  /** "¿Cómo te sentiste del 1 al 10?", preguntado en el resumen al terminar. Null hasta que se responde. */
+  feeling: number | null;
+}
+
+/** Registro de peso corporal (pestaña Rendimiento). Independiente de las sesiones de entrenamiento. */
+export interface BodyWeightEntry {
+  id: string;
+  /** Fecha del registro (YYYY-MM-DD), editable — no necesariamente "hoy". */
+  date: string;
+  weightKg: number;
+  bodyFatPct: number | null;
+  muscleMassKg: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Registro de calidad de sueño (pestaña Rendimiento). Asociado a la noche anterior a `date`. */
+export interface SleepEntry {
+  id: string;
+  date: string;
+  /** Score de sueño 1-100 (mismo concepto que la app Salud de Apple). */
+  score: number;
+  deepSleepHours: number | null;
+  awakeMinutes: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LogsData {
   version: 1;
   sessions: WorkoutSession[];
+  bodyWeightEntries: BodyWeightEntry[];
+  sleepEntries: SleepEntry[];
 }
 
-export const EMPTY_LOGS: LogsData = { version: 1, sessions: [] };
+export const EMPTY_LOGS: LogsData = { version: 1, sessions: [], bodyWeightEntries: [], sleepEntries: [] };
 
 /** Peso, reps y RIR completos, sin importar si ya se confirmó con el botón ✓. */
 export function isSetFilled(set: LoggedSet): boolean {
@@ -63,4 +91,9 @@ export function isSetFilled(set: LoggedSet): boolean {
 /** Serie realmente "registrada": datos completos y confirmados con el botón ✓. */
 export function isSetLogged(set: LoggedSet): boolean {
   return isSetFilled(set) && set.confirmed;
+}
+
+/** Representación numérica de RIR para promediar ("3+" se trata como 3.5). */
+export function rirToNumber(rir: RIRValue): number {
+  return rir === "3+" ? 3.5 : Number(rir);
 }

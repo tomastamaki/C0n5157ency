@@ -1,21 +1,33 @@
-import type { LogsData, WorkoutSession } from "../types/logs";
+import type { BodyWeightEntry, LogsData, SleepEntry, WorkoutSession } from "../types/logs";
+
+function mergeById<T extends { id: string; updatedAt: string }>(a: T[], b: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of [...a, ...b]) {
+    const existing = byId.get(item.id);
+    if (!existing || new Date(item.updatedAt) >= new Date(existing.updatedAt)) {
+      byId.set(item.id, item);
+    }
+  }
+  return Array.from(byId.values());
+}
 
 /**
  * Combina dos versiones de logs.json (por ejemplo local vs. remoto tras un
  * conflicto de sha). Es una fusión simple pensada para un solo usuario en un
- * solo dispositivo a la vez: une por id de sesión y, si el mismo id existe en
- * ambos lados con contenido distinto, gana el `updatedAt` más reciente.
+ * solo dispositivo a la vez: une por id en cada colección y, si el mismo id
+ * existe en ambos lados con contenido distinto, gana el `updatedAt` más
+ * reciente.
  */
 export function mergeLogs(a: LogsData, b: LogsData): LogsData {
-  const byId = new Map<string, WorkoutSession>();
+  const sessions = mergeById<WorkoutSession>(a.sessions, b.sessions).sort(
+    (s1, s2) => s1.programIndex - s2.programIndex
+  );
+  const bodyWeightEntries = mergeById<BodyWeightEntry>(a.bodyWeightEntries, b.bodyWeightEntries).sort((x, y) =>
+    x.date.localeCompare(y.date)
+  );
+  const sleepEntries = mergeById<SleepEntry>(a.sleepEntries, b.sleepEntries).sort((x, y) =>
+    x.date.localeCompare(y.date)
+  );
 
-  for (const session of [...a.sessions, ...b.sessions]) {
-    const existing = byId.get(session.id);
-    if (!existing || new Date(session.updatedAt) >= new Date(existing.updatedAt)) {
-      byId.set(session.id, session);
-    }
-  }
-
-  const sessions = Array.from(byId.values()).sort((s1, s2) => s1.programIndex - s2.programIndex);
-  return { version: 1, sessions };
+  return { version: 1, sessions, bodyWeightEntries, sleepEntries };
 }

@@ -13,6 +13,12 @@ export interface AppSettings {
   exerciseIncrements: Record<string, number>;
   /** Se incrementa al "reiniciar el programa" desde Ajustes; las sesiones nuevas quedan marcadas con este número. */
   programCycle: number;
+  /**
+   * Sustituciones elegidas desde la vista previa del entrenamiento, antes de
+   * arrancarlo. Clave `${flatDayIndex}-${groupIndexInDay}` -> nombre elegido.
+   * Se consumen (y se borran) al tocar "Empezar entrenamiento".
+   */
+  pendingSubstitutions: Record<string, string>;
 }
 
 function systemPrefersDark(): boolean {
@@ -28,6 +34,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: systemPrefersDark() ? "dark" : "light",
   exerciseIncrements: {},
   programCycle: 0,
+  pendingSubstitutions: {},
 };
 
 const SETTINGS_KEY = "minmax.settings.v1";
@@ -49,13 +56,23 @@ export function saveSettings(settings: AppSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
+/** Completa arrays que pueden faltar en datos guardados antes de agregarse (sesiones viejas, sync con GitHub, etc). */
+export function normalizeLogs(parsed: unknown): LogsData | null {
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as LogsData).sessions)) return null;
+  const p = parsed as Partial<LogsData>;
+  return {
+    version: 1,
+    sessions: p.sessions ?? [],
+    bodyWeightEntries: Array.isArray(p.bodyWeightEntries) ? p.bodyWeightEntries : [],
+    sleepEntries: Array.isArray(p.sleepEntries) ? p.sleepEntries : [],
+  };
+}
+
 export function loadLogs(): LogsData {
   try {
     const raw = localStorage.getItem(LOGS_KEY);
     if (!raw) return { ...EMPTY_LOGS };
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.sessions)) return { ...EMPTY_LOGS };
-    return parsed;
+    return normalizeLogs(JSON.parse(raw)) ?? { ...EMPTY_LOGS };
   } catch {
     return { ...EMPTY_LOGS };
   }

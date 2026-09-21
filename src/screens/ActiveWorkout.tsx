@@ -33,6 +33,35 @@ function PausedCard({ draft, onResume }: { draft: WorkoutSession; onResume: () =
   );
 }
 
+function FeelingPicker({ session }: { session: WorkoutSession }) {
+  const { setFeeling } = useWorkoutActions();
+  const [value, setValue] = useState<number | null>(session.feeling);
+
+  return (
+    <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+      <p className="mb-1 text-sm font-semibold text-ink">¿Cómo te sentiste del 1 al 10?</p>
+      <p className="mb-3 text-xs text-muted">10 = excelente, 1 = destruido.</p>
+      <div className="grid grid-cols-5 gap-2">
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => {
+              setValue(n);
+              setFeeling(session, n);
+            }}
+            className={`h-10 rounded-pill font-mono text-sm font-semibold transition-colors ${
+              value === n ? "bg-primary text-white" : "bg-surface2 text-faint"
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WorkoutSummary({ session, onContinue }: { session: WorkoutSession; onContinue: () => void }) {
   return (
     <div className="space-y-4 pb-24">
@@ -43,6 +72,9 @@ export function WorkoutSummary({ session, onContinue }: { session: WorkoutSessio
           {session.durationSec !== null && ` · ${formatDuration(session.durationSec)}`}
         </p>
       </div>
+
+      <FeelingPicker session={session} />
+
       <div className="space-y-2">
         {session.exercises.map((ex, i) => (
           <div key={i} className="rounded-block border border-border bg-surface p-3 text-sm">
