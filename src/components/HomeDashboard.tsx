@@ -20,6 +20,7 @@ import { getRecommendation } from "../lib/recommendation";
 import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
+import { EmptyState } from "./EmptyState";
 import { WorkoutPreviewScreen } from "../screens/WorkoutPreview";
 
 interface Props {
@@ -51,7 +52,11 @@ function PRDetailView({
       </button>
       <h2 className="text-xl font-bold text-ink">PRs · Semana {weekNumber}</h2>
       {events.length === 0 ? (
-        <p className="text-sm text-muted">Todavía no hay récords personales esta semana.</p>
+        <EmptyState
+          icon={<IconTrophy className="h-8 w-8" />}
+          title="Todavía no hay récords esta semana"
+          hint="Cuando superes un peso anterior en algún ejercicio, va a aparecer acá."
+        />
       ) : (
         <div className="space-y-2">
           {events.map((e, i) => (

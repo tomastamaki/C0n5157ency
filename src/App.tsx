@@ -10,13 +10,17 @@ import { HistoryScreen } from "./screens/History";
 import { PerformanceScreen } from "./screens/Performance";
 import { SettingsScreen } from "./screens/Settings";
 import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
+import { OnboardingScreen } from "./components/Onboarding";
 import type { WorkoutSession } from "./types/logs";
 
 function AppShell() {
-  const { flatDays, logs, settings } = useApp();
+  const { flatDays, logs, settings, updateSettings } = useApp();
   const [tab, setTab] = useState<TabId>("today");
   const [viewingWorkout, setViewingWorkout] = useState(false);
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => !settings.onboardingSeen && logs.sessions.length === 0
+  );
 
   const activeDraft = findActiveDraft(logs, settings.programCycle);
   const draftFlatDay = activeDraft ? flatDays[activeDraft.programIndex] ?? null : null;
@@ -27,8 +31,15 @@ function AppShell() {
     setCompletedSession(null);
   }
 
+  function finishOnboarding() {
+    setShowOnboarding(false);
+    if (!settings.onboardingSeen) updateSettings({ onboardingSeen: true });
+  }
+
   let content;
-  if (completedSession) {
+  if (showOnboarding) {
+    content = <OnboardingScreen onDone={finishOnboarding} />;
+  } else if (completedSession) {
     content = <WorkoutSummary session={completedSession} onContinue={() => setCompletedSession(null)} />;
   } else if (viewingWorkout && activeDraft && draftFlatDay) {
     content = (
@@ -55,7 +66,7 @@ function AppShell() {
   } else if (tab === "performance") {
     content = <PerformanceScreen />;
   } else {
-    content = <SettingsScreen />;
+    content = <SettingsScreen onShowOnboarding={() => setShowOnboarding(true)} />;
   }
 
   return (

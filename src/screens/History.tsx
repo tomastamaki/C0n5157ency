@@ -11,7 +11,8 @@ import { TrainingCalendar } from "../components/TrainingCalendar";
 import { ActiveWorkoutBanner } from "../components/ActiveWorkoutBanner";
 import { RIRSelector } from "../components/RIRSelector";
 import { NumericInput } from "../components/NumericInput";
-import { IconChevronLeft, IconPencil, IconRotateCcw, IconTrash } from "../components/icons";
+import { IconChevronLeft, IconHistory, IconPencil, IconRotateCcw, IconTrash } from "../components/icons";
+import { EmptyState } from "../components/EmptyState";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 
 function StatTile({ value, label, tone }: { value: number; label: string; tone?: "success" | "warning" }) {
@@ -58,7 +59,11 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
 
       <div className="space-y-2">
         {sessionsSorted.length === 0 && (
-          <p className="text-sm text-muted">Todavía no registraste entrenamientos.</p>
+          <EmptyState
+            icon={<IconHistory className="h-8 w-8" />}
+            title="Todavía no hay entrenamientos"
+            hint="Cuando completes o saltees un día de entrenamiento, va a aparecer acá."
+          />
         )}
         {sessionsSorted.map((s) => (
           <button
@@ -94,7 +99,7 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
 
 function ExerciseTab() {
   const { program, logs } = useApp();
-  const exercisesByDay = useMemo(() => getExerciseNamesByDay(program), [program]);
+  const exercisesByDay = useMemo(() => getExerciseNamesByDay(program, logs.sessions), [program, logs.sessions]);
   const [selected, setSelected] = useState(exercisesByDay[0]?.exercises[0] ?? "");
 
   const progression = useMemo(
@@ -147,7 +152,11 @@ function ExerciseTab() {
           );
         })}
         {pastSessions.length === 0 && (
-          <p className="text-sm text-muted">Todavía no hay sesiones registradas para este ejercicio.</p>
+          <EmptyState
+            icon={<IconHistory className="h-8 w-8" />}
+            title="Sin sesiones para este ejercicio todavía"
+            hint="Elegí otro ejercicio del selector, o volvé cuando hayas completado un entrenamiento que lo incluya."
+          />
         )}
       </div>
     </div>

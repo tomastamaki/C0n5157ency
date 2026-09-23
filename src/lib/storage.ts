@@ -19,6 +19,8 @@ export interface AppSettings {
    * Se consumen (y se borran) al tocar "Empezar entrenamiento".
    */
   pendingSubstitutions: Record<string, string>;
+  /** Si ya se vio (o saltó) la introducción. No bloquea volver a verla desde Ajustes. */
+  onboardingSeen: boolean;
 }
 
 function systemPrefersDark(): boolean {
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   exerciseIncrements: {},
   programCycle: 0,
   pendingSubstitutions: {},
+  onboardingSeen: false,
 };
 
 const SETTINGS_KEY = "minmax.settings.v1";

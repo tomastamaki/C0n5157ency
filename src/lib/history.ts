@@ -1,4 +1,4 @@
-import type { LogsData, LoggedSet } from "../types/logs";
+import type { LogsData, LoggedSet, WorkoutSession } from "../types/logs";
 import { isSetLogged } from "../types/logs";
 import type { Program } from "../types/program";
 import { globalSeq } from "./cycle";
@@ -106,23 +106,34 @@ export function getAllExerciseNames(program: Program): string[] {
 
 const DAY_ORDER = ["Upper", "Lower", "Push", "Pull"];
 
-/** Nombres de ejercicio únicos, agrupados por el primer tipo de día donde aparecen. */
-export function getExerciseNamesByDay(program: Program): { day: string; exercises: string[] }[] {
+/**
+ * Nombres de ejercicio únicos, agrupados por tipo de día. Incluye tanto los
+ * prescriptos por el programa como los realmente hechos en el historial (por
+ * ejemplo, un sustituto que nunca aparece como ejercicio prescripto en
+ * ningún otro día): cada uno tiene que poder elegirse y ver su propia
+ * progresión, no quedar escondido detrás del ejercicio original.
+ */
+export function getExerciseNamesByDay(
+  program: Program,
+  sessions: WorkoutSession[] = []
+): { day: string; exercises: string[] }[] {
   const seen = new Set<string>();
   const byDay = new Map<string, string[]>();
 
+  function add(dayName: string, exerciseName: string) {
+    if (seen.has(exerciseName)) return;
+    seen.add(exerciseName);
+    if (!byDay.has(dayName)) byDay.set(dayName, []);
+    byDay.get(dayName)!.push(exerciseName);
+  }
+
   program.blocks.forEach((b) =>
-    b.weeks.forEach((w) =>
-      w.days.forEach((d) =>
-        d.exerciseGroups.forEach((g) => {
-          if (seen.has(g.exercise)) return;
-          seen.add(g.exercise);
-          if (!byDay.has(d.name)) byDay.set(d.name, []);
-          byDay.get(d.name)!.push(g.exercise);
-        })
-      )
-    )
+    b.weeks.forEach((w) => w.days.forEach((d) => d.exerciseGroups.forEach((g) => add(d.name, g.exercise))))
   );
+
+  sessions
+    .filter((s) => s.status === "completed")
+    .forEach((s) => s.exercises.forEach((ex) => add(s.dayName, ex.exercise)));
 
   for (const list of byDay.values()) list.sort((a, b) => a.localeCompare(b, "es"));
 

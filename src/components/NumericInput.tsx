@@ -5,6 +5,7 @@ interface Props {
   onChange: (value: number | null) => void;
   allowDecimal?: boolean;
   className?: string;
+  onFocus?: () => void;
 }
 
 /**
@@ -13,7 +14,7 @@ interface Props {
  * Usa `type="text"` + `inputMode`/`pattern` para forzar el teclado correcto
  * en todos los dispositivos, y acepta tanto "." como "," como separador.
  */
-export function NumericInput({ value, onChange, allowDecimal = true, className }: Props) {
+export function NumericInput({ value, onChange, allowDecimal = true, className, onFocus }: Props) {
   const [text, setText] = useState(value === null ? "" : String(value));
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export function NumericInput({ value, onChange, allowDecimal = true, className }
       pattern={allowDecimal ? "[0-9]*[.,]?[0-9]*" : "[0-9]*"}
       value={text}
       onChange={(e) => handleChange(e.target.value)}
+      onFocus={onFocus}
       className={className}
     />
   );

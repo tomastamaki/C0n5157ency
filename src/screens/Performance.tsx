@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { TrendChart } from "../components/TrendChart";
 import { NumericInput } from "../components/NumericInput";
-import { IconTrash } from "../components/icons";
+import { IconActivity, IconTrash } from "../components/icons";
+import { EmptyState } from "../components/EmptyState";
 import { newId } from "../lib/id";
 import { formatDateOnly } from "../lib/time";
 import type { BodyWeightEntry, SleepEntry } from "../types/logs";
@@ -142,27 +143,35 @@ function BodyWeightForm() {
         </button>
       </div>
 
-      {listDesc.length > 0 && (
-        <div className="mt-4 space-y-1.5 border-t border-border pt-3">
-          {listDesc.map((e) => (
-            <div key={e.id} className="flex items-center justify-between text-sm">
-              <span className="font-mono text-muted">
-                {formatDateOnly(e.date)} · {e.weightKg}kg
-                {e.bodyFatPct !== null && ` · ${e.bodyFatPct}%`}
-                {e.muscleMassKg !== null && ` · ${e.muscleMassKg}kg músc.`}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeBodyWeightEntry(e.id)}
-                aria-label="Eliminar registro"
-                className="rounded-pill p-1 text-faint hover:bg-surface2"
-              >
-                <IconTrash className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="mt-4 border-t border-border pt-3">
+        {listDesc.length > 0 ? (
+          <div className="space-y-1.5">
+            {listDesc.map((e) => (
+              <div key={e.id} className="flex items-center justify-between text-sm">
+                <span className="font-mono text-muted">
+                  {formatDateOnly(e.date)} · {e.weightKg}kg
+                  {e.bodyFatPct !== null && ` · ${e.bodyFatPct}%`}
+                  {e.muscleMassKg !== null && ` · ${e.muscleMassKg}kg músc.`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeBodyWeightEntry(e.id)}
+                  aria-label="Eliminar registro"
+                  className="rounded-pill p-1 text-faint hover:bg-surface2"
+                >
+                  <IconTrash className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<IconActivity className="h-8 w-8" />}
+            title="Todavía no cargaste tu peso"
+            hint="Los registros que agregues van a aparecer acá, y vas a poder verlos en tendencias."
+          />
+        )}
+      </div>
     </section>
   );
 }
@@ -238,27 +247,35 @@ function SleepForm() {
         </button>
       </div>
 
-      {listDesc.length > 0 && (
-        <div className="mt-4 space-y-1.5 border-t border-border pt-3">
-          {listDesc.map((e) => (
-            <div key={e.id} className="flex items-center justify-between text-sm">
-              <span className="font-mono text-muted">
-                {formatDateOnly(e.date)} · {e.score}/100
-                {e.deepSleepHours !== null && ` · ${e.deepSleepHours}h profundo`}
-                {e.awakeMinutes !== null && ` · ${e.awakeMinutes}min despierto`}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeSleepEntry(e.id)}
-                aria-label="Eliminar registro"
-                className="rounded-pill p-1 text-faint hover:bg-surface2"
-              >
-                <IconTrash className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="mt-4 border-t border-border pt-3">
+        {listDesc.length > 0 ? (
+          <div className="space-y-1.5">
+            {listDesc.map((e) => (
+              <div key={e.id} className="flex items-center justify-between text-sm">
+                <span className="font-mono text-muted">
+                  {formatDateOnly(e.date)} · {e.score}/100
+                  {e.deepSleepHours !== null && ` · ${e.deepSleepHours}h profundo`}
+                  {e.awakeMinutes !== null && ` · ${e.awakeMinutes}min despierto`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeSleepEntry(e.id)}
+                  aria-label="Eliminar registro"
+                  className="rounded-pill p-1 text-faint hover:bg-surface2"
+                >
+                  <IconTrash className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<IconActivity className="h-8 w-8" />}
+            title="Todavía no cargaste tu sueño"
+            hint="Los registros que agregues van a aparecer acá, y vas a poder verlos en tendencias."
+          />
+        )}
+      </div>
     </section>
   );
 }
@@ -318,8 +335,6 @@ function BodyWeightTrends({ entries }: { entries: BodyWeightEntry[] }) {
           />
         </div>
       )}
-
-      {entries.length === 0 && <p className="mt-3 text-xs text-muted">Todavía no hay registros.</p>}
     </section>
   );
 }
@@ -383,8 +398,6 @@ function SleepTrends({ entries }: { entries: SleepEntry[] }) {
           />
         </div>
       )}
-
-      {entries.length === 0 && <p className="mt-3 text-xs text-muted">Todavía no hay registros.</p>}
     </section>
   );
 }

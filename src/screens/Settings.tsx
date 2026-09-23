@@ -6,7 +6,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { getAllExerciseNames } from "../lib/history";
 import { guessIncrementKg } from "../lib/increments";
 
-export function SettingsScreen() {
+export function SettingsScreen({ onShowOnboarding }: { onShowOnboarding: () => void }) {
   const { settings, updateSettings, program, clearAllLogs } = useApp();
   const [form, setForm] = useState(settings);
   const [testResult, setTestResult] = useState<null | { ok: boolean; message: string }>(null);
@@ -68,6 +68,21 @@ export function SettingsScreen() {
       <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
         <h2 className="mb-3 font-semibold text-ink">Apariencia</h2>
         <ThemeToggle />
+      </section>
+
+      <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+        <h2 className="mb-1 font-semibold text-ink">Ayuda</h2>
+        <p className="mb-3 text-xs text-muted">
+          RIR, cómo completar una serie, agregar la app a tu pantalla de inicio, y un resumen del
+          programa.
+        </p>
+        <button
+          type="button"
+          onClick={onShowOnboarding}
+          className="w-full rounded-pill bg-surface2 py-2 text-sm font-semibold text-ink"
+        >
+          Ver introducción de nuevo
+        </button>
       </section>
 
       <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">

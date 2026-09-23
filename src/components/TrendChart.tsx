@@ -1,3 +1,6 @@
+import { EmptyState } from "./EmptyState";
+import { IconActivity } from "./icons";
+
 const WIDTH = 320;
 const HEIGHT = 100;
 const PADDING = 20;
@@ -15,7 +18,13 @@ interface Props {
 
 export function TrendChart({ points, unit = "", colorClassName = "text-primary" }: Props) {
   if (points.length === 0) {
-    return <p className="text-sm text-muted">Todavía no hay registros.</p>;
+    return (
+      <EmptyState
+        icon={<IconActivity className="h-8 w-8" />}
+        title="Todavía no hay registros"
+        hint="Cargá algunos datos en la pestaña Cargar para ver la tendencia acá."
+      />
+    );
   }
 
   if (points.length === 1) {
