@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import type { ExerciseGroup } from "../types/program";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 import { isSetFilled, isSetLogged } from "../types/logs";
@@ -44,15 +43,12 @@ interface SetBlockProps {
   filled: boolean;
   done: boolean;
   isNewPR: boolean;
-  focus: boolean;
   onChangeWeight: (weightKg: number | null) => void;
   onChangeReps: (reps: number | null) => void;
   onChangeRir: (rir: RIRValue) => void;
   onConfirm: () => void;
-  onEnterFocus: () => void;
 }
 
-/** El cuerpo de una serie (peso/reps/RIR/confirmar). Se reusa igual en la tarjeta normal y agrandado en modo enfoque, ambos leyendo/escribiendo el mismo estado. */
 function SetBlock({
   index,
   reps,
@@ -63,22 +59,15 @@ function SetBlock({
   filled,
   done,
   isNewPR,
-  focus,
   onChangeWeight,
   onChangeReps,
   onChangeRir,
   onConfirm,
-  onEnterFocus,
 }: SetBlockProps) {
-  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
-
   return (
-    <div
-      onClick={focus ? undefined : onEnterFocus}
-      className={`rounded-block border p-3 ${focus ? "p-5" : ""} ${done ? "border-success bg-success/5" : "border-border"}`}
-    >
+    <div className={`rounded-block border p-3 ${done ? "border-success bg-success/5" : "border-border"}`}>
       <div className="mb-2 flex items-center justify-between">
-        <span className={`font-medium text-ink ${focus ? "text-base" : "text-sm"}`}>
+        <span className="text-sm font-medium text-ink">
           Serie {index + 1} · objetivo {reps} reps
           {targetRIR !== "-" ? ` · RIR ${targetRIR}` : ""}
         </span>
@@ -94,17 +83,14 @@ function SetBlock({
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3" onClick={stop}>
+      <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs text-faint">Peso (kg)</span>
           <NumericInput
             value={logged.weightKg}
             onChange={onChangeWeight}
-            onFocus={onEnterFocus}
             allowDecimal
-            className={`w-full rounded-pill border border-border bg-surface2 px-3 font-mono font-semibold text-ink ${
-              focus ? "h-16 text-2xl" : "h-12 text-lg"
-            }`}
+            className="h-12 w-full rounded-pill border border-border bg-surface2 px-3 font-mono text-lg font-semibold text-ink"
           />
         </label>
         <label className="block">
@@ -112,11 +98,8 @@ function SetBlock({
           <NumericInput
             value={logged.reps}
             onChange={onChangeReps}
-            onFocus={onEnterFocus}
             allowDecimal={false}
-            className={`w-full rounded-pill border border-border bg-surface2 px-3 font-mono font-semibold text-ink ${
-              focus ? "h-16 text-2xl" : "h-12 text-lg"
-            }`}
+            className="h-12 w-full rounded-pill border border-border bg-surface2 px-3 font-mono text-lg font-semibold text-ink"
           />
         </label>
       </div>
@@ -124,10 +107,7 @@ function SetBlock({
       {suggestion && logged.weightKg === null && (
         <button
           type="button"
-          onClick={(e) => {
-            stop(e);
-            onChangeWeight(suggestion.weightKg);
-          }}
+          onClick={() => onChangeWeight(suggestion.weightKg)}
           className="mt-2 font-mono text-xs font-medium text-primary"
         >
           Sugerido: {suggestion.weightKg}kg ({suggestion.reason})
@@ -141,19 +121,16 @@ function SetBlock({
         </p>
       )}
 
-      <div className="mt-3" onClick={stop}>
+      <div className="mt-3">
         <span className="mb-1 block text-xs text-faint">RIR</span>
-        <RIRSelector value={logged.rir} onChange={onChangeRir} size={focus ? "large" : "normal"} />
+        <RIRSelector value={logged.rir} onChange={onChangeRir} />
       </div>
 
       <button
         type="button"
         disabled={!filled}
-        onClick={(e) => {
-          stop(e);
-          onConfirm();
-        }}
-        className={`mt-3 w-full rounded-pill font-semibold transition-colors ${focus ? "py-4 text-base" : "py-2 text-sm"} ${
+        onClick={onConfirm}
+        className={`mt-3 w-full rounded-pill py-2 text-sm font-semibold transition-colors ${
           done ? "bg-success text-white" : "bg-surface2 text-faint disabled:opacity-50"
         }`}
       >
@@ -176,7 +153,6 @@ export function ExerciseCard({
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [restSignal, setRestSignal] = useState(0);
-  const [focusedSetIndex, setFocusedSetIndex] = useState<number | null>(null);
 
   const literalSets = useMemo(() => getLiteralWorkingSets(group), [group]);
   const warmup = group.sets.find((s) => s.type === "warmup");
@@ -241,6 +217,16 @@ export function ExerciseCard({
     setShowSubs(false);
   }
 
+  function confirmSet(setIndex: number, logged: LoggedSet) {
+    const nowConfirmed = !logged.confirmed;
+    updateSet(setIndex, { confirmed: nowConfirmed });
+    if (nowConfirmed) {
+      setRestSignal((n) => n + 1);
+      vibrate(20);
+      unlockAudio();
+    }
+  }
+
   if (!active) {
     return (
       <button
@@ -264,69 +250,8 @@ export function ExerciseCard({
     );
   }
 
-  const setViews = literalSets.map((set, i) => {
-    const logged = loggedExercise?.sets.find((s) => s.setIndex === i) ?? {
-      setIndex: i,
-      weightKg: null,
-      reps: null,
-      rir: null,
-      confirmed: false,
-    };
-    const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
-    const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
-    const filled = isSetFilled(logged);
-    const done = isSetLogged(logged);
-    const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
-    return { i, set, logged, lastTime, suggestion, filled, done, isNewPR };
-  });
-
-  function confirmSet(i: number, logged: LoggedSet) {
-    const nowConfirmed = !logged.confirmed;
-    updateSet(i, { confirmed: nowConfirmed });
-    if (nowConfirmed) {
-      setRestSignal((n) => n + 1);
-      vibrate(20);
-      unlockAudio();
-      // Salir del modo enfoque al confirmar: así se ve/escucha el descanso que arranca.
-      setFocusedSetIndex(null);
-    }
-  }
-
-  const focusedView = focusedSetIndex !== null ? setViews[focusedSetIndex] : null;
-
   return (
-    <>
-      {focusedView &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-bg p-4"
-            onClick={() => setFocusedSetIndex(null)}
-          >
-            <div className="w-full max-w-sm">
-              <p className="mb-3 text-center text-base font-semibold text-ink">{displayName}</p>
-              <SetBlock
-                index={focusedView.i}
-                reps={focusedView.set.reps}
-                targetRIR={focusedView.set.targetRIR}
-                logged={focusedView.logged}
-                lastTime={focusedView.lastTime}
-                suggestion={focusedView.suggestion}
-                filled={focusedView.filled}
-                done={focusedView.done}
-                isNewPR={focusedView.isNewPR}
-                focus
-                onChangeWeight={(weightKg) => updateSet(focusedView.i, { weightKg })}
-                onChangeReps={(reps) => updateSet(focusedView.i, { reps })}
-                onChangeRir={(rir) => updateSet(focusedView.i, { rir })}
-                onConfirm={() => confirmSet(focusedView.i, focusedView.logged)}
-                onEnterFocus={() => {}}
-              />
-              <p className="mt-3 text-center text-xs text-faint">Tocá afuera para volver a la vista completa</p>
-            </div>
-          </div>,
-          document.body
-        )}
-      <div className="rounded-card border border-primary bg-surface p-4 shadow-elevated-sm">
+    <div className="rounded-card border border-primary bg-surface p-4 shadow-elevated-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-ink">{displayName}</h3>
@@ -380,26 +305,39 @@ export function ExerciseCard({
       )}
 
       <div className="mt-4 space-y-4">
-        {setViews.map((v) => (
-          <SetBlock
-            key={v.i}
-            index={v.i}
-            reps={v.set.reps}
-            targetRIR={v.set.targetRIR}
-            logged={v.logged}
-            lastTime={v.lastTime}
-            suggestion={v.suggestion}
-            filled={v.filled}
-            done={v.done}
-            isNewPR={v.isNewPR}
-            focus={false}
-            onChangeWeight={(weightKg) => updateSet(v.i, { weightKg })}
-            onChangeReps={(reps) => updateSet(v.i, { reps })}
-            onChangeRir={(rir) => updateSet(v.i, { rir })}
-            onConfirm={() => confirmSet(v.i, v.logged)}
-            onEnterFocus={() => setFocusedSetIndex(v.i)}
-          />
-        ))}
+        {literalSets.map((set, i) => {
+          const logged = loggedExercise?.sets.find((s) => s.setIndex === i) ?? {
+            setIndex: i,
+            weightKg: null,
+            reps: null,
+            rir: null,
+            confirmed: false,
+          };
+          const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
+          const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
+          const filled = isSetFilled(logged);
+          const done = isSetLogged(logged);
+          const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
+
+          return (
+            <SetBlock
+              key={i}
+              index={i}
+              reps={set.reps}
+              targetRIR={set.targetRIR}
+              logged={logged}
+              lastTime={lastTime}
+              suggestion={suggestion}
+              filled={filled}
+              done={done}
+              isNewPR={isNewPR}
+              onChangeWeight={(weightKg) => updateSet(i, { weightKg })}
+              onChangeReps={(reps) => updateSet(i, { reps })}
+              onChangeRir={(rir) => updateSet(i, { rir })}
+              onConfirm={() => confirmSet(i, logged)}
+            />
+          );
+        })}
       </div>
 
       <div className="mt-4">
@@ -438,7 +376,6 @@ export function ExerciseCard({
           )}
         </div>
       )}
-      </div>
-    </>
+    </div>
   );
 }

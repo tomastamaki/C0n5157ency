@@ -1,0 +1,24 @@
+{
+  "name": "C0n5157ency",
+  "short_name": "C0n5157ency",
+  "description": "Seguimiento de entrenamientos para Min-Max Phase 2: Peak Physique",
+  "start_url": "/C0n5157ency/",
+  "scope": "/C0n5157ency/",
+  "display": "standalone",
+  "background_color": "#0d0e13",
+  "theme_color": "#0d0e13",
+  "icons": [
+    {
+      "src": "/C0n5157ency/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/C0n5157ency/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

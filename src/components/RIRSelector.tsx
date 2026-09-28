@@ -5,11 +5,9 @@ const OPTIONS: RIRValue[] = ["0", "1", "2", "3+"];
 interface Props {
   value: RIRValue | null;
   onChange: (value: RIRValue) => void;
-  size?: "normal" | "large";
 }
 
-export function RIRSelector({ value, onChange, size = "normal" }: Props) {
-  const heightClass = size === "large" ? "h-16 text-xl" : "h-12 text-base";
+export function RIRSelector({ value, onChange }: Props) {
   return (
     <div className="grid grid-cols-4 gap-2">
       {OPTIONS.map((opt) => {
@@ -19,7 +17,7 @@ export function RIRSelector({ value, onChange, size = "normal" }: Props) {
             key={opt}
             type="button"
             onClick={() => onChange(opt)}
-            className={`${heightClass} rounded-pill font-mono font-semibold transition-colors active:scale-95 ${
+            className={`h-12 rounded-pill font-mono text-base font-semibold transition-colors active:scale-95 ${
               selected ? "bg-primary text-white" : "bg-surface2 text-faint"
             }`}
           >
