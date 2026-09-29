@@ -7,6 +7,9 @@ interface Props {
   targetLabel?: string | null;
 }
 
+/** Descanso por defecto (segundos) cuando el programa no especifica uno para el ejercicio: el timer siempre tiene que ser una cuenta regresiva, nunca solo contar para arriba. */
+const DEFAULT_REST_SECONDS = 60;
+
 /** Extrae segundos del límite inferior de un rango tipo "1-2 min" o "30-60 sec". */
 function parseRestSeconds(label?: string | null): number | null {
   if (!label) return null;
@@ -19,7 +22,7 @@ function parseRestSeconds(label?: string | null): number | null {
 
 export function RestTimer({ startSignal, targetLabel }: Props) {
   const [elapsedSec, setElapsedSec] = useState(0);
-  const targetSec = parseRestSeconds(targetLabel);
+  const targetSec = parseRestSeconds(targetLabel) ?? DEFAULT_REST_SECONDS;
   const alertedRef = useRef(false);
 
   useEffect(() => {
@@ -34,7 +37,7 @@ export function RestTimer({ startSignal, targetLabel }: Props) {
   }, [startSignal]);
 
   useEffect(() => {
-    if (targetSec === null || alertedRef.current || elapsedSec < targetSec) return;
+    if (alertedRef.current || elapsedSec < targetSec) return;
     alertedRef.current = true;
     playBeep();
     vibrate([120, 60, 120]);
@@ -42,9 +45,9 @@ export function RestTimer({ startSignal, targetLabel }: Props) {
 
   if (startSignal === 0) return null;
 
-  const remaining = targetSec !== null ? targetSec - elapsedSec : null;
-  const overtime = remaining !== null && remaining <= 0;
-  const displaySec = remaining !== null ? Math.abs(remaining) : elapsedSec;
+  const remaining = targetSec - elapsedSec;
+  const overtime = remaining <= 0;
+  const displaySec = Math.abs(remaining);
   const m = Math.floor(displaySec / 60);
   const s = displaySec % 60;
 
@@ -58,13 +61,7 @@ export function RestTimer({ startSignal, targetLabel }: Props) {
         {overtime && "+"}
         {m}:{s.toString().padStart(2, "0")}
       </span>
-      <span>
-        {targetSec === null
-          ? `descanso${targetLabel ? ` · objetivo ${targetLabel}` : ""}`
-          : overtime
-            ? "descanso listo · podés seguir"
-            : `descanso · objetivo ${targetLabel}`}
-      </span>
+      <span>{overtime ? "descanso listo · podés seguir" : `descanso · objetivo ${targetLabel ?? "1 min"}`}</span>
     </div>
   );
 }

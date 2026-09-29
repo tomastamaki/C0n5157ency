@@ -23,6 +23,8 @@ interface Props {
   programIndex: number;
   active: boolean;
   onActivate: () => void;
+  /** Se llama cuando se confirma la última serie pendiente de este ejercicio. */
+  onExerciseCompleted: () => void;
   session: WorkoutSession;
   onUpdateSession: (updater: (session: WorkoutSession) => WorkoutSession) => void;
 }
@@ -140,12 +142,67 @@ function SetBlock({
   );
 }
 
+function ExerciseNotes({ notes, onSave }: { notes: string | null; onSave: (notes: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(notes ?? "");
+
+  if (!editing) {
+    return (
+      <div className="mt-2">
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(notes ?? "");
+            setEditing(true);
+          }}
+          className="text-sm font-medium text-primary"
+        >
+          {notes ? "Editar notas" : "Agregar notas"}
+        </button>
+        {notes && <p className="mt-1 whitespace-pre-line text-sm text-muted">{notes}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={3}
+        placeholder="Notas para este ejercicio..."
+        className="w-full rounded-block border border-border bg-surface2 p-2 text-sm text-ink"
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            onSave(draft.trim() === "" ? null : draft.trim());
+            setEditing(false);
+          }}
+          className="flex-1 rounded-pill bg-primary py-1.5 text-xs font-semibold text-white"
+        >
+          Guardar
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="flex-1 rounded-pill bg-surface2 py-1.5 text-xs font-semibold text-muted"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ExerciseCard({
   group,
   groupIndexInDay,
   programIndex,
   active,
   onActivate,
+  onExerciseCompleted,
   session,
   onUpdateSession,
 }: Props) {
@@ -209,12 +266,20 @@ export function ExerciseCard({
           ...ex,
           exercise: finalName,
           originalExercise: finalName === group.exercise ? null : group.exercise,
+          notes: null,
           sets: ex.sets.map((s) => ({ ...s, weightKg: null, reps: null, rir: null, confirmed: false })),
         };
       });
       return { ...prev, exercises, updatedAt: new Date().toISOString() };
     });
     setShowSubs(false);
+  }
+
+  function updateExerciseNotes(notes: string | null) {
+    onUpdateSession((prev) => {
+      const exercises = prev.exercises.map((ex, idx) => (idx === groupIndexInDay ? { ...ex, notes } : ex));
+      return { ...prev, exercises, updatedAt: new Date().toISOString() };
+    });
   }
 
   function confirmSet(setIndex: number, logged: LoggedSet) {
@@ -224,6 +289,8 @@ export function ExerciseCard({
       setRestSignal((n) => n + 1);
       vibrate(20);
       unlockAudio();
+      const otherSets = loggedExercise?.sets.filter((s) => s.setIndex !== setIndex) ?? [];
+      if (otherSets.every(isSetLogged)) onExerciseCompleted();
     }
   }
 
@@ -298,6 +365,8 @@ export function ExerciseCard({
 
       {displayInfo.notes && <p className="mt-3 text-sm text-muted">{displayInfo.notes}</p>}
 
+      <ExerciseNotes notes={loggedExercise?.notes ?? null} onSave={updateExerciseNotes} />
+
       {warmup && (
         <p className="mt-3 text-sm text-muted">
           Calentamiento: {warmup.count} serie{warmup.count !== "1" ? "s" : ""} livianas
@@ -305,43 +374,53 @@ export function ExerciseCard({
       )}
 
       <div className="mt-4 space-y-4">
-        {literalSets.map((set, i) => {
-          const logged = loggedExercise?.sets.find((s) => s.setIndex === i) ?? {
-            setIndex: i,
-            weightKg: null,
-            reps: null,
-            rir: null,
-            confirmed: false,
-          };
-          const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
-          const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
-          const filled = isSetFilled(logged);
-          const done = isSetLogged(logged);
-          const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
+        {(() => {
+          const setViews = literalSets.map((set, i) => {
+            const logged = loggedExercise?.sets.find((s) => s.setIndex === i) ?? {
+              setIndex: i,
+              weightKg: null,
+              reps: null,
+              rir: null,
+              confirmed: false,
+            };
+            const done = isSetLogged(logged);
+            return { set, i, logged, done };
+          });
+          const firstPendingIdx = setViews.findIndex((v) => !v.done);
 
-          return (
-            <SetBlock
-              key={i}
-              index={i}
-              reps={set.reps}
-              targetRIR={set.targetRIR}
-              logged={logged}
-              lastTime={lastTime}
-              suggestion={suggestion}
-              filled={filled}
-              done={done}
-              isNewPR={isNewPR}
-              onChangeWeight={(weightKg) => updateSet(i, { weightKg })}
-              onChangeReps={(reps) => updateSet(i, { reps })}
-              onChangeRir={(rir) => updateSet(i, { rir })}
-              onConfirm={() => confirmSet(i, logged)}
-            />
-          );
-        })}
-      </div>
+          return setViews.map(({ set, i, logged, done }) => {
+            const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
+            const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
+            const filled = isSetFilled(logged);
+            const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
 
-      <div className="mt-4">
-        <RestTimer startSignal={restSignal} targetLabel={group.rest} />
+            return (
+              <div key={i}>
+                {/* El descanso arranca al confirmar una serie, así que se muestra justo arriba de la próxima pendiente. */}
+                {i === firstPendingIdx && restSignal > 0 && (
+                  <div className="mb-4">
+                    <RestTimer startSignal={restSignal} targetLabel={group.rest} />
+                  </div>
+                )}
+                <SetBlock
+                  index={i}
+                  reps={set.reps}
+                  targetRIR={set.targetRIR}
+                  logged={logged}
+                  lastTime={lastTime}
+                  suggestion={suggestion}
+                  filled={filled}
+                  done={done}
+                  isNewPR={isNewPR}
+                  onChangeWeight={(weightKg) => updateSet(i, { weightKg })}
+                  onChangeReps={(reps) => updateSet(i, { reps })}
+                  onChangeRir={(rir) => updateSet(i, { rir })}
+                  onConfirm={() => confirmSet(i, logged)}
+                />
+              </div>
+            );
+          });
+        })()}
       </div>
 
       {(group.substitutions.length > 0 || isSubstituted) && (

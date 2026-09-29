@@ -20,7 +20,7 @@ export function currentElapsedSec(session: WorkoutSession): number {
  * lógica sin depender de en qué pestaña esté montado cada uno.
  */
 export function useWorkoutActions() {
-  const { logs, upsertSession, settings, updateSettings } = useApp();
+  const { logs, upsertSession, removeSession, settings, updateSettings } = useApp();
   const cycle = settings.programCycle;
 
   function startWorkout(day: FlatProgramDay): WorkoutSession {
@@ -57,6 +57,7 @@ export function useWorkoutActions() {
           exercise: chosen,
           originalExercise: chosen === g.exercise ? null : g.exercise,
           supersetGroup: g.supersetGroup,
+          notes: null,
           sets: getLiteralWorkingSets(g).map((_, i) => ({
             setIndex: i,
             weightKg: null,
@@ -124,6 +125,11 @@ export function useWorkoutActions() {
     upsertSession({ ...draft, runningSince: now, updatedAt: now });
   }
 
+  /** Descarta por completo una sesión en curso: no queda ningún registro de sus series. */
+  function cancelWorkout(draft: WorkoutSession) {
+    removeSession(draft.id);
+  }
+
   function finishWorkout(draft: WorkoutSession): WorkoutSession {
     const now = new Date().toISOString();
     const durationSec = Math.max(0, Math.round(currentElapsedSec(draft)));
@@ -140,5 +146,5 @@ export function useWorkoutActions() {
     return finished;
   }
 
-  return { startWorkout, skipDay, updateDraft, pauseWorkout, resumeWorkout, finishWorkout, setFeeling };
+  return { startWorkout, skipDay, updateDraft, pauseWorkout, resumeWorkout, cancelWorkout, finishWorkout, setFeeling };
 }

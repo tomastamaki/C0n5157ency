@@ -17,6 +17,8 @@ export interface LoggedExercise {
   originalExercise: string | null;
   supersetGroup: string | null;
   sets: LoggedSet[];
+  /** Notas libres del usuario para este ejercicio, en esta sesión puntual. */
+  notes: string | null;
 }
 
 export interface WorkoutSession {
@@ -50,7 +52,7 @@ export interface WorkoutSession {
   feeling: number | null;
 }
 
-/** Registro de peso corporal (pestaña Rendimiento). Independiente de las sesiones de entrenamiento. */
+/** Registro de peso corporal (pestaña Lifestyle). Independiente de las sesiones de entrenamiento. */
 export interface BodyWeightEntry {
   id: string;
   /** Fecha del registro (YYYY-MM-DD), editable — no necesariamente "hoy". */
@@ -62,14 +64,32 @@ export interface BodyWeightEntry {
   updatedAt: string;
 }
 
-/** Registro de calidad de sueño (pestaña Rendimiento). Asociado a la noche anterior a `date`. */
+/** Registro de calidad de sueño (pestaña Lifestyle). Asociado a la noche anterior a `date`. Todas las duraciones en minutos. */
 export interface SleepEntry {
   id: string;
   date: string;
   /** Score de sueño 1-100 (mismo concepto que la app Salud de Apple). */
   score: number;
-  deepSleepHours: number | null;
+  deepSleepMinutes: number | null;
   awakeMinutes: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Registro de pasos diarios (pestaña Lifestyle). */
+export interface StepsEntry {
+  id: string;
+  date: string;
+  steps: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Registro de agua tomada, en litros (pestaña Lifestyle). Varios registros pueden compartir fecha (se suman por día). */
+export interface WaterEntry {
+  id: string;
+  date: string;
+  liters: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,9 +99,18 @@ export interface LogsData {
   sessions: WorkoutSession[];
   bodyWeightEntries: BodyWeightEntry[];
   sleepEntries: SleepEntry[];
+  stepsEntries: StepsEntry[];
+  waterEntries: WaterEntry[];
 }
 
-export const EMPTY_LOGS: LogsData = { version: 1, sessions: [], bodyWeightEntries: [], sleepEntries: [] };
+export const EMPTY_LOGS: LogsData = {
+  version: 1,
+  sessions: [],
+  bodyWeightEntries: [],
+  sleepEntries: [],
+  stepsEntries: [],
+  waterEntries: [],
+};
 
 /** Peso, reps y RIR completos, sin importar si ya se confirmó con el botón ✓. */
 export function isSetFilled(set: LoggedSet): boolean {

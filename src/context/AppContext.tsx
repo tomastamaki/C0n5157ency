@@ -10,7 +10,7 @@ import {
 } from "react";
 import programJson from "../data/program.json";
 import type { Program } from "../types/program";
-import type { BodyWeightEntry, LogsData, SleepEntry, WorkoutSession } from "../types/logs";
+import type { BodyWeightEntry, LogsData, SleepEntry, StepsEntry, WaterEntry, WorkoutSession } from "../types/logs";
 import { EMPTY_LOGS } from "../types/logs";
 import {
   type AppSettings,
@@ -51,6 +51,10 @@ interface AppContextValue {
   removeBodyWeightEntry: (id: string) => void;
   upsertSleepEntry: (entry: SleepEntry) => void;
   removeSleepEntry: (id: string) => void;
+  upsertStepsEntry: (entry: StepsEntry) => void;
+  removeStepsEntry: (id: string) => void;
+  upsertWaterEntry: (entry: WaterEntry) => void;
+  removeWaterEntry: (id: string) => void;
   clearAllLogs: () => void;
   syncStatus: SyncStatus;
   syncError: string | null;
@@ -245,6 +249,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutateLogs]
   );
 
+  const upsertStepsEntry = useCallback(
+    (entry: StepsEntry) => {
+      mutateLogs((prev) => {
+        const idx = prev.stepsEntries.findIndex((e) => e.id === entry.id);
+        const entries = [...prev.stepsEntries];
+        if (idx >= 0) entries[idx] = entry;
+        else entries.push(entry);
+        entries.sort((a, b) => a.date.localeCompare(b.date));
+        return { ...prev, stepsEntries: entries };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const removeStepsEntry = useCallback(
+    (id: string) => {
+      mutateLogs((prev) => ({ ...prev, stepsEntries: prev.stepsEntries.filter((e) => e.id !== id) }));
+    },
+    [mutateLogs]
+  );
+
+  const upsertWaterEntry = useCallback(
+    (entry: WaterEntry) => {
+      mutateLogs((prev) => {
+        const idx = prev.waterEntries.findIndex((e) => e.id === entry.id);
+        const entries = [...prev.waterEntries];
+        if (idx >= 0) entries[idx] = entry;
+        else entries.push(entry);
+        entries.sort((a, b) => a.date.localeCompare(b.date));
+        return { ...prev, waterEntries: entries };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const removeWaterEntry = useCallback(
+    (id: string) => {
+      mutateLogs((prev) => ({ ...prev, waterEntries: prev.waterEntries.filter((e) => e.id !== id) }));
+    },
+    [mutateLogs]
+  );
+
   const clearAllLogs = useCallback(() => {
     mutateLogs(() => ({ ...EMPTY_LOGS }));
   }, [mutateLogs]);
@@ -351,6 +397,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeBodyWeightEntry,
     upsertSleepEntry,
     removeSleepEntry,
+    upsertStepsEntry,
+    removeStepsEntry,
+    upsertWaterEntry,
+    removeWaterEntry,
     clearAllLogs,
     syncStatus,
     syncError,

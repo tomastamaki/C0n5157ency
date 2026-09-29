@@ -1,4 +1,4 @@
-import type { BodyWeightEntry, LogsData, SleepEntry, WorkoutSession } from "../types/logs";
+import type { BodyWeightEntry, LogsData, SleepEntry, StepsEntry, WaterEntry, WorkoutSession } from "../types/logs";
 
 function mergeById<T extends { id: string; updatedAt: string }>(a: T[], b: T[]): T[] {
   const byId = new Map<string, T>();
@@ -28,6 +28,12 @@ export function mergeLogs(a: LogsData, b: LogsData): LogsData {
   const sleepEntries = mergeById<SleepEntry>(a.sleepEntries, b.sleepEntries).sort((x, y) =>
     x.date.localeCompare(y.date)
   );
+  const stepsEntries = mergeById<StepsEntry>(a.stepsEntries, b.stepsEntries).sort((x, y) =>
+    x.date.localeCompare(y.date)
+  );
+  const waterEntries = mergeById<WaterEntry>(a.waterEntries, b.waterEntries).sort((x, y) =>
+    x.date.localeCompare(y.date)
+  );
 
-  return { version: 1, sessions, bodyWeightEntries, sleepEntries };
+  return { version: 1, sessions, bodyWeightEntries, sleepEntries, stepsEntries, waterEntries };
 }

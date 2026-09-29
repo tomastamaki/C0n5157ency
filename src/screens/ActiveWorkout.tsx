@@ -8,9 +8,21 @@ import { isSetLogged, type WorkoutSession } from "../types/logs";
 import { formatDuration } from "../lib/time";
 import type { FlatProgramDay } from "../types/program";
 
-function PausedCard({ draft, onResume }: { draft: WorkoutSession; onResume: () => void }) {
+function PausedCard({
+  draft,
+  onResume,
+  onCancel,
+}: {
+  draft: WorkoutSession;
+  onResume: () => void;
+  onCancel: () => void;
+}) {
   const totalSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
   const doneSets = draft.exercises.reduce((sum, ex) => sum + ex.sets.filter(isSetLogged).length, 0);
+
+  function handleCancel() {
+    if (window.confirm("¿Estás seguro? Cagón")) onCancel();
+  }
 
   return (
     <div className="rounded-card border border-warning/35 bg-warning/10 p-6 text-center shadow-elevated-sm">
@@ -28,6 +40,9 @@ function PausedCard({ draft, onResume }: { draft: WorkoutSession; onResume: () =
         className="mt-6 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white active:scale-[0.98]"
       >
         Continuar entrenamiento
+      </button>
+      <button type="button" onClick={handleCancel} className="mt-3 w-full text-sm font-medium text-red-500">
+        Cancelar entrenamiento
       </button>
     </div>
   );
@@ -114,17 +129,44 @@ interface Props {
 
 export function ActiveWorkoutScreen({ draft, flatDay, onExit, onFinish }: Props) {
   const [activeGroupIdx, setActiveGroupIdx] = useState(0);
-  const { updateDraft, pauseWorkout, resumeWorkout, finishWorkout } = useWorkoutActions();
+  const { updateDraft, pauseWorkout, resumeWorkout, cancelWorkout, finishWorkout } = useWorkoutActions();
 
   if (!draft.runningSince) {
     return (
       <div className="space-y-4 pb-24">
-        <PausedCard draft={draft} onResume={() => resumeWorkout(draft)} />
+        <PausedCard
+          draft={draft}
+          onResume={() => resumeWorkout(draft)}
+          onCancel={() => {
+            cancelWorkout(draft);
+            onExit();
+          }}
+        />
       </div>
     );
   }
 
   const allDone = draft.exercises.every((ex) => ex.sets.every(isSetLogged));
+
+  /**
+   * Al completar la última serie de un ejercicio, pasa automáticamente al
+   * próximo que todavía tenga series pendientes. Si no queda ninguno, termina
+   * la sesión directamente (en vez de esperar a que se toque "Terminar
+   * entrenamiento" a mano).
+   */
+  function handleExerciseCompleted(finishedIdx: number) {
+    const total = flatDay.day.exerciseGroups.length;
+    for (let step = 1; step <= total; step++) {
+      const idx = (finishedIdx + step) % total;
+      if (idx === finishedIdx) continue;
+      const ex = draft.exercises[idx];
+      if (!ex.sets.every(isSetLogged)) {
+        setActiveGroupIdx(idx);
+        return;
+      }
+    }
+    onFinish(finishWorkout(draft));
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -164,6 +206,7 @@ export function ActiveWorkoutScreen({ draft, flatDay, onExit, onFinish }: Props)
             programIndex={flatDay.index}
             active={i === activeGroupIdx}
             onActivate={() => setActiveGroupIdx(i)}
+            onExerciseCompleted={() => handleExerciseCompleted(i)}
             session={draft}
             onUpdateSession={(updater) => updateDraft(draft, updater)}
           />

@@ -21,6 +21,10 @@ export interface AppSettings {
   pendingSubstitutions: Record<string, string>;
   /** Si ya se vio (o saltó) la introducción. No bloquea volver a verla desde Ajustes. */
   onboardingSeen: boolean;
+  /** Meta diaria de pasos, editable desde Lifestyle. */
+  dailyStepsTarget: number;
+  /** Meta diaria de agua en litros, editable desde Lifestyle. */
+  dailyWaterTargetLiters: number;
 }
 
 function systemPrefersDark(): boolean {
@@ -38,6 +42,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   programCycle: 0,
   pendingSubstitutions: {},
   onboardingSeen: false,
+  dailyStepsTarget: 8000,
+  dailyWaterTargetLiters: 2.5,
 };
 
 const SETTINGS_KEY = "minmax.settings.v1";
@@ -68,6 +74,8 @@ export function normalizeLogs(parsed: unknown): LogsData | null {
     sessions: p.sessions ?? [],
     bodyWeightEntries: Array.isArray(p.bodyWeightEntries) ? p.bodyWeightEntries : [],
     sleepEntries: Array.isArray(p.sleepEntries) ? p.sleepEntries : [],
+    stepsEntries: Array.isArray(p.stepsEntries) ? p.stepsEntries : [],
+    waterEntries: Array.isArray(p.waterEntries) ? p.waterEntries : [],
   };
 }
 

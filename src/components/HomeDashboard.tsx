@@ -17,10 +17,12 @@ import {
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
 import { getRecommendation } from "../lib/recommendation";
+import { getLifestyleKpis } from "../lib/lifestyleKpis";
 import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
 import { EmptyState } from "./EmptyState";
+import { LifestyleKpiRow } from "./LifestyleKpiRow";
 import { WorkoutPreviewScreen } from "../screens/WorkoutPreview";
 
 interface Props {
@@ -121,6 +123,8 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
     [logs, program, flatDays, selected, cycle]
   );
 
+  const lifestyleKpis = useMemo(() => getLifestyleKpis(logs), [logs]);
+
   if (showPRDetail) {
     return (
       <PRDetailView events={prsThisWeek} weekNumber={currentWeekNumber} onBack={() => setShowPRDetail(false)} />
@@ -151,6 +155,8 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
           </div>
         )}
       </div>
+
+      <LifestyleKpiRow kpis={lifestyleKpis} />
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-card border border-border bg-surface p-3 shadow-elevated-sm">
