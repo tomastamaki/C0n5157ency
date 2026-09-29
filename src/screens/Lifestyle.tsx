@@ -1,12 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { TrendChart } from "../components/TrendChart";
 import { NumericInput } from "../components/NumericInput";
 import { WaterBottle } from "../components/WaterBottle";
-import { IconActivity, IconTrash } from "../components/icons";
+import {
+  IconActivity,
+  IconChevronLeft,
+  IconDroplet,
+  IconFootprint,
+  IconMoon,
+  IconScale,
+  IconTrash,
+} from "../components/icons";
 import { EmptyState } from "../components/EmptyState";
 import { newId } from "../lib/id";
 import { formatDateOnly } from "../lib/time";
+import { getMetricPreviews, type LifestyleMetricKey } from "../lib/lifestyleKpis";
 import type { BodyWeightEntry, SleepEntry, StepsEntry, WaterEntry } from "../types/logs";
 
 function todayKey(): string {
@@ -143,8 +152,6 @@ function BodyWeightForm() {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Peso corporal</h2>
-
       <div className="space-y-2">
         <label className="block">
           <span className="mb-1 block text-xs text-faint">Fecha</span>
@@ -247,8 +254,6 @@ function SleepForm() {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Calidad de sueño</h2>
-
       <div className="space-y-2">
         <label className="block">
           <span className="mb-1 block text-xs text-faint">Fecha (la noche anterior a este día)</span>
@@ -351,8 +356,6 @@ function StepsForm() {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Pasos diarios</h2>
-
       <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-sm">
           <span className="text-muted">Hoy</span>
@@ -452,8 +455,6 @@ function WaterForm() {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Agua</h2>
-
       <WaterBottle pct={pct} />
       <p className="mt-1 text-center font-mono text-sm text-ink">
         {todayLiters.toFixed(1)}L / {target.toFixed(1)}L hoy
@@ -540,7 +541,6 @@ function BodyWeightTrends({ entries }: { entries: BodyWeightEntry[] }) {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Peso corporal</h2>
       <TrendChart points={weightPoints} unit="kg" />
 
       {fatPoints.length > 1 && (
@@ -601,7 +601,6 @@ function SleepTrends({ entries }: { entries: SleepEntry[] }) {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Calidad de sueño</h2>
       <TrendChart points={scorePoints} colorClassName="text-primary" />
 
       {deepPoints.length > 1 && (
@@ -658,7 +657,6 @@ function StepsTrends({ entries }: { entries: StepsEntry[] }) {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Pasos</h2>
       <TrendChart points={points} unit=" pasos" colorClassName="text-primary" />
 
       {entries.length > 0 && (
@@ -684,7 +682,6 @@ function WaterTrends({ entries }: { entries: WaterEntry[] }) {
 
   return (
     <section className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-      <h2 className="mb-3 font-semibold text-ink">Agua</h2>
       <TrendChart points={points} unit="L" colorClassName="text-primary" />
 
       {entries.length > 0 && (
@@ -705,9 +702,133 @@ function WaterTrends({ entries }: { entries: WaterEntry[] }) {
 
 type SubTab = "cargar" | "tendencias";
 
-export function LifestyleScreen() {
+const METRICS: { key: LifestyleMetricKey; label: string; Icon: typeof IconScale }[] = [
+  { key: "weight", label: "Peso corporal", Icon: IconScale },
+  { key: "sleep", label: "Calidad de sueño", Icon: IconMoon },
+  { key: "steps", label: "Pasos", Icon: IconFootprint },
+  { key: "water", label: "Agua", Icon: IconDroplet },
+];
+
+function MetricGrid({ onSelect }: { onSelect: (metric: LifestyleMetricKey) => void }) {
   const { logs } = useApp();
+  const previews = getMetricPreviews(logs);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {METRICS.map(({ key, label, Icon }) => {
+        const preview = previews.find((p) => p.key === key)!;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onSelect(key)}
+            className="rounded-card border border-border bg-surface p-4 text-left shadow-elevated-sm"
+          >
+            <Icon className="h-7 w-7 text-primary" />
+            <p className="mt-2 font-medium text-ink">{label}</p>
+            <p className={`mt-0.5 text-xs ${preview.hasData ? "text-muted" : "text-faint"}`}>{preview.preview}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MetricDetailScreen({
+  metric,
+  subTab,
+  onSubTabChange,
+  onBack,
+}: {
+  metric: LifestyleMetricKey;
+  subTab: SubTab;
+  onSubTabChange: (tab: SubTab) => void;
+  onBack: () => void;
+}) {
+  const { logs } = useApp();
+  const meta = METRICS.find((m) => m.key === metric)!;
+
+  return (
+    <div className="space-y-4 pb-24">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Volver"
+          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill border border-border bg-surface2 text-ink transition-transform hover:bg-border/60 active:scale-95"
+        >
+          <IconChevronLeft className="h-[18px] w-[18px]" />
+        </button>
+        <h1 className="text-xl font-bold text-ink">{meta.label}</h1>
+      </div>
+
+      <div className="no-scrollbar flex gap-2 overflow-x-auto">
+        {(
+          [
+            { id: "cargar", label: "Cargar" },
+            { id: "tendencias", label: "Tendencias" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onSubTabChange(t.id)}
+            className={`shrink-0 rounded-pill px-3 py-1.5 text-sm font-medium transition-opacity active:opacity-70 ${
+              subTab === t.id ? "bg-primary text-white" : "bg-surface2 text-faint"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "cargar" ? (
+        <>
+          {metric === "weight" && <BodyWeightForm />}
+          {metric === "sleep" && <SleepForm />}
+          {metric === "steps" && <StepsForm />}
+          {metric === "water" && <WaterForm />}
+        </>
+      ) : (
+        <>
+          {metric === "weight" && <BodyWeightTrends entries={logs.bodyWeightEntries} />}
+          {metric === "sleep" && <SleepTrends entries={logs.sleepEntries} />}
+          {metric === "steps" && <StepsTrends entries={logs.stepsEntries} />}
+          {metric === "water" && <WaterTrends entries={logs.waterEntries} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+interface Props {
+  initialMetric?: LifestyleMetricKey | null;
+  onInitialMetricConsumed?: () => void;
+}
+
+export function LifestyleScreen({ initialMetric, onInitialMetricConsumed }: Props) {
+  const [selectedMetric, setSelectedMetric] = useState<LifestyleMetricKey | null>(null);
   const [subTab, setSubTab] = useState<SubTab>("cargar");
+
+  useEffect(() => {
+    if (!initialMetric) return;
+    setSelectedMetric(initialMetric);
+    setSubTab("tendencias");
+    onInitialMetricConsumed?.();
+    // Solo queremos reaccionar cuando llega un nuevo valor desde Inicio, no en cada re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMetric]);
+
+  if (selectedMetric) {
+    return (
+      <MetricDetailScreen
+        metric={selectedMetric}
+        subTab={subTab}
+        onSubTabChange={setSubTab}
+        onBack={() => setSelectedMetric(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -719,41 +840,12 @@ export function LifestyleScreen() {
         </p>
       </div>
 
-      <div className="flex gap-2">
-        {(
-          [
-            { id: "cargar", label: "Cargar" },
-            { id: "tendencias", label: "Tendencias" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setSubTab(t.id)}
-            className={`rounded-pill px-3 py-1.5 text-sm font-medium ${
-              subTab === t.id ? "bg-primary text-white" : "bg-surface2 text-muted"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {subTab === "cargar" ? (
-        <>
-          <BodyWeightForm />
-          <SleepForm />
-          <StepsForm />
-          <WaterForm />
-        </>
-      ) : (
-        <>
-          <BodyWeightTrends entries={logs.bodyWeightEntries} />
-          <SleepTrends entries={logs.sleepEntries} />
-          <StepsTrends entries={logs.stepsEntries} />
-          <WaterTrends entries={logs.waterEntries} />
-        </>
-      )}
+      <MetricGrid
+        onSelect={(metric) => {
+          setSelectedMetric(metric);
+          setSubTab("cargar");
+        }}
+      />
     </div>
   );
 }

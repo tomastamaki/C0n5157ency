@@ -17,7 +17,7 @@ import {
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
 import { getRecommendation } from "../lib/recommendation";
-import { getLifestyleKpis } from "../lib/lifestyleKpis";
+import { getLifestyleKpis, type LifestyleMetricKey } from "../lib/lifestyleKpis";
 import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
@@ -31,6 +31,8 @@ interface Props {
   onNavigateHistory: () => void;
   /** Se llama después de empezar un entrenamiento nuevo o al tocar el banner de "retomar". */
   onEnterWorkout: () => void;
+  /** Lleva a la pestaña Lifestyle, directo a la vista de Tendencias de esa métrica. */
+  onNavigateToLifestyle: (metric: LifestyleMetricKey) => void;
 }
 
 function PRDetailView({
@@ -81,7 +83,13 @@ function PRDetailView({
   );
 }
 
-export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnterWorkout }: Props) {
+export function HomeDashboard({
+  weekDays,
+  activeDraft,
+  onNavigateHistory,
+  onEnterWorkout,
+  onNavigateToLifestyle,
+}: Props) {
   const { logs, program, settings, flatDays } = useApp();
   const { startWorkout, skipDay } = useWorkoutActions();
   const cycle = settings.programCycle;
@@ -156,7 +164,7 @@ export function HomeDashboard({ weekDays, activeDraft, onNavigateHistory, onEnte
         )}
       </div>
 
-      <LifestyleKpiRow kpis={lifestyleKpis} />
+      <LifestyleKpiRow kpis={lifestyleKpis} onSelect={onNavigateToLifestyle} />
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-card border border-border bg-surface p-3 shadow-elevated-sm">

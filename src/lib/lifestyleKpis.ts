@@ -1,4 +1,5 @@
 import type { BodyWeightEntry, SleepEntry, StepsEntry, WaterEntry } from "../types/logs";
+import { formatDateOnly } from "./time";
 
 /** Días distintos con datos que hacen falta en cada ventana semanal para mostrar una comparación confiable. */
 const MIN_DAYS_FOR_TREND = 3;
@@ -45,48 +46,26 @@ function weekWindowAverage(daily: Map<string, number>, refKey: string, startDays
   return average(values);
 }
 
-export type TrendGoodness = "up-is-good" | "down-is-good" | "neutral";
-
-export interface LifestyleKpi {
-  key: "weight" | "sleep" | "steps" | "water";
-  label: string;
-  displayValue: string;
-  isToday: boolean;
-  variationPct: number | null;
-  goodness: TrendGoodness;
+function latestValue(daily: Map<string, number>, today: string): { value: number; date: string; isToday: boolean } | null {
+  if (daily.size === 0) return null;
+  const todayValue = daily.get(today);
+  if (todayValue !== undefined) return { value: todayValue, date: today, isToday: true };
+  const mostRecentDate = [...daily.keys()].sort((a, b) => b.localeCompare(a))[0];
+  return { value: daily.get(mostRecentDate)!, date: mostRecentDate, isToday: false };
 }
 
-function buildKpi<T>(
-  key: LifestyleKpi["key"],
-  label: string,
-  entries: T[],
-  dateOf: (e: T) => string,
-  valueOf: (e: T) => number,
-  combine: "sum" | "last",
-  format: (value: number) => string,
-  goodness: TrendGoodness
-): LifestyleKpi | null {
-  if (entries.length === 0) return null;
-  const today = todayKey();
-  const daily = dailyValues(entries, dateOf, valueOf, combine);
+export type TrendGoodness = "up-is-good" | "down-is-good" | "neutral";
+export type LifestyleMetricKey = "weight" | "sleep" | "steps" | "water";
 
-  const todayValue = daily.get(today);
-  let value: number;
-  let isToday: boolean;
-  if (todayValue !== undefined) {
-    value = todayValue;
-    isToday = true;
-  } else {
-    const mostRecentDate = [...daily.keys()].sort((a, b) => b.localeCompare(a))[0];
-    value = daily.get(mostRecentDate)!;
-    isToday = false;
-  }
-
-  const thisWeek = weekWindowAverage(daily, today, 0, 7);
-  const lastWeek = weekWindowAverage(daily, today, 7, 14);
-  const variationPct = thisWeek !== null && lastWeek !== null && lastWeek !== 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
-
-  return { key, label, displayValue: format(value), isToday, variationPct, goodness };
+interface MetricConfig<T> {
+  key: LifestyleMetricKey;
+  label: string;
+  entries: T[];
+  dateOf: (e: T) => string;
+  valueOf: (e: T) => number;
+  combine: "sum" | "last";
+  format: (value: number) => string;
+  goodness: TrendGoodness;
 }
 
 export interface LifestyleKpisInput {
@@ -96,48 +75,109 @@ export interface LifestyleKpisInput {
   waterEntries: WaterEntry[];
 }
 
-export function getLifestyleKpis(logs: LifestyleKpisInput): LifestyleKpi[] {
-  const kpis = [
-    buildKpi(
-      "weight",
-      "Peso",
-      logs.bodyWeightEntries,
-      (e) => e.date,
-      (e) => e.weightKg,
-      "last",
-      (v) => `${v}kg`,
-      "neutral"
-    ),
-    buildKpi(
-      "sleep",
-      "Sueño",
-      logs.sleepEntries,
-      (e) => e.date,
-      (e) => e.score,
-      "last",
-      (v) => `${Math.round(v)}/100`,
-      "up-is-good"
-    ),
-    buildKpi(
-      "steps",
-      "Pasos",
-      logs.stepsEntries,
-      (e) => e.date,
-      (e) => e.steps,
-      "sum",
-      (v) => Math.round(v).toLocaleString("es-AR"),
-      "up-is-good"
-    ),
-    buildKpi(
-      "water",
-      "Agua",
-      logs.waterEntries,
-      (e) => e.date,
-      (e) => e.liters,
-      "sum",
-      (v) => `${v.toFixed(1)}L`,
-      "up-is-good"
-    ),
+function metricConfigs(logs: LifestyleKpisInput): MetricConfig<unknown>[] {
+  return [
+    {
+      key: "weight",
+      label: "Peso",
+      entries: logs.bodyWeightEntries,
+      dateOf: (e) => (e as BodyWeightEntry).date,
+      valueOf: (e) => (e as BodyWeightEntry).weightKg,
+      combine: "last",
+      format: (v) => `${v}kg`,
+      goodness: "neutral",
+    },
+    {
+      key: "sleep",
+      label: "Sueño",
+      entries: logs.sleepEntries,
+      dateOf: (e) => (e as SleepEntry).date,
+      valueOf: (e) => (e as SleepEntry).score,
+      combine: "last",
+      format: (v) => `${Math.round(v)}/100`,
+      goodness: "up-is-good",
+    },
+    {
+      key: "steps",
+      label: "Pasos",
+      entries: logs.stepsEntries,
+      dateOf: (e) => (e as StepsEntry).date,
+      valueOf: (e) => (e as StepsEntry).steps,
+      combine: "sum",
+      format: (v) => Math.round(v).toLocaleString("es-AR"),
+      goodness: "up-is-good",
+    },
+    {
+      key: "water",
+      label: "Agua",
+      entries: logs.waterEntries,
+      dateOf: (e) => (e as WaterEntry).date,
+      valueOf: (e) => (e as WaterEntry).liters,
+      combine: "sum",
+      format: (v) => `${v.toFixed(1)}L`,
+      goodness: "up-is-good",
+    },
   ];
-  return kpis.filter((k): k is LifestyleKpi => k !== null);
+}
+
+export interface LifestyleKpi {
+  key: LifestyleMetricKey;
+  label: string;
+  displayValue: string;
+  isToday: boolean;
+  variationPct: number | null;
+  goodness: TrendGoodness;
+}
+
+/** KPIs para la fila de Inicio: solo las métricas que ya tienen algún dato cargado. */
+export function getLifestyleKpis(logs: LifestyleKpisInput): LifestyleKpi[] {
+  const today = todayKey();
+  const kpis: LifestyleKpi[] = [];
+
+  for (const cfg of metricConfigs(logs)) {
+    if (cfg.entries.length === 0) continue;
+    const daily = dailyValues(cfg.entries, cfg.dateOf, cfg.valueOf, cfg.combine);
+    const latest = latestValue(daily, today);
+    if (!latest) continue;
+
+    const thisWeek = weekWindowAverage(daily, today, 0, 7);
+    const lastWeek = weekWindowAverage(daily, today, 7, 14);
+    const variationPct =
+      thisWeek !== null && lastWeek !== null && lastWeek !== 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
+
+    kpis.push({
+      key: cfg.key,
+      label: cfg.label,
+      displayValue: cfg.format(latest.value),
+      isToday: latest.isToday,
+      variationPct,
+      goodness: cfg.goodness,
+    });
+  }
+  return kpis;
+}
+
+export interface MetricPreview {
+  key: LifestyleMetricKey;
+  label: string;
+  preview: string;
+  hasData: boolean;
+}
+
+/** Vistazo rápido para las 4 cards de la pantalla principal de Lifestyle: siempre las 4, "Sin datos" si corresponde. */
+export function getMetricPreviews(logs: LifestyleKpisInput): MetricPreview[] {
+  const today = todayKey();
+
+  return metricConfigs(logs).map((cfg) => {
+    if (cfg.entries.length === 0) {
+      return { key: cfg.key, label: cfg.label, preview: "Sin datos", hasData: false };
+    }
+    const daily = dailyValues(cfg.entries, cfg.dateOf, cfg.valueOf, cfg.combine);
+    const latest = latestValue(daily, today);
+    if (!latest) return { key: cfg.key, label: cfg.label, preview: "Sin datos", hasData: false };
+
+    const when = latest.isToday ? "hoy" : formatDateOnly(latest.date);
+    const unit = cfg.key === "steps" ? " pasos" : "";
+    return { key: cfg.key, label: cfg.label, preview: `${cfg.format(latest.value)}${unit} — ${when}`, hasData: true };
+  });
 }

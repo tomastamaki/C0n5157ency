@@ -152,3 +152,36 @@ export function IconTrophy(props: IconProps) {
     </svg>
   );
 }
+
+export function IconScale(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3v18" />
+      <path d="M8 21h8" />
+      <path d="M5 7h14" />
+      <path d="M12 5.5 5 7" />
+      <path d="M12 5.5 19 7" />
+      <path d="M2 13a3 3 0 0 0 6 0L5 7l-3 6z" />
+      <path d="M16 13a3 3 0 0 0 6 0l-3-6-3 6z" />
+    </svg>
+  );
+}
+
+export function IconFootprint(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <ellipse cx="12" cy="15.5" rx="4" ry="6" />
+      <circle cx="8.7" cy="6" r="1.2" />
+      <circle cx="12" cy="4.3" r="1.2" />
+      <circle cx="15.3" cy="6" r="1.2" />
+    </svg>
+  );
+}
+
+export function IconDroplet(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 3c4 4.5 7 8.2 7 12a7 7 0 0 1-14 0c0-3.8 3-7.5 7-12z" />
+    </svg>
+  );
+}

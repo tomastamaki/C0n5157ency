@@ -11,6 +11,7 @@ import { LifestyleScreen } from "./screens/Lifestyle";
 import { SettingsScreen } from "./screens/Settings";
 import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import { OnboardingScreen } from "./components/Onboarding";
+import type { LifestyleMetricKey } from "./lib/lifestyleKpis";
 import type { WorkoutSession } from "./types/logs";
 
 function AppShell() {
@@ -21,6 +22,7 @@ function AppShell() {
   const [showOnboarding, setShowOnboarding] = useState(
     () => !settings.onboardingSeen && logs.sessions.length === 0
   );
+  const [lifestyleTarget, setLifestyleTarget] = useState<LifestyleMetricKey | null>(null);
 
   const activeDraft = findActiveDraft(logs, settings.programCycle);
   const draftFlatDay = activeDraft ? flatDays[activeDraft.programIndex] ?? null : null;
@@ -34,6 +36,11 @@ function AppShell() {
   function finishOnboarding() {
     setShowOnboarding(false);
     if (!settings.onboardingSeen) updateSettings({ onboardingSeen: true });
+  }
+
+  function goToLifestyleMetric(metric: LifestyleMetricKey) {
+    setLifestyleTarget(metric);
+    handleTabChange("lifestyle");
   }
 
   let content;
@@ -59,12 +66,15 @@ function AppShell() {
         activeDraft={activeDraft}
         onNavigateHistory={() => handleTabChange("history")}
         onResumeWorkout={() => setViewingWorkout(true)}
+        onNavigateToLifestyle={goToLifestyleMetric}
       />
     );
   } else if (tab === "history") {
     content = <HistoryScreen activeDraft={activeDraft} onResumeWorkout={() => setViewingWorkout(true)} />;
   } else if (tab === "lifestyle") {
-    content = <LifestyleScreen />;
+    content = (
+      <LifestyleScreen initialMetric={lifestyleTarget} onInitialMetricConsumed={() => setLifestyleTarget(null)} />
+    );
   } else {
     content = <SettingsScreen onShowOnboarding={() => setShowOnboarding(true)} />;
   }
