@@ -39,7 +39,9 @@ export function RecommendationCard({ recommendation }: { recommendation: Recomme
           </button>
         )}
       </div>
-      <p className={`mt-1 whitespace-pre-line text-xs ${style.text}`}>{recommendation.detail}</p>
+      {recommendation.level !== "muscle-alert" && (
+        <p className={`mt-1 whitespace-pre-line text-xs ${style.text}`}>{recommendation.detail}</p>
+      )}
       {recommendation.trendNote && <p className="mt-0.5 text-xs text-warning">{recommendation.trendNote}</p>}
 
       {showDetail && (

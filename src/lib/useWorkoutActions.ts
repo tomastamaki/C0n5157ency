@@ -58,6 +58,7 @@ export function useWorkoutActions() {
           originalExercise: chosen === g.exercise ? null : g.exercise,
           supersetGroup: g.supersetGroup,
           notes: null,
+          restStartedAt: null,
           sets: getLiteralWorkingSets(g).map((_, i) => ({
             setIndex: i,
             weightKg: null,

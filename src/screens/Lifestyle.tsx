@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { TrendChart } from "../components/TrendChart";
+import { MiniTrendChart } from "../components/MiniTrendChart";
 import { NumericInput } from "../components/NumericInput";
 import { WaterBottle } from "../components/WaterBottle";
 import {
   IconActivity,
   IconChevronLeft,
   IconDroplet,
-  IconFootprint,
   IconMoon,
   IconScale,
   IconTrash,
+  IconWalking,
 } from "../components/icons";
 import { EmptyState } from "../components/EmptyState";
 import { newId } from "../lib/id";
@@ -700,12 +701,10 @@ function WaterTrends({ entries }: { entries: WaterEntry[] }) {
   );
 }
 
-type SubTab = "cargar" | "tendencias";
-
 const METRICS: { key: LifestyleMetricKey; label: string; Icon: typeof IconScale }[] = [
   { key: "weight", label: "Peso corporal", Icon: IconScale },
   { key: "sleep", label: "Calidad de sueño", Icon: IconMoon },
-  { key: "steps", label: "Pasos", Icon: IconFootprint },
+  { key: "steps", label: "Pasos", Icon: IconWalking },
   { key: "water", label: "Agua", Icon: IconDroplet },
 ];
 
@@ -734,17 +733,42 @@ function MetricGrid({ onSelect }: { onSelect: (metric: LifestyleMetricKey) => vo
   );
 }
 
-function MetricDetailScreen({
-  metric,
-  subTab,
-  onSubTabChange,
-  onBack,
-}: {
-  metric: LifestyleMetricKey;
-  subTab: SubTab;
-  onSubTabChange: (tab: SubTab) => void;
-  onBack: () => void;
-}) {
+function MiniTrendsSection() {
+  const { logs } = useApp();
+
+  const sections = [
+    {
+      key: "weight",
+      label: "Peso corporal",
+      points: [...logs.bodyWeightEntries].sort((a, b) => a.date.localeCompare(b.date)).map((e) => ({ date: e.date, value: e.weightKg })),
+    },
+    {
+      key: "sleep",
+      label: "Calidad de sueño",
+      points: [...logs.sleepEntries].sort((a, b) => a.date.localeCompare(b.date)).map((e) => ({ date: e.date, value: e.score })),
+    },
+    { key: "steps", label: "Pasos", points: sumByDate(logs.stepsEntries, (e) => e.date, (e) => e.steps) },
+    { key: "water", label: "Agua", points: sumByDate(logs.waterEntries, (e) => e.date, (e) => e.liters) },
+  ].filter((s) => s.points.length >= 2);
+
+  if (sections.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold text-ink">Tendencias rápidas</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {sections.map((s) => (
+          <div key={s.key} className="rounded-card border border-border bg-surface p-3 shadow-elevated-sm">
+            <p className="mb-1 text-xs text-muted">{s.label}</p>
+            <MiniTrendChart points={s.points} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricDetailScreen({ metric, onBack }: { metric: LifestyleMetricKey; onBack: () => void }) {
   const { logs } = useApp();
   const meta = METRICS.find((m) => m.key === metric)!;
 
@@ -762,39 +786,28 @@ function MetricDetailScreen({
         <h1 className="text-xl font-bold text-ink">{meta.label}</h1>
       </div>
 
-      <div className="no-scrollbar flex gap-2 overflow-x-auto">
-        {(
-          [
-            { id: "cargar", label: "Cargar" },
-            { id: "tendencias", label: "Tendencias" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => onSubTabChange(t.id)}
-            className={`shrink-0 rounded-pill px-3 py-1.5 text-sm font-medium transition-opacity active:opacity-70 ${
-              subTab === t.id ? "bg-primary text-white" : "bg-surface2 text-faint"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {subTab === "cargar" ? (
+      {metric === "weight" && (
         <>
-          {metric === "weight" && <BodyWeightForm />}
-          {metric === "sleep" && <SleepForm />}
-          {metric === "steps" && <StepsForm />}
-          {metric === "water" && <WaterForm />}
+          <BodyWeightTrends entries={logs.bodyWeightEntries} />
+          <BodyWeightForm />
         </>
-      ) : (
+      )}
+      {metric === "sleep" && (
         <>
-          {metric === "weight" && <BodyWeightTrends entries={logs.bodyWeightEntries} />}
-          {metric === "sleep" && <SleepTrends entries={logs.sleepEntries} />}
-          {metric === "steps" && <StepsTrends entries={logs.stepsEntries} />}
-          {metric === "water" && <WaterTrends entries={logs.waterEntries} />}
+          <SleepTrends entries={logs.sleepEntries} />
+          <SleepForm />
+        </>
+      )}
+      {metric === "steps" && (
+        <>
+          <StepsTrends entries={logs.stepsEntries} />
+          <StepsForm />
+        </>
+      )}
+      {metric === "water" && (
+        <>
+          <WaterTrends entries={logs.waterEntries} />
+          <WaterForm />
         </>
       )}
     </div>
@@ -808,26 +821,17 @@ interface Props {
 
 export function LifestyleScreen({ initialMetric, onInitialMetricConsumed }: Props) {
   const [selectedMetric, setSelectedMetric] = useState<LifestyleMetricKey | null>(null);
-  const [subTab, setSubTab] = useState<SubTab>("cargar");
 
   useEffect(() => {
     if (!initialMetric) return;
     setSelectedMetric(initialMetric);
-    setSubTab("tendencias");
     onInitialMetricConsumed?.();
     // Solo queremos reaccionar cuando llega un nuevo valor desde Inicio, no en cada re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialMetric]);
 
   if (selectedMetric) {
-    return (
-      <MetricDetailScreen
-        metric={selectedMetric}
-        subTab={subTab}
-        onSubTabChange={setSubTab}
-        onBack={() => setSelectedMetric(null)}
-      />
-    );
+    return <MetricDetailScreen metric={selectedMetric} onBack={() => setSelectedMetric(null)} />;
   }
 
   return (
@@ -840,12 +844,8 @@ export function LifestyleScreen({ initialMetric, onInitialMetricConsumed }: Prop
         </p>
       </div>
 
-      <MetricGrid
-        onSelect={(metric) => {
-          setSelectedMetric(metric);
-          setSubTab("cargar");
-        }}
-      />
+      <MetricGrid onSelect={setSelectedMetric} />
+      <MiniTrendsSection />
     </div>
   );
 }

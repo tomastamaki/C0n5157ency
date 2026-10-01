@@ -167,13 +167,14 @@ export function IconScale(props: IconProps) {
   );
 }
 
-export function IconFootprint(props: IconProps) {
+export function IconWalking(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <ellipse cx="12" cy="15.5" rx="4" ry="6" />
-      <circle cx="8.7" cy="6" r="1.2" />
-      <circle cx="12" cy="4.3" r="1.2" />
-      <circle cx="15.3" cy="6" r="1.2" />
+      <circle cx="13" cy="4.5" r="1.6" />
+      <path d="M11.5 7 10 13" />
+      <path d="M11.5 7.5 8.5 9.5" />
+      <path d="M10 13 13.5 15.5 12.5 20" />
+      <path d="M10 13 7 16.5 8 20.5" />
     </svg>
   );
 }

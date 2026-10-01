@@ -1,8 +1,11 @@
 import type { BodyWeightEntry, SleepEntry, StepsEntry, WaterEntry } from "../types/logs";
 import { formatDateOnly } from "./time";
 
-/** Días distintos con datos que hacen falta en cada ventana semanal para mostrar una comparación confiable. */
-const MIN_DAYS_FOR_TREND = 3;
+/** Días con datos que hacen falta dentro de los últimos 7 para mostrar una comparación confiable. */
+const MIN_DAYS_FOR_VARIATION = 3;
+
+/** Pesos por recencia para el promedio ponderado de 7 días (hoy pesa 7, hace 6 días pesa 1) — mismo criterio que el algoritmo de recuperación. */
+const RECENCY_WEIGHTS_7D = [7, 6, 5, 4, 3, 2, 1];
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -32,18 +35,22 @@ function dailyValues<T>(
   return result;
 }
 
-function average(values: number[]): number | null {
-  return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
-}
-
-function weekWindowAverage(daily: Map<string, number>, refKey: string, startDaysAgo: number, endDaysAgo: number): number | null {
-  const values: number[] = [];
+/**
+ * Promedio ponderado por recencia de los últimos 7 días (hoy incluido): los
+ * días sin dato se excluyen por completo en vez de contar como 0, y los
+ * pesos se normalizan solo sobre los días que sí tienen dato. Si quedan
+ * menos de `MIN_DAYS_FOR_VARIATION` días con dato, no hay comparación
+ * confiable y se devuelve null.
+ */
+function weightedRecentAverage(daily: Map<string, number>, refKey: string): number | null {
+  const pairs: { value: number; weight: number }[] = [];
   for (const [date, value] of daily) {
-    const diff = daysBetween(date, refKey);
-    if (diff >= startDaysAgo && diff < endDaysAgo) values.push(value);
+    const diff = Math.round(daysBetween(date, refKey));
+    if (diff >= 0 && diff < RECENCY_WEIGHTS_7D.length) pairs.push({ value, weight: RECENCY_WEIGHTS_7D[diff] });
   }
-  if (values.length < MIN_DAYS_FOR_TREND) return null;
-  return average(values);
+  if (pairs.length < MIN_DAYS_FOR_VARIATION) return null;
+  const totalWeight = pairs.reduce((s, p) => s + p.weight, 0);
+  return pairs.reduce((s, p) => s + p.value * p.weight, 0) / totalWeight;
 }
 
 function latestValue(daily: Map<string, number>, today: string): { value: number; date: string; isToday: boolean } | null {
@@ -140,10 +147,9 @@ export function getLifestyleKpis(logs: LifestyleKpisInput): LifestyleKpi[] {
     const latest = latestValue(daily, today);
     if (!latest) continue;
 
-    const thisWeek = weekWindowAverage(daily, today, 0, 7);
-    const lastWeek = weekWindowAverage(daily, today, 7, 14);
+    const weightedAvg = weightedRecentAverage(daily, today);
     const variationPct =
-      thisWeek !== null && lastWeek !== null && lastWeek !== 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
+      weightedAvg !== null && weightedAvg !== 0 ? ((latest.value - weightedAvg) / weightedAvg) * 100 : null;
 
     kpis.push({
       key: cfg.key,

@@ -19,6 +19,14 @@ export interface LoggedExercise {
   sets: LoggedSet[];
   /** Notas libres del usuario para este ejercicio, en esta sesión puntual. */
   notes: string | null;
+  /**
+   * Marca de cuándo arrancó el descanso actual (al confirmar la última serie
+   * hecha), o null si no hay un descanso en curso. Se persiste en la sesión
+   * (no es estado local del componente) para que el timer siga contando en
+   * base al tiempo real transcurrido aunque se navegue a otra pantalla y se
+   * vuelva.
+   */
+  restStartedAt: string | null;
 }
 
 export interface WorkoutSession {

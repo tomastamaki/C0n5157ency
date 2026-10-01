@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { ExerciseGroup } from "../types/program";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 import { isSetFilled, isSetLogged } from "../types/logs";
@@ -45,6 +45,7 @@ interface SetBlockProps {
   filled: boolean;
   done: boolean;
   isNewPR: boolean;
+  restTimer?: ReactNode;
   onChangeWeight: (weightKg: number | null) => void;
   onChangeReps: (reps: number | null) => void;
   onChangeRir: (rir: RIRValue) => void;
@@ -61,6 +62,7 @@ function SetBlock({
   filled,
   done,
   isNewPR,
+  restTimer,
   onChangeWeight,
   onChangeReps,
   onChangeRir,
@@ -84,6 +86,8 @@ function SetBlock({
           última vez: {lastTime.weightKg}kg × {lastTime.reps}, RIR {lastTime.rir}
         </p>
       )}
+
+      {restTimer && <div className="mb-3">{restTimer}</div>}
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
@@ -209,7 +213,6 @@ export function ExerciseCard({
   const { logs, settings, exerciseInfoIndex } = useApp();
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
-  const [restSignal, setRestSignal] = useState(0);
 
   const literalSets = useMemo(() => getLiteralWorkingSets(group), [group]);
   const warmup = group.sets.find((s) => s.type === "warmup");
@@ -229,11 +232,15 @@ export function ExerciseCard({
     ? group.substitutions.find((s) => s.name === displayName) ?? null
     : null;
   const fallbackInfo = isSubstituted ? exerciseInfoIndex[displayName] : null;
+  // Si el sustituto no tiene su propia descripción, mantenemos al menos la del ejercicio original en vez de ocultarla.
   const displayInfo = isSubstituted
-    ? { videoUrl: substitutionInfo?.videoUrl ?? fallbackInfo?.videoUrl ?? null, notes: fallbackInfo?.notes ?? null }
+    ? {
+        videoUrl: substitutionInfo?.videoUrl ?? fallbackInfo?.videoUrl ?? null,
+        notes: fallbackInfo?.notes ?? group.notes ?? null,
+      }
     : { videoUrl: group.videoUrl, notes: group.notes };
 
-  function updateSet(setIndex: number, patch: Partial<LoggedSet>) {
+  function updateSet(setIndex: number, patch: Partial<LoggedSet>, exercisePatch?: Partial<WorkoutSession["exercises"][number]>) {
     onUpdateSession((prev) => {
       const exercises = prev.exercises.map((ex, idx) => {
         if (idx !== groupIndexInDay) return ex;
@@ -244,7 +251,7 @@ export function ExerciseCard({
           if (!("confirmed" in patch)) next.confirmed = false;
           return next;
         });
-        return { ...ex, sets };
+        return { ...ex, sets, ...exercisePatch };
       });
       return { ...prev, exercises, updatedAt: new Date().toISOString() };
     });
@@ -284,9 +291,8 @@ export function ExerciseCard({
 
   function confirmSet(setIndex: number, logged: LoggedSet) {
     const nowConfirmed = !logged.confirmed;
-    updateSet(setIndex, { confirmed: nowConfirmed });
+    updateSet(setIndex, { confirmed: nowConfirmed }, nowConfirmed ? { restStartedAt: new Date().toISOString() } : undefined);
     if (nowConfirmed) {
-      setRestSignal((n) => n + 1);
       vibrate(20);
       unlockAudio();
       const otherSets = loggedExercise?.sets.filter((s) => s.setIndex !== setIndex) ?? [];
@@ -393,31 +399,31 @@ export function ExerciseCard({
             const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
             const filled = isSetFilled(logged);
             const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
+            // El descanso arranca al confirmar una serie, así que se muestra arriba del peso/reps de la próxima pendiente.
+            const showRestTimer = i === firstPendingIdx && Boolean(loggedExercise?.restStartedAt);
 
             return (
-              <div key={i}>
-                {/* El descanso arranca al confirmar una serie, así que se muestra justo arriba de la próxima pendiente. */}
-                {i === firstPendingIdx && restSignal > 0 && (
-                  <div className="mb-4">
-                    <RestTimer startSignal={restSignal} targetLabel={group.rest} />
-                  </div>
-                )}
-                <SetBlock
-                  index={i}
-                  reps={set.reps}
-                  targetRIR={set.targetRIR}
-                  logged={logged}
-                  lastTime={lastTime}
-                  suggestion={suggestion}
-                  filled={filled}
-                  done={done}
-                  isNewPR={isNewPR}
-                  onChangeWeight={(weightKg) => updateSet(i, { weightKg })}
-                  onChangeReps={(reps) => updateSet(i, { reps })}
-                  onChangeRir={(rir) => updateSet(i, { rir })}
-                  onConfirm={() => confirmSet(i, logged)}
-                />
-              </div>
+              <SetBlock
+                key={i}
+                index={i}
+                reps={set.reps}
+                targetRIR={set.targetRIR}
+                logged={logged}
+                lastTime={lastTime}
+                suggestion={suggestion}
+                filled={filled}
+                done={done}
+                isNewPR={isNewPR}
+                restTimer={
+                  showRestTimer ? (
+                    <RestTimer restStartedAt={loggedExercise?.restStartedAt ?? null} targetLabel={group.rest} />
+                  ) : undefined
+                }
+                onChangeWeight={(weightKg) => updateSet(i, { weightKg })}
+                onChangeReps={(reps) => updateSet(i, { reps })}
+                onChangeRir={(rir) => updateSet(i, { rir })}
+                onConfirm={() => confirmSet(i, logged)}
+              />
             );
           });
         })()}

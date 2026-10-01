@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { playBeep, vibrate } from "../lib/feedback";
 
 interface Props {
-  /** Cambiar este número reinicia y arranca el cronómetro (ej. al loguear una serie). */
-  startSignal: number;
+  /** Marca de cuándo arrancó el descanso actual (persistida en la sesión), o null si no hay uno en curso. */
+  restStartedAt: string | null;
   targetLabel?: string | null;
 }
 
@@ -20,30 +20,28 @@ function parseRestSeconds(label?: string | null): number | null {
   return match[2].toLowerCase().startsWith("min") ? lower * 60 : lower;
 }
 
-export function RestTimer({ startSignal, targetLabel }: Props) {
-  const [elapsedSec, setElapsedSec] = useState(0);
+export function RestTimer({ restStartedAt, targetLabel }: Props) {
   const targetSec = parseRestSeconds(targetLabel) ?? DEFAULT_REST_SECONDS;
-  const alertedRef = useRef(false);
+  // Guarda el restStartedAt ya alertado, para sonar una sola vez por descanso sin importar cuántas veces se remonte el componente.
+  const alertedForRef = useRef<string | null>(null);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    if (startSignal === 0) return;
-    setElapsedSec(0);
-    alertedRef.current = false;
-    const start = Date.now();
-    const interval = window.setInterval(() => {
-      setElapsedSec(Math.floor((Date.now() - start) / 1000));
-    }, 1000);
+    if (!restStartedAt) return;
+    const interval = window.setInterval(() => setTick((t) => t + 1), 1000);
     return () => window.clearInterval(interval);
-  }, [startSignal]);
+  }, [restStartedAt]);
+
+  const elapsedSec = restStartedAt ? Math.floor((Date.now() - new Date(restStartedAt).getTime()) / 1000) : 0;
 
   useEffect(() => {
-    if (alertedRef.current || elapsedSec < targetSec) return;
-    alertedRef.current = true;
+    if (!restStartedAt || alertedForRef.current === restStartedAt || elapsedSec < targetSec) return;
+    alertedForRef.current = restStartedAt;
     playBeep();
     vibrate([120, 60, 120]);
-  }, [elapsedSec, targetSec]);
+  }, [restStartedAt, elapsedSec, targetSec]);
 
-  if (startSignal === 0) return null;
+  if (!restStartedAt) return null;
 
   const remaining = targetSec - elapsedSec;
   const overtime = remaining <= 0;
