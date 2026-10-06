@@ -1,8 +1,19 @@
+import { useState } from "react";
+import { rirToNumber } from "../types/logs";
 import { getPctImprovement, type ProgressionPoint } from "../lib/history";
 
 const WIDTH = 320;
 const HEIGHT = 120;
 const PADDING = 24;
+
+type Metric = "e1rm" | "weight" | "reps" | "rir";
+
+const METRICS: { id: Metric; label: string; unit: string; valueOf: (p: ProgressionPoint) => number }[] = [
+  { id: "e1rm", label: "e1RM", unit: "kg", valueOf: (p) => p.e1rm },
+  { id: "weight", label: "Peso", unit: "kg", valueOf: (p) => p.weightKg },
+  { id: "reps", label: "Reps", unit: "", valueOf: (p) => p.reps },
+  { id: "rir", label: "RIR", unit: "", valueOf: (p) => rirToNumber(p.rir as "0" | "1" | "2" | "3+") },
+];
 
 function ImprovementBadge({ points }: { points: ProgressionPoint[] }) {
   const pct = getPctImprovement(points);
@@ -23,6 +34,9 @@ function ImprovementBadge({ points }: { points: ProgressionPoint[] }) {
 }
 
 export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
+  const [metric, setMetric] = useState<Metric>("e1rm");
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
   if (points.length === 0) {
     return <p className="text-sm text-muted">Todavía no hay registros de este ejercicio.</p>;
   }
@@ -39,9 +53,10 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
     );
   }
 
-  const weights = points.map((p) => p.weightKg);
-  const min = Math.min(...weights);
-  const max = Math.max(...weights);
+  const active = METRICS.find((m) => m.id === metric)!;
+  const values = points.map(active.valueOf);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
   const range = max - min || 1;
 
   const innerW = WIDTH - PADDING * 2;
@@ -49,36 +64,68 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
 
   const coords = points.map((p, i) => {
     const x = PADDING + (i / (points.length - 1)) * innerW;
-    const y = PADDING + innerH - ((p.weightKg - min) / range) * innerH;
+    const y = PADDING + innerH - ((active.valueOf(p) - min) / range) * innerH;
     return { x, y, point: p };
   });
 
   const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+  const shown = points[selectedIdx ?? points.length - 1];
 
   return (
     <div>
-      <div className="mb-1 flex justify-end">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex gap-1.5">
+          {METRICS.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMetric(m.id)}
+              className={`rounded-pill px-2.5 py-1 text-xs font-semibold transition-colors ${
+                metric === m.id ? "bg-primary text-white" : "bg-surface2 text-faint"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
         <ImprovementBadge points={points} />
       </div>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full text-primary"
         role="img"
-        aria-label="Progresión de peso a lo largo del tiempo"
+        aria-label="Progresión a lo largo del tiempo"
       >
         <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
         {coords.map((c, i) => (
-          <circle key={i} cx={c.x} cy={c.y} r={3} fill="currentColor">
-            <title>
-              Semana {c.point.weekNumber}: {c.point.weightKg}kg × {c.point.reps} (RIR {c.point.rir})
-            </title>
-          </circle>
+          <circle
+            key={i}
+            cx={c.x}
+            cy={c.y}
+            r={selectedIdx === i ? 4.5 : 3}
+            fill="currentColor"
+            onClick={() => setSelectedIdx(i)}
+            className="cursor-pointer"
+          />
         ))}
       </svg>
       <div className="flex justify-between font-mono text-xs text-faint">
-        <span>{min}kg</span>
-        <span>{max}kg</span>
+        <span>
+          {Math.round(min * 10) / 10}
+          {active.unit}
+        </span>
+        <span>
+          {Math.round(max * 10) / 10}
+          {active.unit}
+        </span>
       </div>
+      <p className="mt-2 text-center text-sm text-muted">
+        Semana {shown.weekNumber} ·{" "}
+        <span className="font-mono text-ink">
+          {shown.weightKg}kg × {shown.reps} @ RIR {shown.rir}
+        </span>
+        <span className="ml-1 text-faint">(e1RM {Math.round(shown.e1rm * 10) / 10}kg)</span>
+      </p>
     </div>
   );
 }

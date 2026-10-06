@@ -1,7 +1,6 @@
 import { useApp } from "../context/AppContext";
 import { getLiteralWorkingSets } from "./program";
-import { getPreferredExercise } from "./history";
-import { globalSeq } from "./cycle";
+import { getDefaultVariant } from "./variants";
 import { newId } from "./id";
 import type { WorkoutSession } from "../types/logs";
 import type { FlatProgramDay } from "../types/program";
@@ -20,16 +19,11 @@ export function currentElapsedSec(session: WorkoutSession): number {
  * lógica sin depender de en qué pestaña esté montado cada uno.
  */
 export function useWorkoutActions() {
-  const { logs, upsertSession, removeSession, settings, updateSettings } = useApp();
+  const { upsertSession, removeSession, settings } = useApp();
   const cycle = settings.programCycle;
 
   function startWorkout(day: FlatProgramDay): WorkoutSession {
     const now = new Date().toISOString();
-    const beforeGlobalSeq = globalSeq({ programIndex: day.index, cycle });
-
-    // Sustituciones elegidas de antemano en la vista previa tienen prioridad
-    // sobre la última preferencia recordada del historial.
-    const pendingKeysToClear: string[] = [];
 
     const session: WorkoutSession = {
       id: newId(),
@@ -47,12 +41,8 @@ export function useWorkoutActions() {
       pausedElapsedSec: 0,
       updatedAt: now,
       feeling: null,
-      exercises: day.day.exerciseGroups.map((g, groupIdx) => {
-        const pendingKey = `${day.index}-${groupIdx}`;
-        const pending = settings.pendingSubstitutions[pendingKey];
-        if (pending) pendingKeysToClear.push(pendingKey);
-        const preferred = pending ?? getPreferredExercise(logs, g.exercise, beforeGlobalSeq);
-        const chosen = preferred ?? g.exercise;
+      exercises: day.day.exerciseGroups.map((g) => {
+        const chosen = getDefaultVariant(settings, g.exercise);
         return {
           exercise: chosen,
           originalExercise: chosen === g.exercise ? null : g.exercise,
@@ -70,13 +60,6 @@ export function useWorkoutActions() {
       }),
     };
     upsertSession(session);
-
-    if (pendingKeysToClear.length > 0) {
-      const remaining = { ...settings.pendingSubstitutions };
-      for (const key of pendingKeysToClear) delete remaining[key];
-      updateSettings({ pendingSubstitutions: remaining });
-    }
-
     return session;
   }
 

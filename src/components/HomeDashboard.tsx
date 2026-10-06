@@ -13,10 +13,10 @@ import {
   getMuscleChips,
   getPRsInWeek,
   getWeeksUntilDeload,
-  type PREvent,
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
 import { getRecommendation } from "../lib/recommendation";
+import { getAllCurrentRecordsByDay } from "../lib/records";
 import { getLifestyleKpis, type LifestyleMetricKey } from "../lib/lifestyleKpis";
 import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
@@ -36,14 +36,24 @@ interface Props {
 }
 
 function PRDetailView({
-  events,
-  weekNumber,
+  logs,
+  program,
+  currentWeekNumber,
+  cycle,
   onBack,
 }: {
-  events: PREvent[];
-  weekNumber: number;
+  logs: ReturnType<typeof useApp>["logs"];
+  program: ReturnType<typeof useApp>["program"];
+  currentWeekNumber: number;
+  cycle: number;
   onBack: () => void;
 }) {
+  const byDay = useMemo(
+    () => getAllCurrentRecordsByDay(logs, program, currentWeekNumber, cycle),
+    [logs, program, currentWeekNumber, cycle]
+  );
+  const hasAny = byDay.some((g) => g.records.length > 0);
+
   return (
     <div className="space-y-4 pb-24">
       <button
@@ -54,27 +64,41 @@ function PRDetailView({
       >
         <IconChevronLeft className="h-[18px] w-[18px]" />
       </button>
-      <h2 className="text-xl font-bold text-ink">PRs · Semana {weekNumber}</h2>
-      {events.length === 0 ? (
+      <h2 className="text-xl font-bold text-ink">PRs por ejercicio</h2>
+      {!hasAny ? (
         <EmptyState
           icon={<IconTrophy className="h-8 w-8" />}
-          title="Todavía no hay récords esta semana"
-          hint="Cuando superes un peso anterior en algún ejercicio, va a aparecer acá."
+          title="Todavía no hay récords"
+          hint="Cuando completes series con peso, el récord de cada ejercicio va a aparecer acá."
         />
       ) : (
-        <div className="space-y-2">
-          {events.map((e, i) => (
-            <div key={i} className="rounded-block border border-border bg-surface p-3 shadow-elevated-sm">
-              <p className="font-medium text-ink">{e.exercise}</p>
-              <p className="font-mono text-sm text-success">
-                {e.newWeight}kg
-                {e.previousWeight !== null ? (
-                  <span className="text-muted"> (superó {e.previousWeight}kg)</span>
-                ) : (
-                  <span className="text-muted"> (primer registro)</span>
-                )}
-              </p>
-              <p className="text-xs text-faint">{formatDate(e.date)}</p>
+        <div className="space-y-5">
+          {byDay.map(({ day, records }) => (
+            <div key={day} className="space-y-2">
+              <p className="text-sm font-semibold text-ink">{day}</p>
+              {records.map((r) => (
+                <div
+                  key={r.exercise}
+                  className={`rounded-block border p-3 shadow-elevated-sm ${
+                    r.isThisWeek ? "border-accent/40 bg-accent/5" : "border-border bg-surface"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    {r.isThisWeek && <IconTrophy className="h-3.5 w-3.5 shrink-0 text-accent" />}
+                    <p className="font-medium text-ink">{r.exercise}</p>
+                  </div>
+                  <p className="font-mono text-sm text-success">
+                    {r.weightKg}kg × {r.reps}
+                    {r.isThisWeek &&
+                      (r.previousWeightKg !== null ? (
+                        <span className="text-muted"> (superó {r.previousWeightKg}kg)</span>
+                      ) : (
+                        <span className="text-muted"> (primer registro)</span>
+                      ))}
+                  </p>
+                  <p className="text-xs text-faint">{formatDate(r.date)}</p>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -135,7 +159,13 @@ export function HomeDashboard({
 
   if (showPRDetail) {
     return (
-      <PRDetailView events={prsThisWeek} weekNumber={currentWeekNumber} onBack={() => setShowPRDetail(false)} />
+      <PRDetailView
+        logs={logs}
+        program={program}
+        currentWeekNumber={currentWeekNumber}
+        cycle={cycle}
+        onBack={() => setShowPRDetail(false)}
+      />
     );
   }
 

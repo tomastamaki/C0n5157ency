@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { ExerciseGroup } from "../types/program";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
-import { isSetFilled, isSetLogged } from "../types/logs";
+import { isSetFilled, isSetLogged, rirToNumber } from "../types/logs";
+import { estimatedE1RM } from "../lib/e1rm";
 import { RIRSelector } from "./RIRSelector";
 import { NumericInput } from "./NumericInput";
 import { VideoEmbed } from "./VideoEmbed";
@@ -13,9 +14,10 @@ import { findLastLoggedSet, getExerciseProgression } from "../lib/history";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { getWeightSuggestion } from "../lib/suggestions";
-import { getPersonalRecord } from "../lib/records";
+import { getPersonalRecord, getE1rmRecord } from "../lib/records";
 import { globalSeq } from "../lib/cycle";
 import { unlockAudio, vibrate } from "../lib/feedback";
+import { withVariantChoice } from "../lib/variants";
 
 interface Props {
   group: ExerciseGroup;
@@ -210,7 +212,7 @@ export function ExerciseCard({
   session,
   onUpdateSession,
 }: Props) {
-  const { logs, settings, exerciseInfoIndex } = useApp();
+  const { logs, settings, updateSettings, exerciseInfoIndex } = useApp();
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
@@ -224,6 +226,7 @@ export function ExerciseCard({
   const allLogged = loggedExercise?.sets.every(isSetLogged) ?? false;
   const incrementKg = getIncrementKg(settings.exerciseIncrements, displayName);
   const pr = useMemo(() => getPersonalRecord(logs, displayName), [logs, displayName]);
+  const e1rmRecord = useMemo(() => getE1rmRecord(logs, displayName), [logs, displayName]);
   const progression = useMemo(
     () => getExerciseProgression(logs, displayName, 0),
     [logs, displayName]
@@ -279,6 +282,8 @@ export function ExerciseCard({
       });
       return { ...prev, exercises, updatedAt: new Date().toISOString() };
     });
+    // Queda como la variante predeterminada de este ejercicio en todo el programa, no solo en esta sesión.
+    updateSettings({ exerciseVariantDefaults: withVariantChoice(settings, group.exercise, newName) });
     setShowSubs(false);
   }
 
@@ -398,7 +403,15 @@ export function ExerciseCard({
             const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
             const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
             const filled = isSetFilled(logged);
-            const isNewPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
+            const isWeightPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
+            const isE1rmPR =
+              filled &&
+              logged.weightKg !== null &&
+              logged.reps !== null &&
+              logged.rir !== null &&
+              (!e1rmRecord ||
+                estimatedE1RM(logged.weightKg, logged.reps, rirToNumber(logged.rir)) > e1rmRecord.e1rm);
+            const isNewPR = isWeightPR || isE1rmPR;
             // El descanso arranca al confirmar una serie, así que se muestra arriba del peso/reps de la próxima pendiente.
             const showRestTimer = i === firstPendingIdx && Boolean(loggedExercise?.restStartedAt);
 

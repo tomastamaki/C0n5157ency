@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { getExerciseNamesByDay, getExerciseProgression } from "../lib/history";
 import { getCurrentFlatDay } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
+import { getDefaultVariant } from "../lib/variants";
 import { patchLoggedSet, clearLoggedSet } from "../lib/sessionEdit";
 import { isSetLogged } from "../types/logs";
 import { formatDate, formatDuration } from "../lib/time";
@@ -100,7 +101,13 @@ function OverviewTab({ onSelectSession }: { onSelectSession: (id: string) => voi
 function ExerciseTab() {
   const { program, logs } = useApp();
   const exercisesByDay = useMemo(() => getExerciseNamesByDay(program, logs.sessions), [program, logs.sessions]);
-  const [selected, setSelected] = useState(exercisesByDay[0]?.exercises[0] ?? "");
+  const [selected, setSelected] = useState(() => {
+    for (const { exercises } of exercisesByDay) {
+      const withHistory = exercises.find((e) => e.hasHistory);
+      if (withHistory) return withHistory.name;
+    }
+    return exercisesByDay[0]?.exercises[0]?.name ?? "";
+  });
 
   const progression = useMemo(
     () => getExerciseProgression(logs, selected, 0),
@@ -120,9 +127,9 @@ function ExerciseTab() {
       >
         {exercisesByDay.map(({ day, exercises }) => (
           <optgroup key={day} label={day}>
-            {exercises.map((name) => (
-              <option key={name} value={name}>
-                {name}
+            {exercises.map((e) => (
+              <option key={e.name} value={e.name} disabled={!e.hasHistory}>
+                {e.hasHistory ? e.name : `${e.name} (sin registros)`}
               </option>
             ))}
           </optgroup>
@@ -378,9 +385,11 @@ function UpcomingTab() {
           <ul className="space-y-1 text-sm text-muted">
             {day.exerciseGroups.map((g, i) => {
               const literal = getLiteralWorkingSets(g);
+              const chosen = getDefaultVariant(settings, g.exercise);
               return (
                 <li key={i}>
-                  {g.exercise} —{" "}
+                  {chosen}
+                  {chosen !== g.exercise && <span className="text-xs text-faint"> (sustituto)</span>} —{" "}
                   <span className="font-mono">
                     {literal.length} serie{literal.length !== 1 ? "s" : ""}
                     {literal[0] ? ` · ${literal[0].reps} reps` : ""}

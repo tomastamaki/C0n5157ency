@@ -14,11 +14,15 @@ export interface AppSettings {
   /** Se incrementa al "reiniciar el programa" desde Ajustes; las sesiones nuevas quedan marcadas con este número. */
   programCycle: number;
   /**
-   * Sustituciones elegidas desde la vista previa del entrenamiento, antes de
-   * arrancarlo. Clave `${flatDayIndex}-${groupIndexInDay}` -> nombre elegido.
-   * Se consumen (y se borran) al tocar "Empezar entrenamiento".
+   * Variante elegida como predeterminada para cada ejercicio prescripto por
+   * el programa. Clave: nombre del ejercicio original/prescripto. Valor:
+   * nombre de la variante elegida (puede ser una sustitución o el original
+   * mismo). Se usa en todos lados donde aparezca ese ejercicio — vista
+   * previa, sesión activa, semanas siguientes, sugerencias, historial, PRs —
+   * hasta que se vuelva a cambiar. No afecta las sesiones ya guardadas, que
+   * conservan el ejercicio que realmente se hizo en su momento.
    */
-  pendingSubstitutions: Record<string, string>;
+  exerciseVariantDefaults: Record<string, string>;
   /** Si ya se vio (o saltó) la introducción. No bloquea volver a verla desde Ajustes. */
   onboardingSeen: boolean;
   /** Meta diaria de pasos, editable desde Lifestyle. */
@@ -40,7 +44,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: systemPrefersDark() ? "dark" : "light",
   exerciseIncrements: {},
   programCycle: 0,
-  pendingSubstitutions: {},
+  exerciseVariantDefaults: {},
   onboardingSeen: false,
   dailyStepsTarget: 8000,
   dailyWaterTargetLiters: 2.5,

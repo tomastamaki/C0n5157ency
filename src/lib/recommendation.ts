@@ -2,6 +2,7 @@ import type { LogsData, SleepEntry, WorkoutSession } from "../types/logs";
 import { isSetLogged, rirToNumber } from "../types/logs";
 import type { FlatProgramDay, Program } from "../types/program";
 import { getLiteralWorkingSets } from "./program";
+import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
 import { localDateKey } from "./time";
 import {
@@ -131,33 +132,43 @@ function getSessionTargetRirAvg(session: WorkoutSession, flatDays: FlatProgramDa
   return average(values);
 }
 
+/** Mejor e1RM entre las series registradas de un ejercicio dentro de una sesión. */
+function getExerciseBestE1rm(sets: WorkoutSession["exercises"][number]["sets"]): number | null {
+  const values = sets
+    .filter(isSetLogged)
+    .filter((s) => s.weightKg !== null && s.reps !== null && s.rir !== null)
+    .map((s) => estimatedE1RM(s.weightKg as number, s.reps as number, rirToNumber(s.rir!)));
+  return values.length > 0 ? Math.max(...values) : null;
+}
+
 /**
- * % de cambio del volumen (peso × reps) de esta sesión vs. el promedio de las
- * 2-3 sesiones previas de cada mismo ejercicio (independiente del sistema de
- * sugerencia de progresión, para no contaminar el score con ese otro cálculo).
+ * % de cambio del e1RM (1RM estimado ajustado por RIR) de esta sesión vs. el
+ * promedio de las 2-3 sesiones previas de cada mismo ejercicio (independiente
+ * del sistema de sugerencia de progresión, para no contaminar el score con
+ * ese otro cálculo). Usa e1RM en vez de peso×reps para no leer como
+ * "sin progreso" una sesión donde se mantuvo el peso pero subieron las reps
+ * o bajó el esfuerzo (RIR).
  */
 function getSessionOwnProgressPct(session: WorkoutSession, allSessions: WorkoutSession[]): number | null {
   const sessionSeq = globalSeq(session);
   const pctChanges: number[] = [];
 
   for (const ex of session.exercises) {
-    const thisVolume = ex.sets
-      .filter(isSetLogged)
-      .reduce((sum, s) => sum + (s.weightKg ?? 0) * (s.reps ?? 0), 0);
-    if (thisVolume === 0) continue;
+    const thisE1rm = getExerciseBestE1rm(ex.sets);
+    if (thisE1rm === null) continue;
 
-    const priorVolumes = allSessions
+    const priorE1rms = allSessions
       .filter((s) => s.status === "completed" && globalSeq(s) < sessionSeq)
       .sort((a, b) => globalSeq(b) - globalSeq(a))
       .map((s) => s.exercises.find((e) => e.exercise === ex.exercise))
       .filter((e): e is (typeof session.exercises)[number] => e !== undefined)
       .slice(0, 3)
-      .map((priorEx) => priorEx.sets.filter(isSetLogged).reduce((sum, st) => sum + (st.weightKg ?? 0) * (st.reps ?? 0), 0))
-      .filter((v): v is number => v > 0);
+      .map((priorEx) => getExerciseBestE1rm(priorEx.sets))
+      .filter((v): v is number => v !== null);
 
-    if (priorVolumes.length === 0) continue;
-    const avgPrior = average(priorVolumes)!;
-    pctChanges.push(((thisVolume - avgPrior) / avgPrior) * 100);
+    if (priorE1rms.length === 0) continue;
+    const avgPrior = average(priorE1rms)!;
+    pctChanges.push(((thisE1rm - avgPrior) / avgPrior) * 100);
   }
 
   return average(pctChanges);

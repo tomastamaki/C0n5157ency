@@ -1,7 +1,9 @@
 import type { LogsData, WorkoutSession } from "../types/logs";
-import { isSetLogged } from "../types/logs";
+import { isSetLogged, rirToNumber } from "../types/logs";
 import type { Program } from "../types/program";
 import { getExerciseProgression, getPctImprovement } from "./history";
+import { getPersonalRecordEvents } from "./records";
+import { estimatedE1RM, PROGRESSION_CONFIG } from "./e1rm";
 import { globalSeq } from "./cycle";
 
 /** Los KPIs de "momentum" (racha, atención, destacado, último entrenamiento) solo miran el ciclo actual. */
@@ -31,41 +33,22 @@ export interface PREvent {
 }
 
 /**
- * Récords personales logrados durante una semana de programa puntual del
- * ciclo actual. La base de comparación ("¿es un récord?") es siempre el
- * historial completo (todos los ciclos): un PR de peso es real sin importar
- * si se reinició el programa.
+ * Récords de peso logrados durante una semana de programa puntual del ciclo
+ * actual. La base de comparación ("¿es un récord?") es siempre el historial
+ * completo (todos los ciclos): un PR de peso es real sin importar si se
+ * reinició el programa. Se apoya en `getPersonalRecordEvents`, la misma
+ * línea de tiempo que usa la vista de "PR actual de todos los ejercicios".
  */
 export function getPRsInWeek(logs: LogsData, weekNumber: number, cycle: number): PREvent[] {
-  const sessions = [...logs.sessions]
-    .filter((s) => s.status === "completed")
-    .sort((a, b) => globalSeq(a) - globalSeq(b));
-
-  const bestByExercise = new Map<string, number>();
-  const events: PREvent[] = [];
-
-  for (const session of sessions) {
-    const isTargetWeek = session.weekNumber === weekNumber && (session.cycle ?? 0) === cycle;
-    for (const ex of session.exercises) {
-      for (const set of ex.sets) {
-        if (!isSetLogged(set) || set.weightKg === null) continue;
-        const prev = bestByExercise.get(ex.exercise) ?? null;
-        if (prev === null || set.weightKg > prev) {
-          if (isTargetWeek) {
-            events.push({
-              exercise: ex.exercise,
-              newWeight: set.weightKg,
-              previousWeight: prev,
-              date: session.completedAt ?? session.startedAt,
-              sessionId: session.id,
-            });
-          }
-          bestByExercise.set(ex.exercise, set.weightKg);
-        }
-      }
-    }
-  }
-  return events;
+  return getPersonalRecordEvents(logs)
+    .filter((e) => e.kind === "weight" && e.weekNumber === weekNumber && e.cycle === cycle)
+    .map((e) => ({
+      exercise: e.exercise,
+      newWeight: e.weightKg,
+      previousWeight: e.previousBest,
+      date: e.date,
+      sessionId: e.sessionId,
+    }));
 }
 
 export interface AttentionFlag {
@@ -77,11 +60,15 @@ export interface AttentionFlag {
 /**
  * Señales calculadas puramente sobre lo ya registrado en el ciclo actual
  * (sin re-derivar el plan del programa, que cambia semana a semana): bajó de
- * peso respecto a la vez anterior, se repitió el mismo peso 3 veces
- * seguidas, o llegó a RIR 0 cuando antes le sobraban reps.
+ * peso respecto a la vez anterior, se estancó (ver abajo), o llegó a RIR 0
+ * cuando antes le sobraban reps.
+ *
+ * "Estancado" usa e1RM, no solo el peso: si el peso se mantiene pero subieron
+ * las reps o el RIR, el e1RM sube y NO cuenta como estancamiento (hay
+ * progreso real aunque el peso se vea "plano").
  */
 export function getAttentionFlags(logs: LogsData, cycle: number, limit = 3): AttentionFlag[] {
-  const byExercise = new Map<string, { weightKg: number; rir: string }[]>();
+  const byExercise = new Map<string, { weightKg: number; rir: string; e1rm: number }[]>();
   const completed = filterByCycle(logs, cycle)
     .sessions.filter((s) => s.status === "completed")
     .sort((a, b) => a.programIndex - b.programIndex);
@@ -89,13 +76,18 @@ export function getAttentionFlags(logs: LogsData, cycle: number, limit = 3): Att
   for (const session of completed) {
     for (const ex of session.exercises) {
       const set = ex.sets.find((s) => s.setIndex === 0);
-      if (!set || !isSetLogged(set) || set.weightKg === null || set.rir === null) continue;
+      if (!set || !isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
       if (!byExercise.has(ex.exercise)) byExercise.set(ex.exercise, []);
-      byExercise.get(ex.exercise)!.push({ weightKg: set.weightKg, rir: set.rir });
+      byExercise.get(ex.exercise)!.push({
+        weightKg: set.weightKg,
+        rir: set.rir,
+        e1rm: estimatedE1RM(set.weightKg, set.reps, rirToNumber(set.rir)),
+      });
     }
   }
 
   const flags: AttentionFlag[] = [];
+  const stalledCount = PROGRESSION_CONFIG.stalledSessionCount;
 
   for (const [exercise, points] of byExercise) {
     if (points.length < 2) continue;
@@ -107,13 +99,15 @@ export function getAttentionFlags(logs: LogsData, cycle: number, limit = 3): Att
       continue;
     }
 
-    if (points.length >= 3) {
-      const last3 = points.slice(-3);
-      if (last3.every((p) => p.weightKg === last3[0].weightKg)) {
+    if (points.length >= stalledCount) {
+      const window = points.slice(-stalledCount);
+      const sameWeight = window.every((p) => p.weightKg === window[0].weightKg);
+      const noE1rmImprovement = window[window.length - 1].e1rm <= window[0].e1rm;
+      if (sameWeight && noE1rmImprovement) {
         flags.push({
           exercise,
           kind: "stalled",
-          detail: `mismo peso (${last.weightKg}kg) en las últimas 3 sesiones`,
+          detail: `mismo peso (${last.weightKg}kg) sin mejorar reps ni esfuerzo en las últimas ${stalledCount} sesiones`,
         });
         continue;
       }
@@ -160,22 +154,30 @@ export function getLastCompletedSession(logs: LogsData, cycle: number): WorkoutS
 
 /**
  * Cuántos sets de una sesión superaron el récord previo a esa sesión (por
- * ejercicio). Compara contra TODO el historial (todos los ciclos): un PR de
- * peso es real sin importar si el programa se reinició.
+ * ejercicio), ya sea de peso o de e1RM estimado (sin contar dos veces un
+ * mismo set que logre ambos). Compara contra TODO el historial (todos los
+ * ciclos): un PR es real sin importar si el programa se reinició.
  */
 export function countPRsInSession(logs: LogsData, session: WorkoutSession): number {
   const sessionSeq = globalSeq(session);
   let count = 0;
   for (const ex of session.exercises) {
-    const priorBest = logs.sessions
+    const priorSets = logs.sessions
       .filter((s) => s.status === "completed" && globalSeq(s) < sessionSeq)
       .flatMap((s) => s.exercises.filter((e) => e.exercise === ex.exercise))
       .flatMap((e) => e.sets)
-      .filter((s) => isSetLogged(s) && s.weightKg !== null)
-      .reduce((max, s) => Math.max(max, s.weightKg as number), -Infinity);
+      .filter((s) => isSetLogged(s) && s.weightKg !== null && s.reps !== null && s.rir !== null);
+
+    const priorBestWeight = priorSets.reduce((max, s) => Math.max(max, s.weightKg as number), -Infinity);
+    const priorBestE1rm = priorSets.reduce(
+      (max, s) => Math.max(max, estimatedE1RM(s.weightKg as number, s.reps as number, rirToNumber(s.rir!))),
+      -Infinity
+    );
 
     for (const set of ex.sets) {
-      if (isSetLogged(set) && set.weightKg !== null && set.weightKg > priorBest) count++;
+      if (!isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
+      const e1rm = estimatedE1RM(set.weightKg, set.reps, rirToNumber(set.rir));
+      if (set.weightKg > priorBestWeight || e1rm > priorBestE1rm) count++;
     }
   }
   return count;

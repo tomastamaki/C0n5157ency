@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { VideoEmbed } from "../components/VideoEmbed";
 import { getLiteralWorkingSets } from "../lib/program";
+import { getDefaultVariant, withVariantChoice } from "../lib/variants";
 import { IconChevronLeft } from "../components/icons";
 import type { ExerciseGroup } from "../types/program";
 import type { FlatProgramDay } from "../types/program";
@@ -84,12 +85,8 @@ interface Props {
 export function WorkoutPreviewScreen({ flatDay, onBack, onStart }: Props) {
   const { settings, updateSettings } = useApp();
 
-  function choose(groupIdx: number, name: string | null) {
-    const key = `${flatDay.index}-${groupIdx}`;
-    const next = { ...settings.pendingSubstitutions };
-    if (name === null) delete next[key];
-    else next[key] = name;
-    updateSettings({ pendingSubstitutions: next });
+  function choose(originalName: string, name: string | null) {
+    updateSettings({ exerciseVariantDefaults: withVariantChoice(settings, originalName, name) });
   }
 
   return (
@@ -109,17 +106,21 @@ export function WorkoutPreviewScreen({ flatDay, onBack, onStart }: Props) {
         </p>
         <h2 className="text-xl font-bold text-ink">{flatDay.day.name} · vista previa</h2>
         <p className="mt-1 text-xs text-muted">
-          Elegí de antemano qué variante de cada ejercicio vas a usar hoy. Queda guardado como
-          selección por defecto al empezar.
+          Elegí de antemano qué variante de cada ejercicio vas a usar. Queda como la
+          predeterminada de ese ejercicio en todo el programa, hasta que la cambies de nuevo.
         </p>
       </div>
 
       <div className="space-y-3">
         {flatDay.day.exerciseGroups.map((group, i) => {
-          const key = `${flatDay.index}-${i}`;
-          const chosen = settings.pendingSubstitutions[key] ?? group.exercise;
+          const chosen = getDefaultVariant(settings, group.exercise);
           return (
-            <PreviewExerciseCard key={i} group={group} chosen={chosen} onChoose={(name) => choose(i, name)} />
+            <PreviewExerciseCard
+              key={i}
+              group={group}
+              chosen={chosen}
+              onChoose={(name) => choose(group.exercise, name)}
+            />
           );
         })}
       </div>
