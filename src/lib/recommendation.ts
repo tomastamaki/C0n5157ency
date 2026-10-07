@@ -22,7 +22,7 @@ function getDayMuscles(dayName: string): string[] {
   return DAY_MUSCLES[dayName] ?? [];
 }
 
-function isDeloadWeek(program: Program, weekNumber: number): boolean {
+export function isDeloadWeek(program: Program, weekNumber: number): boolean {
   const week = program.blocks.flatMap((b) => b.weeks).find((w) => w.weekNumber === weekNumber);
   return week ? week.label.toLowerCase().includes("deload") : false;
 }

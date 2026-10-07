@@ -8,9 +8,10 @@ import { NumericInput } from "./NumericInput";
 import { VideoEmbed } from "./VideoEmbed";
 import { RestTimer } from "./RestTimer";
 import { ProgressChart } from "./ProgressChart";
-import { IconTrophy } from "./icons";
+import { IconNote, IconTrophy } from "./icons";
 import { useApp } from "../context/AppContext";
 import { findLastLoggedSet, getExerciseProgression } from "../lib/history";
+import { getCurrentNote, noteEntryId } from "../lib/exerciseNotes";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { getWeightSuggestion } from "../lib/suggestions";
@@ -148,9 +149,21 @@ function SetBlock({
   );
 }
 
-function ExerciseNotes({ notes, onSave }: { notes: string | null; onSave: (notes: string | null) => void }) {
+function ExerciseNotes({
+  currentText,
+  fallbackText,
+  fallbackExerciseName,
+  onSave,
+}: {
+  /** La nota vigente de este ejercicio (variante), si tiene. */
+  currentText: string | null;
+  /** La nota del ejercicio original, para mostrar como referencia si la variante no tiene una propia. */
+  fallbackText: string | null;
+  fallbackExerciseName: string | null;
+  onSave: (text: string | null) => void;
+}) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(notes ?? "");
+  const [draft, setDraft] = useState(currentText ?? "");
 
   if (!editing) {
     return (
@@ -158,14 +171,20 @@ function ExerciseNotes({ notes, onSave }: { notes: string | null; onSave: (notes
         <button
           type="button"
           onClick={() => {
-            setDraft(notes ?? "");
+            setDraft(currentText ?? "");
             setEditing(true);
           }}
           className="text-sm font-medium text-primary"
         >
-          {notes ? "Editar notas" : "Agregar notas"}
+          {currentText ? "Editar notas" : "Agregar notas"}
         </button>
-        {notes && <p className="mt-1 whitespace-pre-line text-sm text-muted">{notes}</p>}
+        {currentText && <p className="mt-1 whitespace-pre-line text-sm text-muted">{currentText}</p>}
+        {!currentText && fallbackText && (
+          <p className="mt-1 text-sm text-muted">
+            <span className="text-faint">Notas de {fallbackExerciseName} (ejercicio original): </span>
+            {fallbackText}
+          </p>
+        )}
       </div>
     );
   }
@@ -212,7 +231,7 @@ export function ExerciseCard({
   session,
   onUpdateSession,
 }: Props) {
-  const { logs, settings, updateSettings, exerciseInfoIndex } = useApp();
+  const { logs, settings, updateSettings, upsertExerciseNoteEntry, exerciseInfoIndex } = useApp();
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
@@ -230,6 +249,11 @@ export function ExerciseCard({
   const progression = useMemo(
     () => getExerciseProgression(logs, displayName, 0),
     [logs, displayName]
+  );
+  const currentNoteEntry = useMemo(() => getCurrentNote(logs, displayName), [logs, displayName]);
+  const fallbackNoteEntry = useMemo(
+    () => (isSubstituted && !currentNoteEntry ? getCurrentNote(logs, group.exercise) : null),
+    [isSubstituted, currentNoteEntry, logs, group.exercise]
   );
   const substitutionInfo = isSubstituted
     ? group.substitutions.find((s) => s.name === displayName) ?? null
@@ -287,10 +311,17 @@ export function ExerciseCard({
     setShowSubs(false);
   }
 
-  function updateExerciseNotes(notes: string | null) {
-    onUpdateSession((prev) => {
-      const exercises = prev.exercises.map((ex, idx) => (idx === groupIndexInDay ? { ...ex, notes } : ex));
-      return { ...prev, exercises, updatedAt: new Date().toISOString() };
+  function saveExerciseNote(text: string | null) {
+    const now = new Date().toISOString();
+    upsertExerciseNoteEntry({
+      id: noteEntryId(session, displayName),
+      exercise: displayName,
+      text: text ?? "",
+      date: session.completedAt ?? session.startedAt,
+      weekNumber: session.weekNumber,
+      sessionId: session.id,
+      createdAt: currentNoteEntry?.createdAt ?? now,
+      updatedAt: now,
     });
   }
 
@@ -313,9 +344,12 @@ export function ExerciseCard({
         className="flex w-full items-center justify-between rounded-card border border-border bg-surface px-4 py-3 text-left"
       >
         <div>
-          <p className="font-medium text-ink">
+          <p className="flex items-center gap-1.5 font-medium text-ink">
             {displayName}
-            {isSubstituted && <span className="ml-2 text-xs font-normal text-warning">sustituto</span>}
+            {isSubstituted && <span className="text-xs font-normal text-warning">sustituto</span>}
+            {Boolean(currentNoteEntry?.text?.trim()) && (
+              <IconNote className="h-3.5 w-3.5 shrink-0 text-faint" aria-label="Tiene notas" />
+            )}
           </p>
           <p className="text-sm text-muted">{summarizeSets(group)}</p>
         </div>
@@ -376,7 +410,12 @@ export function ExerciseCard({
 
       {displayInfo.notes && <p className="mt-3 text-sm text-muted">{displayInfo.notes}</p>}
 
-      <ExerciseNotes notes={loggedExercise?.notes ?? null} onSave={updateExerciseNotes} />
+      <ExerciseNotes
+        currentText={currentNoteEntry?.text?.trim() ? currentNoteEntry.text : null}
+        fallbackText={fallbackNoteEntry?.text?.trim() ? fallbackNoteEntry.text : null}
+        fallbackExerciseName={isSubstituted ? group.exercise : null}
+        onSave={saveExerciseNote}
+      />
 
       {warmup && (
         <p className="mt-3 text-sm text-muted">

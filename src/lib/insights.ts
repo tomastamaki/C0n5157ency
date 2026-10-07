@@ -4,6 +4,7 @@ import type { Program } from "../types/program";
 import { getExerciseProgression, getPctImprovement } from "./history";
 import { getPersonalRecordEvents } from "./records";
 import { estimatedE1RM, PROGRESSION_CONFIG } from "./e1rm";
+import { isDeloadWeek } from "./recommendation";
 import { globalSeq } from "./cycle";
 
 /** Los KPIs de "momentum" (racha, atención, destacado, último entrenamiento) solo miran el ciclo actual. */
@@ -53,24 +54,27 @@ export function getPRsInWeek(logs: LogsData, weekNumber: number, cycle: number):
 
 export interface AttentionFlag {
   exercise: string;
-  kind: "regression" | "stalled" | "harder_rir";
+  kind: "e1rm_decline";
   detail: string;
 }
 
 /**
- * Señales calculadas puramente sobre lo ya registrado en el ciclo actual
- * (sin re-derivar el plan del programa, que cambia semana a semana): bajó de
- * peso respecto a la vez anterior, se estancó (ver abajo), o llegó a RIR 0
- * cuando antes le sobraban reps.
+ * Señal calculada puramente sobre lo ya registrado en el ciclo actual (sin
+ * re-derivar el plan del programa, que cambia semana a semana): el e1RM
+ * estimado (peso ajustado por reps y RIR) bajó de forma sostenida.
  *
- * "Estancado" usa e1RM, no solo el peso: si el peso se mantiene pero subieron
- * las reps o el RIR, el e1RM sube y NO cuenta como estancamiento (hay
- * progreso real aunque el peso se vea "plano").
+ * Usa e1RM y no el peso ni las reps por separado, para no marcar casos donde
+ * el peso subió pero las reps bajaron (progreso real) ni casos donde las
+ * reps bajaron pero el RIR subió (mismo esfuerzo real). Las semanas de
+ * deload se excluyen del todo de la comparación porque ahí se entrena más
+ * liviano a propósito. "Sostenido" exige que las últimas N sesiones (no solo
+ * la última) estén por debajo del promedio previo, con un margen de
+ * tolerancia para no marcar por ruido normal entre sesiones.
  */
-export function getAttentionFlags(logs: LogsData, cycle: number, limit = 3): AttentionFlag[] {
-  const byExercise = new Map<string, { weightKg: number; rir: string; e1rm: number }[]>();
+export function getAttentionFlags(logs: LogsData, cycle: number, program: Program, limit = 3): AttentionFlag[] {
+  const byExercise = new Map<string, { e1rm: number; weekNumber: number }[]>();
   const completed = filterByCycle(logs, cycle)
-    .sessions.filter((s) => s.status === "completed")
+    .sessions.filter((s) => s.status === "completed" && !isDeloadWeek(program, s.weekNumber))
     .sort((a, b) => a.programIndex - b.programIndex);
 
   for (const session of completed) {
@@ -79,42 +83,32 @@ export function getAttentionFlags(logs: LogsData, cycle: number, limit = 3): Att
       if (!set || !isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
       if (!byExercise.has(ex.exercise)) byExercise.set(ex.exercise, []);
       byExercise.get(ex.exercise)!.push({
-        weightKg: set.weightKg,
-        rir: set.rir,
         e1rm: estimatedE1RM(set.weightKg, set.reps, rirToNumber(set.rir)),
+        weekNumber: session.weekNumber,
       });
     }
   }
 
   const flags: AttentionFlag[] = [];
-  const stalledCount = PROGRESSION_CONFIG.stalledSessionCount;
+  const declineCount = PROGRESSION_CONFIG.attentionDeclineSessionCount;
+  const tolerance = PROGRESSION_CONFIG.attentionTolerancePct / 100;
 
   for (const [exercise, points] of byExercise) {
-    if (points.length < 2) continue;
-    const last = points[points.length - 1];
-    const prev = points[points.length - 2];
+    if (points.length < declineCount + 1) continue;
 
-    if (last.weightKg < prev.weightKg) {
-      flags.push({ exercise, kind: "regression", detail: `bajó de ${prev.weightKg}kg a ${last.weightKg}kg` });
-      continue;
-    }
+    const recent = points.slice(-declineCount);
+    const baselinePoints = points.slice(0, points.length - declineCount);
+    const baseline = baselinePoints.reduce((sum, p) => sum + p.e1rm, 0) / baselinePoints.length;
+    const threshold = baseline * (1 - tolerance);
 
-    if (points.length >= stalledCount) {
-      const window = points.slice(-stalledCount);
-      const sameWeight = window.every((p) => p.weightKg === window[0].weightKg);
-      const noE1rmImprovement = window[window.length - 1].e1rm <= window[0].e1rm;
-      if (sameWeight && noE1rmImprovement) {
-        flags.push({
-          exercise,
-          kind: "stalled",
-          detail: `mismo peso (${last.weightKg}kg) sin mejorar reps ni esfuerzo en las últimas ${stalledCount} sesiones`,
-        });
-        continue;
-      }
-    }
-
-    if (last.rir === "0" && (prev.rir === "2" || prev.rir === "3+")) {
-      flags.push({ exercise, kind: "harder_rir", detail: `RIR 0 esta vez vs. RIR ${prev.rir} la anterior` });
+    const sustainedDecline = recent.every((p) => p.e1rm < threshold);
+    if (sustainedDecline) {
+      const last = recent[recent.length - 1];
+      flags.push({
+        exercise,
+        kind: "e1rm_decline",
+        detail: `e1RM bajó de ${Math.round(baseline)} a ${Math.round(last.e1rm)}kg en ${declineCount} sesiones`,
+      });
     }
   }
 

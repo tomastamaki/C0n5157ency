@@ -8,6 +8,10 @@ export const PROGRESSION_CONFIG = {
   epleyDivisor: 30,
   /** Cantidad mínima de sesiones consecutivas sin mejora para marcar un ejercicio como estancado. */
   stalledSessionCount: 3,
+  /** Sesiones consecutivas más recientes con e1RM por debajo del promedio previo para marcar "necesita atención". */
+  attentionDeclineSessionCount: 2,
+  /** Margen de tolerancia (%) antes de considerar que el e1RM bajó: evita marcar por ruido normal entre sesiones. */
+  attentionTolerancePct: 5,
 };
 
 /**

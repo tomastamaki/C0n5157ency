@@ -5,7 +5,7 @@ export function SyncIndicator() {
   const { syncStatus, syncError, lastSyncedAt, retrySync } = useApp();
 
   const dotColor: Record<typeof syncStatus, string> = {
-    "not-configured": "bg-faint",
+    off: "bg-faint",
     idle: "bg-faint",
     pending: "bg-warning",
     syncing: "bg-warning animate-pulse",
@@ -14,17 +14,17 @@ export function SyncIndicator() {
   };
 
   const label: Record<typeof syncStatus, string> = {
-    "not-configured": "GitHub no configurado",
-    idle: "Sin cambios para guardar",
-    pending: "Cambios sin guardar…",
-    syncing: "Guardando en GitHub…",
-    saved: lastSyncedAt ? `Guardado ${formatRelative(lastSyncedAt)}` : "Guardado",
-    error: "Error al guardar",
+    off: "Guardado en este dispositivo",
+    idle: "Sincronizado — sin cambios pendientes",
+    pending: "Pendiente de subir…",
+    syncing: "Sincronizando…",
+    saved: lastSyncedAt ? `Sincronizado hace ${formatRelative(lastSyncedAt)}` : "Sincronizado",
+    error: `Error: ${syncError ?? "no se pudo sincronizar"}`,
   };
 
   return (
     <div className="flex items-center gap-2 text-xs text-muted">
-      <span className={`h-2 w-2 rounded-full ${dotColor[syncStatus]}`} />
+      <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor[syncStatus]}`} />
       <span>{label[syncStatus]}</span>
       {syncStatus === "error" && (
         <button

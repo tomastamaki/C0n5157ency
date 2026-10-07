@@ -131,7 +131,7 @@ export function HomeDashboard({
     () => getPRsInWeek(logs, currentWeekNumber, cycle),
     [logs, currentWeekNumber, cycle]
   );
-  const attention = useMemo(() => getAttentionFlags(logs, cycle), [logs, cycle]);
+  const attention = useMemo(() => getAttentionFlags(logs, cycle, program), [logs, cycle, program]);
   const highlight = useMemo(() => getHighlightExercise(logs, cycle), [logs, cycle]);
   const lastSession = useMemo(() => getLastCompletedSession(logs, cycle), [logs, cycle]);
   const lastSessionPRs = useMemo(

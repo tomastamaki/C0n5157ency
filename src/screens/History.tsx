@@ -12,8 +12,9 @@ import { TrainingCalendar } from "../components/TrainingCalendar";
 import { ActiveWorkoutBanner } from "../components/ActiveWorkoutBanner";
 import { RIRSelector } from "../components/RIRSelector";
 import { NumericInput } from "../components/NumericInput";
-import { IconChevronLeft, IconHistory, IconPencil, IconRotateCcw, IconTrash } from "../components/icons";
+import { IconChevronLeft, IconHistory, IconNote, IconPencil, IconRotateCcw, IconTrash } from "../components/icons";
 import { EmptyState } from "../components/EmptyState";
+import { getNoteForSession, getNoteHistory } from "../lib/exerciseNotes";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 
 function StatTile({ value, label, tone }: { value: number; label: string; tone?: "success" | "warning" }) {
@@ -118,6 +119,8 @@ function ExerciseTab() {
     .filter((s) => s.status === "completed" && s.exercises.some((e) => e.exercise === selected))
     .sort((a, b) => b.programIndex - a.programIndex);
 
+  const noteHistory = getNoteHistory(logs, selected);
+
   return (
     <div className="space-y-4">
       <select
@@ -140,6 +143,25 @@ function ExerciseTab() {
         <p className="mb-2 text-sm font-medium text-ink">Progresión (serie principal)</p>
         <ProgressChart points={progression} />
       </div>
+
+      {noteHistory.length > 0 && (
+        <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-ink">
+            <IconNote className="h-4 w-4 text-faint" />
+            Historial de notas
+          </p>
+          <div className="space-y-2">
+            {noteHistory.map((n) => (
+              <div key={n.id} className="rounded-block border border-border bg-surface2 p-2.5 text-sm">
+                <p className="text-xs text-faint">
+                  Semana {n.weekNumber} · {formatDate(n.date)}
+                </p>
+                <p className="mt-0.5 whitespace-pre-line text-muted">{n.text || "(nota borrada)"}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {pastSessions.map((s) => {
@@ -303,6 +325,7 @@ function EditableSetRow({
 function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
   const { logs } = useApp();
   const session = logs.sessions.find((s) => s.id === sessionId);
+  const noteFor = (exerciseName: string) => (session ? getNoteForSession(logs, session.id, exerciseName) : null);
 
   const backButton = (
     <button
@@ -340,21 +363,30 @@ function SessionDetailView({ sessionId, onBack }: { sessionId: string; onBack: (
       </div>
 
       <div className="space-y-2">
-        {session.exercises.map((ex, i) => (
-          <div key={i} className="rounded-block border border-border bg-surface p-3 text-sm">
-            <p className="font-medium text-ink">
-              {ex.exercise}
-              {ex.originalExercise && (
-                <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
+        {session.exercises.map((ex, i) => {
+          const note = noteFor(ex.exercise);
+          return (
+            <div key={i} className="rounded-block border border-border bg-surface p-3 text-sm">
+              <p className="font-medium text-ink">
+                {ex.exercise}
+                {ex.originalExercise && (
+                  <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
+                )}
+              </p>
+              <ul className="mt-1 space-y-0.5 font-mono text-muted">
+                {ex.sets.map((s, j) => (
+                  <EditableSetRow key={s.setIndex} session={session} exerciseIdx={i} set={s} index={j} />
+                ))}
+              </ul>
+              {note?.text && (
+                <p className="mt-2 flex items-start gap-1.5 border-t border-border pt-2 text-xs text-muted">
+                  <IconNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" />
+                  <span className="whitespace-pre-line">{note.text}</span>
+                </p>
               )}
-            </p>
-            <ul className="mt-1 space-y-0.5 font-mono text-muted">
-              {ex.sets.map((s, j) => (
-                <EditableSetRow key={s.setIndex} session={session} exerciseIdx={i} set={s} index={j} />
-              ))}
-            </ul>
-          </div>
-        ))}
+            </div>
+          );
+        })}
         {session.exercises.length === 0 && (
           <p className="text-sm text-muted">Día salteado, sin ejercicios registrados.</p>
         )}

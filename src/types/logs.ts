@@ -17,7 +17,11 @@ export interface LoggedExercise {
   originalExercise: string | null;
   supersetGroup: string | null;
   sets: LoggedSet[];
-  /** Notas libres del usuario para este ejercicio, en esta sesión puntual. */
+  /**
+   * @deprecated Reemplazado por `exerciseNoteEntries` en `LogsData`: las
+   * notas pertenecen al ejercicio (cualquier semana), no a esta sesión
+   * puntual. Se mantiene solo para poder migrar datos viejos ya guardados.
+   */
   notes: string | null;
   /**
    * Marca de cuándo arrancó el descanso actual (al confirmar la última serie
@@ -102,6 +106,27 @@ export interface WaterEntry {
   updatedAt: string;
 }
 
+/**
+ * Una nota guardada para un ejercicio (identidad = el ejercicio efectivamente
+ * hecho, variante incluida) en el momento de una sesión puntual. La "nota
+ * vigente" de un ejercicio es siempre la entrada más reciente para ese
+ * nombre; todas las entradas juntas son su historial de notas. Guardar de
+ * nuevo dentro de la misma sesión actualiza esa misma entrada (mismo id) en
+ * vez de duplicarla.
+ */
+export interface ExerciseNoteEntry {
+  id: string;
+  /** Nombre del ejercicio efectivamente hecho (la variante, si hubo sustitución). */
+  exercise: string;
+  text: string;
+  /** Fecha de la sesión en la que se guardó (completedAt o startedAt). */
+  date: string;
+  weekNumber: number;
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LogsData {
   version: 1;
   sessions: WorkoutSession[];
@@ -109,6 +134,7 @@ export interface LogsData {
   sleepEntries: SleepEntry[];
   stepsEntries: StepsEntry[];
   waterEntries: WaterEntry[];
+  exerciseNoteEntries: ExerciseNoteEntry[];
 }
 
 export const EMPTY_LOGS: LogsData = {
@@ -118,6 +144,7 @@ export const EMPTY_LOGS: LogsData = {
   sleepEntries: [],
   stepsEntries: [],
   waterEntries: [],
+  exerciseNoteEntries: [],
 };
 
 /** Peso, reps y RIR completos, sin importar si ya se confirmó con el botón ✓. */

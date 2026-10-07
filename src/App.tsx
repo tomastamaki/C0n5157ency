@@ -11,6 +11,7 @@ import { LifestyleScreen } from "./screens/Lifestyle";
 import { SettingsScreen } from "./screens/Settings";
 import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import { OnboardingScreen } from "./components/Onboarding";
+import { SyncStatusDot } from "./components/SyncStatusDot";
 import type { LifestyleMetricKey } from "./lib/lifestyleKpis";
 import type { WorkoutSession } from "./types/logs";
 
@@ -85,6 +86,7 @@ function AppShell() {
       <aside className="relative z-10 hidden shrink-0 md:block md:w-40">
         <div className="mb-6 flex items-center justify-between">
           <Wordmark className="text-lg" />
+          <SyncStatusDot />
         </div>
         <div className="mb-6">
           <ThemeToggle />
@@ -93,7 +95,10 @@ function AppShell() {
       </aside>
       <main className="relative z-10 flex-1 md:max-w-2xl">
         <div className="mb-4 flex items-center justify-between md:hidden">
-          <Wordmark className="text-lg" />
+          <div className="flex items-center gap-2">
+            <Wordmark className="text-lg" />
+            <SyncStatusDot />
+          </div>
           <ThemeToggle compact />
         </div>
         {content}
