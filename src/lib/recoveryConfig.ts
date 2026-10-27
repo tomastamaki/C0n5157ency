@@ -6,25 +6,22 @@
  */
 
 // ---- Capa 1: recuperación muscular ----
-
-/** Mapeo fijo de músculos por tipo de día (no por ejercicio individual). */
-export const DAY_MUSCLES: Record<string, string[]> = {
-  Push: ["pecho", "tríceps", "hombros"],
-  Pull: ["espalda", "bíceps"],
-  Upper: ["pecho", "espalda", "tríceps", "bíceps", "hombros"],
-  Lower: ["piernas"],
-};
+// El mapeo de qué músculos entrena cada ejercicio vive en `muscleMapping.ts`
+// (fuente única, también usada por el resumen semanal/mensual y los chips
+// de la card del día); acá solo quedan las horas de recuperación por músculo.
 
 /** Horas de recuperación de referencia por músculo. */
 export const MUSCLE_RECOVERY_HOURS: Record<string, number> = {
-  pecho: 48,
-  espalda: 60, // promedio del rango 48-72
-  piernas: 72,
-  abs: 24,
-  bíceps: 36, // promedio del rango 24-48
-  hombros: 48,
-  tríceps: 48,
-  antebrazos: 24,
+  Pecho: 48,
+  Espalda: 60, // promedio del rango 48-72
+  Hombros: 48,
+  Bíceps: 36, // promedio del rango 24-48
+  Tríceps: 48,
+  Cuádriceps: 72,
+  Isquiotibiales: 72,
+  Glúteos: 72,
+  Gemelos: 48,
+  Abdomen: 24,
 };
 
 /** Ajuste del tiempo de recuperación según qué tan exigida estuvo la última sesión de ese músculo. */

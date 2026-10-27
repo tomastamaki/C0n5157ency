@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { getExerciseNamesByDay, getExerciseProgression } from "../lib/history";
+import { getExerciseDayTypes, getExerciseNamesByDay, getExerciseProgression } from "../lib/history";
 import { getCurrentFlatDay } from "../lib/schedule";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getDefaultVariant } from "../lib/variants";
@@ -15,6 +15,7 @@ import { NumericInput } from "../components/NumericInput";
 import { IconChevronLeft, IconHistory, IconNote, IconPencil, IconRotateCcw, IconTrash } from "../components/icons";
 import { EmptyState } from "../components/EmptyState";
 import { getNoteForSession, getNoteHistory } from "../lib/exerciseNotes";
+import { PeriodSummaryScreen } from "./PeriodSummary";
 import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
 
 function StatTile({ value, label, tone }: { value: number; label: string; tone?: "success" | "warning" }) {
@@ -110,13 +111,22 @@ function ExerciseTab() {
     return exercisesByDay[0]?.exercises[0]?.name ?? "";
   });
 
+  const dayTypes = useMemo(() => getExerciseDayTypes(logs.sessions, selected), [logs.sessions, selected]);
+  const [dayFilter, setDayFilter] = useState<string | null>(null);
+  const effectiveDayFilter = dayTypes.length > 1 ? dayFilter : null;
+
   const progression = useMemo(
-    () => getExerciseProgression(logs, selected, 0),
-    [logs, selected]
+    () => getExerciseProgression(logs, selected, 0, effectiveDayFilter ?? undefined),
+    [logs, selected, effectiveDayFilter]
   );
 
   const pastSessions = logs.sessions
-    .filter((s) => s.status === "completed" && s.exercises.some((e) => e.exercise === selected))
+    .filter(
+      (s) =>
+        s.status === "completed" &&
+        s.exercises.some((e) => e.exercise === selected) &&
+        (effectiveDayFilter === null || s.dayName === effectiveDayFilter)
+    )
     .sort((a, b) => b.programIndex - a.programIndex);
 
   const noteHistory = getNoteHistory(logs, selected);
@@ -125,7 +135,10 @@ function ExerciseTab() {
     <div className="space-y-4">
       <select
         value={selected}
-        onChange={(e) => setSelected(e.target.value)}
+        onChange={(e) => {
+          setSelected(e.target.value);
+          setDayFilter(null);
+        }}
         className="w-full rounded-pill border border-border bg-surface2 px-3 py-2 text-sm text-ink"
       >
         {exercisesByDay.map(({ day, exercises }) => (
@@ -139,8 +152,30 @@ function ExerciseTab() {
         ))}
       </select>
 
+      {dayTypes.length > 1 && (
+        <div className="flex gap-2">
+          {["Todos", ...dayTypes].map((d) => {
+            const isActive = d === "Todos" ? dayFilter === null : dayFilter === d;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDayFilter(d === "Todos" ? null : d)}
+                className={`rounded-pill px-3 py-1.5 text-sm font-medium ${
+                  isActive ? "bg-primary text-white" : "bg-surface2 text-faint"
+                }`}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-        <p className="mb-2 text-sm font-medium text-ink">Progresión (serie principal)</p>
+        <p className="mb-2 text-sm font-medium text-ink">
+          Progresión (serie principal{effectiveDayFilter ? ` · ${effectiveDayFilter}` : ""})
+        </p>
         <ProgressChart points={progression} />
       </div>
 
@@ -169,6 +204,7 @@ function ExerciseTab() {
           return (
             <div key={s.id} className="rounded-block border border-border bg-surface p-3 text-sm">
               <p className="font-medium text-ink">
+                {dayTypes.length > 1 && <span className="text-faint">{s.dayName} · </span>}
                 Semana {s.weekNumber} · {formatDate(s.completedAt ?? s.startedAt)}
               </p>
               <p className="font-mono text-muted">
@@ -442,7 +478,7 @@ interface HistoryScreenProps {
 }
 
 export function HistoryScreen({ activeDraft, onResumeWorkout }: HistoryScreenProps) {
-  const [tab, setTab] = useState<"overview" | "exercise" | "calendar" | "upcoming">("overview");
+  const [tab, setTab] = useState<"overview" | "weekly" | "exercise" | "calendar" | "upcoming">("overview");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   if (selectedSessionId) {
@@ -457,6 +493,7 @@ export function HistoryScreen({ activeDraft, onResumeWorkout }: HistoryScreenPro
         {(
           [
             { id: "overview", label: "General" },
+            { id: "weekly", label: "Semanal" },
             { id: "exercise", label: "Por ejercicio" },
             { id: "calendar", label: "Calendario" },
             { id: "upcoming", label: "Próxima semana" },
@@ -476,6 +513,7 @@ export function HistoryScreen({ activeDraft, onResumeWorkout }: HistoryScreenPro
       </div>
 
       {tab === "overview" && <OverviewTab onSelectSession={setSelectedSessionId} />}
+      {tab === "weekly" && <PeriodSummaryScreen onBack={() => setTab("overview")} />}
       {tab === "exercise" && <ExerciseTab />}
       {tab === "calendar" && <CalendarTab onSelectSession={setSelectedSessionId} />}
       {tab === "upcoming" && <UpcomingTab />}

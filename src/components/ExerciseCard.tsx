@@ -10,12 +10,13 @@ import { RestTimer } from "./RestTimer";
 import { ProgressChart } from "./ProgressChart";
 import { IconNote, IconTrophy } from "./icons";
 import { useApp } from "../context/AppContext";
-import { findLastLoggedSet, getExerciseProgression } from "../lib/history";
+import { getExerciseProgression } from "../lib/history";
 import { getCurrentNote, noteEntryId } from "../lib/exerciseNotes";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { getWeightSuggestion } from "../lib/suggestions";
-import { getPersonalRecord, getE1rmRecord } from "../lib/records";
+import { getPersonalRecord, getE1rmRecord, getPersonalRecordInRepRange } from "../lib/records";
+import { findExerciseReference, type ExerciseReference } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
 import { unlockAudio, vibrate } from "../lib/feedback";
 import { withVariantChoice } from "../lib/variants";
@@ -43,7 +44,8 @@ interface SetBlockProps {
   reps: string;
   targetRIR: string;
   logged: LoggedSet;
-  lastTime: LoggedSet | null;
+  reference: ExerciseReference | null;
+  prInRange: { weightKg: number; reps: number } | null;
   suggestion: { weightKg: number; reason: string } | null;
   filled: boolean;
   done: boolean;
@@ -60,7 +62,8 @@ function SetBlock({
   reps,
   targetRIR,
   logged,
-  lastTime,
+  reference,
+  prInRange,
   suggestion,
   filled,
   done,
@@ -84,9 +87,22 @@ function SetBlock({
           </span>
         )}
       </div>
-      {lastTime && (
-        <p className="mb-2 font-mono text-xs text-muted">
-          última vez: {lastTime.weightKg}kg × {lastTime.reps}, RIR {lastTime.rir}
+      {reference && (
+        <div className="mb-2">
+          <p className="font-mono text-xs text-muted">
+            última vez: {reference.set.weightKg}kg × {reference.set.reps}, RIR {reference.set.rir}
+          </p>
+          <p className={`text-[11px] ${reference.tier === "same-day" ? "text-faint" : "text-warning"}`}>
+            {reference.dayName} · S{reference.weekNumber} · {reference.set.reps} reps
+            {reference.tier === "other-day" && " · otra rutina"}
+            {reference.tier === "approx" && " · aproximada"}
+          </p>
+        </div>
+      )}
+      {prInRange && (
+        <p className="mb-2 flex items-center gap-1 font-mono text-xs text-muted">
+          <IconTrophy className="h-3 w-3 text-accent" />
+          PR en {reps} reps: {prInRange.weightKg}kg × {prInRange.reps}
         </p>
       )}
 
@@ -231,7 +247,7 @@ export function ExerciseCard({
   session,
   onUpdateSession,
 }: Props) {
-  const { logs, settings, updateSettings, upsertExerciseNoteEntry, exerciseInfoIndex } = useApp();
+  const { logs, flatDays, settings, updateSettings, upsertExerciseNoteEntry, exerciseInfoIndex } = useApp();
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
@@ -247,8 +263,8 @@ export function ExerciseCard({
   const pr = useMemo(() => getPersonalRecord(logs, displayName), [logs, displayName]);
   const e1rmRecord = useMemo(() => getE1rmRecord(logs, displayName), [logs, displayName]);
   const progression = useMemo(
-    () => getExerciseProgression(logs, displayName, 0),
-    [logs, displayName]
+    () => getExerciseProgression(logs, displayName, 0, session.dayName),
+    [logs, displayName, session.dayName]
   );
   const currentNoteEntry = useMemo(() => getCurrentNote(logs, displayName), [logs, displayName]);
   const fallbackNoteEntry = useMemo(
@@ -439,8 +455,17 @@ export function ExerciseCard({
           const firstPendingIdx = setViews.findIndex((v) => !v.done);
 
           return setViews.map(({ set, i, logged, done }) => {
-            const lastTime = findLastLoggedSet(logs, displayName, i, beforeGlobalSeq);
-            const suggestion = getWeightSuggestion(logs, displayName, i, beforeGlobalSeq, incrementKg);
+            const reference = findExerciseReference(logs, flatDays, displayName, session.dayName, set.reps, beforeGlobalSeq);
+            const suggestion = getWeightSuggestion(
+              logs,
+              flatDays,
+              displayName,
+              session.dayName,
+              set.reps,
+              beforeGlobalSeq,
+              incrementKg
+            );
+            const prInRange = getPersonalRecordInRepRange(logs, displayName, set.reps);
             const filled = isSetFilled(logged);
             const isWeightPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
             const isE1rmPR =
@@ -461,7 +486,8 @@ export function ExerciseCard({
                 reps={set.reps}
                 targetRIR={set.targetRIR}
                 logged={logged}
-                lastTime={lastTime}
+                reference={reference}
+                prInRange={prInRange}
                 suggestion={suggestion}
                 filled={filled}
                 done={done}

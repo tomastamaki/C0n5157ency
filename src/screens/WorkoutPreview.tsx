@@ -3,9 +3,11 @@ import { useApp } from "../context/AppContext";
 import { VideoEmbed } from "../components/VideoEmbed";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getDefaultVariant, withVariantChoice } from "../lib/variants";
+import { findExerciseReference } from "../lib/exerciseReference";
+import { globalSeq } from "../lib/cycle";
 import { IconChevronLeft } from "../components/icons";
-import type { ExerciseGroup } from "../types/program";
-import type { FlatProgramDay } from "../types/program";
+import type { LogsData } from "../types/logs";
+import type { ExerciseGroup, FlatProgramDay } from "../types/program";
 
 function summarize(group: ExerciseGroup): string {
   const literal = getLiteralWorkingSets(group);
@@ -16,10 +18,18 @@ function summarize(group: ExerciseGroup): string {
 function PreviewExerciseCard({
   group,
   chosen,
+  dayName,
+  logs,
+  flatDays,
+  beforeGlobalSeq,
   onChoose,
 }: {
   group: ExerciseGroup;
   chosen: string;
+  dayName: string;
+  logs: LogsData;
+  flatDays: FlatProgramDay[];
+  beforeGlobalSeq: number;
   onChoose: (name: string | null) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -28,6 +38,10 @@ function PreviewExerciseCard({
     ...group.substitutions.map((s) => ({ name: s.name, videoUrl: s.videoUrl, isOriginal: false })),
   ];
   const isSubstituted = chosen !== group.exercise;
+  const literal = getLiteralWorkingSets(group);
+  const references = literal.map((set) =>
+    findExerciseReference(logs, flatDays, chosen, dayName, set.reps, beforeGlobalSeq)
+  );
 
   return (
     <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
@@ -41,6 +55,21 @@ function PreviewExerciseCard({
         </div>
         <span className="shrink-0 text-xs font-medium text-primary">{expanded ? "Ocultar" : "Ver variantes"}</span>
       </button>
+
+      {references.some(Boolean) && (
+        <ul className="mt-2 space-y-0.5 font-mono text-xs text-muted">
+          {literal.map((set, i) => {
+            const ref = references[i];
+            if (!ref) return null;
+            return (
+              <li key={i}>
+                S{i + 1} ({set.reps} reps): última vez {ref.set.weightKg}kg × {ref.set.reps}
+                {ref.tier !== "same-day" && <span className="text-warning"> · {ref.dayName}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {expanded && (
         <div className="mt-3 space-y-3 border-t border-border pt-3">
@@ -83,7 +112,8 @@ interface Props {
 }
 
 export function WorkoutPreviewScreen({ flatDay, onBack, onStart }: Props) {
-  const { settings, updateSettings } = useApp();
+  const { settings, updateSettings, logs, flatDays } = useApp();
+  const beforeGlobalSeq = globalSeq({ programIndex: flatDay.index, cycle: settings.programCycle });
 
   function choose(originalName: string, name: string | null) {
     updateSettings({ exerciseVariantDefaults: withVariantChoice(settings, originalName, name) });
@@ -119,6 +149,10 @@ export function WorkoutPreviewScreen({ flatDay, onBack, onStart }: Props) {
               key={i}
               group={group}
               chosen={chosen}
+              dayName={flatDay.day.name}
+              logs={logs}
+              flatDays={flatDays}
+              beforeGlobalSeq={beforeGlobalSeq}
               onChoose={(name) => choose(group.exercise, name)}
             />
           );

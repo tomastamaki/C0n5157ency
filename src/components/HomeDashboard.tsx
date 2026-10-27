@@ -11,19 +11,20 @@ import {
   getHighlightExercise,
   getLastCompletedSession,
   getMuscleChips,
-  getPRsInWeek,
   getWeeksUntilDeload,
 } from "../lib/insights";
 import { formatDate, formatDuration } from "../lib/time";
 import { getRecommendation } from "../lib/recommendation";
-import { getAllCurrentRecordsByDay } from "../lib/records";
 import { getLifestyleKpis, type LifestyleMetricKey } from "../lib/lifestyleKpis";
-import { IconChevronLeft, IconFlame, IconTrophy } from "./icons";
+import { getPeriodData, getExerciseRows, getPerformanceVariation, type PeriodRef } from "../lib/periodSummary";
+import { IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
-import { EmptyState } from "./EmptyState";
 import { LifestyleKpiRow } from "./LifestyleKpiRow";
+import { VariationPill } from "./VariationPill";
 import { WorkoutPreviewScreen } from "../screens/WorkoutPreview";
+import { PeriodSummaryScreen } from "../screens/PeriodSummary";
+import { PRDetailView } from "./PRDetailView";
 
 interface Props {
   weekDays: WeekDayStatus[];
@@ -33,78 +34,6 @@ interface Props {
   onEnterWorkout: () => void;
   /** Lleva a la pestaña Lifestyle, directo a la vista de Tendencias de esa métrica. */
   onNavigateToLifestyle: (metric: LifestyleMetricKey) => void;
-}
-
-function PRDetailView({
-  logs,
-  program,
-  currentWeekNumber,
-  cycle,
-  onBack,
-}: {
-  logs: ReturnType<typeof useApp>["logs"];
-  program: ReturnType<typeof useApp>["program"];
-  currentWeekNumber: number;
-  cycle: number;
-  onBack: () => void;
-}) {
-  const byDay = useMemo(
-    () => getAllCurrentRecordsByDay(logs, program, currentWeekNumber, cycle),
-    [logs, program, currentWeekNumber, cycle]
-  );
-  const hasAny = byDay.some((g) => g.records.length > 0);
-
-  return (
-    <div className="space-y-4 pb-24">
-      <button
-        type="button"
-        onClick={onBack}
-        aria-label="Volver"
-        className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink transition-transform hover:bg-border/60 active:scale-95"
-      >
-        <IconChevronLeft className="h-[18px] w-[18px]" />
-      </button>
-      <h2 className="text-xl font-bold text-ink">PRs por ejercicio</h2>
-      {!hasAny ? (
-        <EmptyState
-          icon={<IconTrophy className="h-8 w-8" />}
-          title="Todavía no hay récords"
-          hint="Cuando completes series con peso, el récord de cada ejercicio va a aparecer acá."
-        />
-      ) : (
-        <div className="space-y-5">
-          {byDay.map(({ day, records }) => (
-            <div key={day} className="space-y-2">
-              <p className="text-sm font-semibold text-ink">{day}</p>
-              {records.map((r) => (
-                <div
-                  key={r.exercise}
-                  className={`rounded-block border p-3 shadow-elevated-sm ${
-                    r.isThisWeek ? "border-accent/40 bg-accent/5" : "border-border bg-surface"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    {r.isThisWeek && <IconTrophy className="h-3.5 w-3.5 shrink-0 text-accent" />}
-                    <p className="font-medium text-ink">{r.exercise}</p>
-                  </div>
-                  <p className="font-mono text-sm text-success">
-                    {r.weightKg}kg × {r.reps}
-                    {r.isThisWeek &&
-                      (r.previousWeightKg !== null ? (
-                        <span className="text-muted"> (superó {r.previousWeightKg}kg)</span>
-                      ) : (
-                        <span className="text-muted"> (primer registro)</span>
-                      ))}
-                  </p>
-                  <p className="text-xs text-faint">{formatDate(r.date)}</p>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function HomeDashboard({
@@ -117,20 +46,21 @@ export function HomeDashboard({
   const { logs, program, settings, flatDays } = useApp();
   const { startWorkout, skipDay } = useWorkoutActions();
   const cycle = settings.programCycle;
-  const [showPRDetail, setShowPRDetail] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showPRs, setShowPRs] = useState(false);
 
   const pendingDays = weekDays.filter((d) => !d.session);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const selected = pendingDays[Math.min(selectedIdx, pendingDays.length - 1)];
 
   const currentWeekNumber = weekDays[0]?.flatDay.weekNumber ?? 1;
+  const weekPeriod: PeriodRef = useMemo(() => ({ kind: "week", index: currentWeekNumber }), [currentWeekNumber]);
+  const weekSummary = useMemo(() => getPeriodData(logs, program, cycle, weekPeriod), [logs, program, cycle, weekPeriod]);
+  const weekRows = useMemo(() => getExerciseRows(logs, program, cycle, weekPeriod), [logs, program, cycle, weekPeriod]);
+  const weekPerf = useMemo(() => getPerformanceVariation(weekRows), [weekRows]);
 
   const streak = useMemo(() => getCurrentStreak(logs, cycle), [logs, cycle]);
-  const prsThisWeek = useMemo(
-    () => getPRsInWeek(logs, currentWeekNumber, cycle),
-    [logs, currentWeekNumber, cycle]
-  );
   const attention = useMemo(() => getAttentionFlags(logs, cycle, program), [logs, cycle, program]);
   const highlight = useMemo(() => getHighlightExercise(logs, cycle), [logs, cycle]);
   const lastSession = useMemo(() => getLastCompletedSession(logs, cycle), [logs, cycle]);
@@ -139,13 +69,9 @@ export function HomeDashboard({
     [logs, lastSession]
   );
 
-  const weekCompleted = weekDays.filter((d) => d.session?.status === "completed").length;
-  const weekTotal = weekDays.length;
-  const weekPct = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
-
   const weeksUntilDeload = getWeeksUntilDeload(program, currentWeekNumber);
 
-  const chips = selected ? getMuscleChips(selected.flatDay.day.name) : [];
+  const chips = selected ? getMuscleChips(selected.flatDay) : [];
 
   const recommendation = useMemo(
     () =>
@@ -157,16 +83,12 @@ export function HomeDashboard({
 
   const lifestyleKpis = useMemo(() => getLifestyleKpis(logs), [logs]);
 
-  if (showPRDetail) {
-    return (
-      <PRDetailView
-        logs={logs}
-        program={program}
-        currentWeekNumber={currentWeekNumber}
-        cycle={cycle}
-        onBack={() => setShowPRDetail(false)}
-      />
-    );
+  if (showSummary) {
+    return <PeriodSummaryScreen onBack={() => setShowSummary(false)} />;
+  }
+
+  if (showPRs) {
+    return <PRDetailView currentWeekNumber={currentWeekNumber} cycle={cycle} onBack={() => setShowPRs(false)} />;
   }
 
   if (showPreview && selected) {
@@ -196,26 +118,50 @@ export function HomeDashboard({
 
       <LifestyleKpiRow kpis={lifestyleKpis} onSelect={onNavigateToLifestyle} />
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-card border border-border bg-surface p-3 shadow-elevated-sm">
-          <p className="font-mono text-2xl font-bold text-ink">{weekPct}%</p>
-          <p className="text-xs text-muted">
-            {weekCompleted} de {weekTotal} esta semana
-          </p>
+      <button
+        type="button"
+        onClick={() => setShowSummary(true)}
+        className="w-full rounded-card border border-border bg-surface p-4 text-left shadow-elevated-sm"
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-ink">Tu semana</p>
+          <span className="text-xs text-primary">Ver resumen →</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowPRDetail(true)}
-          disabled={prsThisWeek.length === 0}
-          className="rounded-card border border-border bg-surface p-3 text-left shadow-elevated-sm disabled:opacity-70"
-        >
-          <p className="flex items-center gap-1 font-mono text-2xl font-bold text-accent">
-            <IconTrophy className="h-5 w-5" />
-            {prsThisWeek.length}
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <div>
+            <p className="font-mono text-xl font-bold text-ink">
+              {weekSummary.sessionsCompleted}/{weekSummary.sessionsPlanned}
+            </p>
+            <p className="text-xs text-faint">sesiones</p>
+          </div>
+          <div>
+            <p className="font-mono text-xl font-bold text-ink">
+              {Math.round(weekSummary.tonnageKg).toLocaleString("es-AR")}kg
+            </p>
+            <p className="text-xs text-faint">tonelaje</p>
+          </div>
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-xs text-muted">
+            RIR prom. {weekSummary.avgRir !== null ? weekSummary.avgRir.toFixed(1) : "—"}
+          </span>
+          <VariationPill pct={weekPerf.vsPrevious} />
+        </div>
+        {highlight && (
+          <p className="mt-2 text-xs text-success">
+            ★ {highlight.exercise} +{highlight.pct.toFixed(0)}%
           </p>
-          <p className="text-xs text-muted">PRs esta semana</p>
-        </button>
-      </div>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setShowPRs(true)}
+        className="-mt-2 flex items-center gap-1 text-xs text-primary"
+      >
+        <IconTrophy className="h-3.5 w-3.5" />
+        Ver todos los PRs →
+      </button>
 
       {activeDraft && <ActiveWorkoutBanner draft={activeDraft} onResume={onEnterWorkout} />}
 
@@ -312,18 +258,6 @@ export function HomeDashboard({
               <p className="text-xs text-muted">{flag.detail}</p>
             </div>
           ))}
-        </div>
-      )}
-
-      {highlight && (
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-ink">Destacado</p>
-          <div className="rounded-block border-l-[3px] border-l-success bg-surface p-3 shadow-elevated-sm">
-            <p className="text-sm font-medium text-ink">{highlight.exercise}</p>
-            <p className="font-mono text-xs text-success">
-              +{highlight.pct.toFixed(0)}% desde tu primer registro
-            </p>
-          </div>
         </div>
       )}
 

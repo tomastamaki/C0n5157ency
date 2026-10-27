@@ -1,12 +1,12 @@
-import type { LogsData, SleepEntry, WorkoutSession } from "../types/logs";
+import type { LogsData, LoggedExercise, SleepEntry, WorkoutSession } from "../types/logs";
 import { isSetLogged, rirToNumber } from "../types/logs";
 import type { FlatProgramDay, Program } from "../types/program";
 import { getLiteralWorkingSets } from "./program";
 import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
 import { localDateKey } from "./time";
+import { getExerciseMuscles, OTHER_MUSCLE_GROUP } from "./muscleMapping";
 import {
-  DAY_MUSCLES,
   LAYER2_MIN_SESSIONS,
   LAYER2_PARAM_WEIGHTS,
   LAYER2_RECENCY_WEIGHTS,
@@ -18,8 +18,23 @@ import {
   SLEEP_MIN_NIGHTS,
 } from "./recoveryConfig";
 
-function getDayMuscles(dayName: string): string[] {
-  return DAY_MUSCLES[dayName] ?? [];
+/** Músculos (primario + secundarios) que toca un ejercicio efectivamente hecho, vacío si no está mapeado ("Otros"). */
+function exerciseMuscleSet(ex: LoggedExercise): string[] {
+  const mapping = getExerciseMuscles(ex.exercise, ex.originalExercise);
+  return mapping ? [mapping.primary, ...mapping.secondary] : [];
+}
+
+/** Todos los músculos que entrena un día del programa (unión de primario + secundarios de sus ejercicios prescriptos). */
+function getDayMuscles(flatDay: FlatProgramDay): string[] {
+  const muscles = new Set<string>();
+  for (const group of flatDay.day.exerciseGroups) {
+    const mapping = getExerciseMuscles(group.exercise, null);
+    if (mapping) {
+      muscles.add(mapping.primary);
+      mapping.secondary.forEach((m) => muscles.add(m));
+    }
+  }
+  return [...muscles];
 }
 
 export function isDeloadWeek(program: Program, weekNumber: number): boolean {
@@ -45,13 +60,13 @@ export interface MuscleAlert {
   recommendedHours: number;
 }
 
-/** Sesión completada más reciente (cualquier ciclo) cuyo día haya trabajado un músculo dado. */
+/** Sesión completada más reciente (cualquier ciclo) que haya entrenado un músculo dado, mirando los ejercicios efectivamente hechos (sustituto incluido), no el tipo de día. */
 function findLastSessionForMuscle(completedByRecency: WorkoutSession[], muscle: string): WorkoutSession | null {
-  return completedByRecency.find((s) => getDayMuscles(s.dayName).includes(muscle)) ?? null;
+  return completedByRecency.find((s) => s.exercises.some((ex) => exerciseMuscleSet(ex).includes(muscle))) ?? null;
 }
 
-export function checkMuscleRecovery(logs: LogsData, todayDayName: string, now: Date = new Date()): MuscleAlert[] {
-  const musclesToday = getDayMuscles(todayDayName);
+export function checkMuscleRecovery(logs: LogsData, todayFlatDay: FlatProgramDay, now: Date = new Date()): MuscleAlert[] {
+  const musclesToday = getDayMuscles(todayFlatDay).filter((m) => m !== OTHER_MUSCLE_GROUP);
   if (musclesToday.length === 0) return [];
 
   const completedByRecency = [...logs.sessions]
@@ -70,7 +85,10 @@ export function checkMuscleRecovery(logs: LogsData, todayDayName: string, now: D
     const lastDate = new Date(lastSession.completedAt ?? lastSession.startedAt);
     const hoursSince = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
 
+    // RIR promedio solo de los ejercicios de esa sesión que realmente trabajaron este músculo (no toda la sesión),
+    // para que el ajuste de intensidad refleje qué tan exigido quedó ese músculo en particular.
     const rirValues = lastSession.exercises
+      .filter((ex) => exerciseMuscleSet(ex).includes(muscle))
       .flatMap((ex) => ex.sets)
       .filter(isSetLogged)
       .map((s) => rirToNumber(s.rir!));
@@ -347,7 +365,8 @@ export function getRecommendation(
     };
   }
 
-  const muscleAlerts = checkMuscleRecovery(logs, todayDayName);
+  const todayFlatDay = flatDays.find((d) => d.weekNumber === todayWeekNumber && d.day.name === todayDayName);
+  const muscleAlerts = todayFlatDay ? checkMuscleRecovery(logs, todayFlatDay) : [];
   if (muscleAlerts.length > 0) {
     const detail = muscleAlerts
       .map(

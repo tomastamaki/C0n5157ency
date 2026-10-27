@@ -4,6 +4,8 @@ import type { Program } from "../types/program";
 import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
 import { buildExerciseDayMap, DAY_ORDER } from "./history";
+import { parseRepRange, isWithinRepTolerance } from "./repRange";
+import { SUMMARY_CONFIG } from "./summaryConfig";
 
 export interface PersonalRecord {
   weightKg: number;
@@ -66,6 +68,37 @@ export function getE1rmRecord(logs: LogsData, exerciseName: string): E1rmRecord 
             rir: set.rir,
             date: session.completedAt ?? session.startedAt,
           };
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Peso máximo histórico registrado para un ejercicio dentro de un rango de
+ * reps dado (con tolerancia), sin importar en qué día/rutina se haya hecho —
+ * el "PR en 20 reps", independiente del PR general de peso.
+ */
+export function getPersonalRecordInRepRange(
+  logs: LogsData,
+  exerciseName: string,
+  targetReps: string,
+  tolerance: number = SUMMARY_CONFIG.repRangeTolerance
+): PersonalRecord | null {
+  const range = parseRepRange(targetReps);
+  let best: PersonalRecord | null = null;
+
+  for (const session of logs.sessions) {
+    if (session.status !== "completed") continue;
+    for (const ex of session.exercises) {
+      if (ex.exercise !== exerciseName) continue;
+      for (const set of ex.sets) {
+        if (!isSetLogged(set) || set.weightKg === null || set.reps === null) continue;
+        if (!isWithinRepTolerance(set.reps, range, tolerance)) continue;
+        if (!best || set.weightKg > best.weightKg) {
+          best = { weightKg: set.weightKg, reps: set.reps, date: session.completedAt ?? session.startedAt };
         }
       }
     }

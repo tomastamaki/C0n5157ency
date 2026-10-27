@@ -65,6 +65,14 @@ export function IconChevronLeft(props: IconProps) {
   );
 }
 
+export function IconChevronRight(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 export function IconPause(props: IconProps) {
   return (
     <svg {...base(props)}>

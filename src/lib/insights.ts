@@ -1,10 +1,11 @@
 import type { LogsData, WorkoutSession } from "../types/logs";
 import { isSetLogged, rirToNumber } from "../types/logs";
-import type { Program } from "../types/program";
+import type { FlatProgramDay, Program } from "../types/program";
 import { getExerciseProgression, getPctImprovement } from "./history";
 import { getPersonalRecordEvents } from "./records";
 import { estimatedE1RM, PROGRESSION_CONFIG } from "./e1rm";
 import { isDeloadWeek } from "./recommendation";
+import { getExerciseMuscles } from "./muscleMapping";
 import { globalSeq } from "./cycle";
 
 /** Los KPIs de "momentum" (racha, atención, destacado, último entrenamiento) solo miran el ciclo actual. */
@@ -70,9 +71,14 @@ export interface AttentionFlag {
  * liviano a propósito. "Sostenido" exige que las últimas N sesiones (no solo
  * la última) estén por debajo del promedio previo, con un margen de
  * tolerancia para no marcar por ruido normal entre sesiones.
+ *
+ * Se agrupa por ejercicio + tipo de día (no solo por nombre): el mismo
+ * nombre puede ser un sustituto en una rutina y el prescripto en otra con
+ * una prescripción de reps distinta (ej. "DB Bench Press" en Upper vs.
+ * Push), y mezclar esos dos historiales daría una caída/mejora falsa.
  */
 export function getAttentionFlags(logs: LogsData, cycle: number, program: Program, limit = 3): AttentionFlag[] {
-  const byExercise = new Map<string, { e1rm: number; weekNumber: number }[]>();
+  const byExercise = new Map<string, { exercise: string; points: { e1rm: number; weekNumber: number }[] }>();
   const completed = filterByCycle(logs, cycle)
     .sessions.filter((s) => s.status === "completed" && !isDeloadWeek(program, s.weekNumber))
     .sort((a, b) => a.programIndex - b.programIndex);
@@ -81,8 +87,9 @@ export function getAttentionFlags(logs: LogsData, cycle: number, program: Progra
     for (const ex of session.exercises) {
       const set = ex.sets.find((s) => s.setIndex === 0);
       if (!set || !isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
-      if (!byExercise.has(ex.exercise)) byExercise.set(ex.exercise, []);
-      byExercise.get(ex.exercise)!.push({
+      const key = `${session.dayName}::${ex.exercise}`;
+      if (!byExercise.has(key)) byExercise.set(key, { exercise: ex.exercise, points: [] });
+      byExercise.get(key)!.points.push({
         e1rm: estimatedE1RM(set.weightKg, set.reps, rirToNumber(set.rir)),
         weekNumber: session.weekNumber,
       });
@@ -93,7 +100,7 @@ export function getAttentionFlags(logs: LogsData, cycle: number, program: Progra
   const declineCount = PROGRESSION_CONFIG.attentionDeclineSessionCount;
   const tolerance = PROGRESSION_CONFIG.attentionTolerancePct / 100;
 
-  for (const [exercise, points] of byExercise) {
+  for (const { exercise, points } of byExercise.values()) {
     if (points.length < declineCount + 1) continue;
 
     const recent = points.slice(-declineCount);
@@ -120,18 +127,24 @@ export interface HighlightExercise {
   pct: number;
 }
 
-/** El ejercicio con mayor % de mejora en el ciclo actual (primer registro vs. más reciente de ese ciclo). */
+/**
+ * El ejercicio con mayor % de mejora en el ciclo actual (primer registro vs.
+ * más reciente de ese ciclo). Se mira por ejercicio + tipo de día, para no
+ * mezclar el historial de un mismo nombre usado como sustituto en una
+ * rutina y prescripto en otra con una prescripción de reps distinta.
+ */
 export function getHighlightExercise(logs: LogsData, cycle: number): HighlightExercise | null {
   const scoped = filterByCycle(logs, cycle);
-  const names = new Set<string>();
+  const pairs = new Set<string>();
   for (const s of scoped.sessions) {
     if (s.status !== "completed") continue;
-    for (const ex of s.exercises) names.add(ex.exercise);
+    for (const ex of s.exercises) pairs.add(`${s.dayName}::${ex.exercise}`);
   }
 
   let best: HighlightExercise | null = null;
-  for (const name of names) {
-    const pct = getPctImprovement(getExerciseProgression(scoped, name, 0));
+  for (const pair of pairs) {
+    const [dayName, name] = pair.split("::");
+    const pct = getPctImprovement(getExerciseProgression(scoped, name, 0, dayName));
     if (pct !== null && pct > 0 && (!best || pct > best.pct)) {
       best = { exercise: name, pct };
     }
@@ -185,15 +198,14 @@ export function getWeeksUntilDeload(program: Program, currentWeekNumber: number)
   return deloadWeek.weekNumber - currentWeekNumber;
 }
 
-const MUSCLE_CHIPS: Record<string, string[]> = {
-  Upper: ["Pecho", "Espalda", "Hombros", "Brazos"],
-  Lower: ["Cuádriceps", "Isquios", "Glúteos", "Pantorrillas"],
-  Push: ["Pecho", "Hombros", "Tríceps"],
-  Pull: ["Espalda", "Bíceps"],
-};
-
-export function getMuscleChips(dayName: string): string[] {
-  return MUSCLE_CHIPS[dayName] ?? [];
+/** Músculos primarios (sin duplicar) de los ejercicios prescriptos de un día, para los chips de la card de Inicio. Misma fuente que el resumen y la recuperación — ver `muscleMapping.ts`. */
+export function getMuscleChips(flatDay: FlatProgramDay): string[] {
+  const muscles = new Set<string>();
+  for (const group of flatDay.day.exerciseGroups) {
+    const mapping = getExerciseMuscles(group.exercise, null);
+    if (mapping) muscles.add(mapping.primary);
+  }
+  return [...muscles];
 }
 
 export function getGreeting(): string {

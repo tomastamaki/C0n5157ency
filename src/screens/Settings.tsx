@@ -5,6 +5,7 @@ import { SyncIndicator } from "../components/SyncIndicator";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { getAllExerciseNames } from "../lib/history";
 import { guessIncrementKg } from "../lib/increments";
+import { getUnmappedExerciseNames } from "../lib/muscleMapping";
 
 const DAYS_30_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -18,6 +19,7 @@ export function SettingsScreen({ onShowOnboarding }: { onShowOnboarding: () => v
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const exercises = useMemo(() => getAllExerciseNames(program), [program]);
+  const unmappedExercises = useMemo(() => getUnmappedExerciseNames(program), [program]);
   const [incrementsForm, setIncrementsForm] = useState(settings.exerciseIncrements);
 
   function save() {
@@ -366,6 +368,24 @@ export function SettingsScreen({ onShowOnboarding }: { onShowOnboarding: () => v
           </>
         )}
       </section>
+
+      {unmappedExercises.length > 0 && (
+        <section className="rounded-card border border-warning/30 bg-warning/5 p-4 shadow-elevated-sm">
+          <h2 className="mb-1 font-semibold text-warning">Mapeo muscular incompleto</h2>
+          <p className="mb-2 text-xs text-muted">
+            Estos ejercicios no tienen músculo asignado todavía, así que sus series se agrupan en
+            "Otros" en el resumen semanal/mensual y no cuentan para las alertas de recuperación.
+            Completalos en <code className="font-mono text-ink">src/lib/muscleMapping.ts</code>.
+          </p>
+          <ul className="flex flex-wrap gap-1.5">
+            {unmappedExercises.map((name) => (
+              <li key={name} className="rounded-pill bg-surface2 px-2 py-0.5 text-xs text-ink">
+                {name}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-card border border-red-500/30 bg-red-500/5 p-4 shadow-elevated-sm">
         <h2 className="mb-1 font-semibold text-red-500">Zona de riesgo</h2>

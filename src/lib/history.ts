@@ -1,48 +1,7 @@
-import type { LogsData, LoggedSet, WorkoutSession } from "../types/logs";
+import type { LogsData, WorkoutSession } from "../types/logs";
 import { isSetLogged, rirToNumber } from "../types/logs";
 import type { Program } from "../types/program";
-import { globalSeq } from "./cycle";
 import { estimatedE1RM } from "./e1rm";
-
-/**
- * Últimos N registros guardados de un mismo ejercicio + índice de serie,
- * antes de un punto dado (combina ciclo + día de programa, para que un
- * reinicio del programa no rompa la comparación cronológica), del más
- * reciente al más viejo.
- */
-export function findRecentLoggedSets(
-  logs: LogsData,
-  exerciseName: string,
-  setIndex: number,
-  beforeGlobalSeq: number,
-  limit: number
-): LoggedSet[] {
-  const sessions = logs.sessions
-    .filter((s) => globalSeq(s) < beforeGlobalSeq && s.status === "completed")
-    .sort((a, b) => globalSeq(b) - globalSeq(a));
-
-  const result: LoggedSet[] = [];
-  for (const session of sessions) {
-    const exercise = session.exercises.find((e) => e.exercise === exerciseName);
-    if (!exercise) continue;
-    const set = exercise.sets.find((s) => s.setIndex === setIndex && isSetLogged(s));
-    if (set) {
-      result.push(set);
-      if (result.length >= limit) break;
-    }
-  }
-  return result;
-}
-
-/** El último registro guardado de un mismo ejercicio + índice de serie, antes de un punto dado. */
-export function findLastLoggedSet(
-  logs: LogsData,
-  exerciseName: string,
-  setIndex: number,
-  beforeGlobalSeq: number
-): LoggedSet | null {
-  return findRecentLoggedSets(logs, exerciseName, setIndex, beforeGlobalSeq, 1)[0] ?? null;
-}
 
 export interface ProgressionPoint {
   sessionId: string;
@@ -55,14 +14,21 @@ export interface ProgressionPoint {
   e1rm: number;
 }
 
-/** Progresión histórica de un ejercicio para una serie dada (por defecto la primera serie de trabajo). */
+/**
+ * Progresión histórica de un ejercicio para una serie dada (por defecto la
+ * primera serie de trabajo). Si se pasa `dayName`, se limita a sesiones de
+ * ese tipo de día — necesario cuando el mismo nombre de ejercicio aparece
+ * como sustituto en una rutina y como prescripto en otra con una prescripción
+ * de reps distinta en esa misma posición (ver `exerciseReference.ts`).
+ */
 export function getExerciseProgression(
   logs: LogsData,
   exerciseName: string,
-  setIndex = 0
+  setIndex = 0,
+  dayName?: string
 ): ProgressionPoint[] {
   return logs.sessions
-    .filter((s) => s.status === "completed")
+    .filter((s) => s.status === "completed" && (dayName === undefined || s.dayName === dayName))
     .sort((a, b) => a.programIndex - b.programIndex)
     .flatMap((session) => {
       const exercise = session.exercises.find((e) => e.exercise === exerciseName);
@@ -134,6 +100,15 @@ export function buildExerciseDayMap(program: Program, sessions: WorkoutSession[]
     );
 
   return dayOf;
+}
+
+/** Tipos de día (Upper/Lower/Push/Pull) bajo los que se registró efectivamente un ejercicio, ordenados. Más de uno significa que es sustituto en una rutina y prescripto (u otro sustituto) en otra. */
+export function getExerciseDayTypes(sessions: WorkoutSession[], exerciseName: string): string[] {
+  const days = new Set<string>();
+  sessions
+    .filter((s) => s.status === "completed" && s.exercises.some((e) => e.exercise === exerciseName))
+    .forEach((s) => days.add(s.dayName));
+  return DAY_ORDER.filter((d) => days.has(d));
 }
 
 export interface ExerciseListEntry {

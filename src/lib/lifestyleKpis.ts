@@ -16,7 +16,7 @@ function daysBetween(dateKey: string, refKey: string): number {
 }
 
 /** Combina registros por fecha: "sum" para métricas acumulables en el día (pasos, agua), "last" para valores puntuales (peso, sueño). */
-function dailyValues<T>(
+export function dailyValues<T>(
   entries: T[],
   dateOf: (e: T) => string,
   valueOf: (e: T) => number,
@@ -82,7 +82,7 @@ export interface LifestyleKpisInput {
   waterEntries: WaterEntry[];
 }
 
-function metricConfigs(logs: LifestyleKpisInput): MetricConfig<unknown>[] {
+export function metricConfigs(logs: LifestyleKpisInput): MetricConfig<unknown>[] {
   return [
     {
       key: "weight",
