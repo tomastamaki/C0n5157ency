@@ -116,8 +116,8 @@ function ExerciseTab() {
   const effectiveDayFilter = dayTypes.length > 1 ? dayFilter : null;
 
   const progression = useMemo(
-    () => getExerciseProgression(logs, selected, 0, effectiveDayFilter ?? undefined),
-    [logs, selected, effectiveDayFilter]
+    () => getExerciseProgression(logs, program, selected, 0, effectiveDayFilter ?? undefined),
+    [logs, program, selected, effectiveDayFilter]
   );
 
   const pastSessions = logs.sessions

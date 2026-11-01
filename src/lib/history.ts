@@ -2,6 +2,7 @@ import type { LogsData, WorkoutSession } from "../types/logs";
 import { isSetLogged, rirToNumber } from "../types/logs";
 import type { Program } from "../types/program";
 import { estimatedE1RM } from "./e1rm";
+import { isDeloadWeek } from "./recommendation";
 
 export interface ProgressionPoint {
   sessionId: string;
@@ -20,15 +21,23 @@ export interface ProgressionPoint {
  * ese tipo de día — necesario cuando el mismo nombre de ejercicio aparece
  * como sustituto en una rutina y como prescripto en otra con una prescripción
  * de reps distinta en esa misma posición (ver `exerciseReference.ts`).
+ * Excluye semanas de deload: no deben contar como base de "primer registro"
+ * ni distorsionar el % de progreso total con una carga liviana a propósito.
  */
 export function getExerciseProgression(
   logs: LogsData,
+  program: Program,
   exerciseName: string,
   setIndex = 0,
   dayName?: string
 ): ProgressionPoint[] {
   return logs.sessions
-    .filter((s) => s.status === "completed" && (dayName === undefined || s.dayName === dayName))
+    .filter(
+      (s) =>
+        s.status === "completed" &&
+        (dayName === undefined || s.dayName === dayName) &&
+        !isDeloadWeek(program, s.weekNumber)
+    )
     .sort((a, b) => a.programIndex - b.programIndex)
     .flatMap((session) => {
       const exercise = session.exercises.find((e) => e.exercise === exerciseName);

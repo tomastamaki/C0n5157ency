@@ -1,4 +1,4 @@
-import type { LogsData, WorkoutSession } from "../types/logs";
+import type { LogsData } from "../types/logs";
 import { isSetLogged, rirToNumber } from "../types/logs";
 import type { FlatProgramDay, Program } from "../types/program";
 import type { AppSettings } from "./storage";
@@ -14,78 +14,26 @@ import { DAY_ORDER } from "./history";
 import { dailyValues, metricConfigs, type LifestyleMetricKey } from "./lifestyleKpis";
 import { getMuscleContributions, MUSCLE_GROUPS, OTHER_MUSCLE_GROUP } from "./muscleMapping";
 
-export type PeriodKind = "week" | "month";
-
-export interface PeriodRef {
-  kind: PeriodKind;
-  /** Para "week": el weekNumber (1-based). Para "month": el índice de mes (1-based, bloques de 4 semanas). */
-  index: number;
-}
-
 export function getTotalWeeks(program: Program): number {
   return program.blocks.reduce((sum, b) => sum + b.weeks.length, 0);
-}
-
-export function getTotalMonths(program: Program): number {
-  return Math.ceil(getTotalWeeks(program) / 4);
-}
-
-export function getMonthIndexForWeek(weekNumber: number): number {
-  return Math.ceil(weekNumber / 4);
 }
 
 function daysPerWeek(program: Program): number {
   return program.blocks[0]?.weeks[0]?.days.length ?? 0;
 }
 
-/** Semanas del programa que caen dentro de un período (rango completo, incluidas las de deload). */
-export function getWeeksInPeriod(program: Program, period: PeriodRef): number[] {
-  const total = getTotalWeeks(program);
-  if (period.kind === "week") {
-    return period.index >= 1 && period.index <= total ? [period.index] : [];
-  }
-  const start = (period.index - 1) * 4 + 1;
-  const end = Math.min(period.index * 4, total);
-  const weeks: number[] = [];
-  for (let w = start; w <= end; w++) weeks.push(w);
-  return weeks;
+export function getPeriodLabel(weekNumber: number): string {
+  return `Semana ${weekNumber}`;
 }
 
-/** Semanas "con datos" para promediar: en vista Mes se excluyen las de deload; en vista Semana se muestra igual (se marca con chip). */
-function dataWeeksInPeriod(program: Program, period: PeriodRef): number[] {
-  const weeks = getWeeksInPeriod(program, period);
-  if (period.kind === "week") return weeks;
-  return weeks.filter((w) => !isDeloadWeek(program, w));
-}
-
-export function periodContainsDeload(program: Program, period: PeriodRef): boolean {
-  return getWeeksInPeriod(program, period).some((w) => isDeloadWeek(program, w));
-}
-
-export function getPeriodLabel(period: PeriodRef): string {
-  return period.kind === "week" ? `Semana ${period.index}` : `Mes ${period.index}`;
-}
-
-/** Período anterior comparable: si cae en una semana de deload, salta hacia atrás hasta la última que no lo sea. */
-export function getPreviousPeriod(program: Program, period: PeriodRef): PeriodRef | null {
-  if (period.kind === "month") {
-    const prevIndex = period.index - 1;
-    return prevIndex >= 1 ? { kind: "month", index: prevIndex } : null;
-  }
-  let idx = period.index - 1;
-  while (idx >= 1) {
-    if (!isDeloadWeek(program, idx)) return { kind: "week", index: idx };
-    idx -= 1;
+/** Última semana anterior a `weekNumber` que no sea de deload, o null si no hay ninguna (deload nunca sirve de base de comparación). */
+export function getPreviousNonDeloadWeek(program: Program, weekNumber: number): number | null {
+  let w = weekNumber - 1;
+  while (w >= 1) {
+    if (!isDeloadWeek(program, w)) return w;
+    w -= 1;
   }
   return null;
-}
-
-export function getFirstPeriod(kind: PeriodKind): PeriodRef {
-  return { kind, index: 1 };
-}
-
-export function getCurrentPeriodIndex(kind: PeriodKind, currentWeekNumber: number): number {
-  return kind === "week" ? currentWeekNumber : getMonthIndexForWeek(currentWeekNumber);
 }
 
 // ---------------------------------------------------------------------------
@@ -93,8 +41,7 @@ export function getCurrentPeriodIndex(kind: PeriodKind, currentWeekNumber: numbe
 // ---------------------------------------------------------------------------
 
 export interface PeriodData {
-  period: PeriodRef;
-  weekNumbers: number[];
+  weekNumber: number;
   isDeload: boolean;
   sessionsCompleted: number;
   sessionsPlanned: number;
@@ -105,21 +52,14 @@ export interface PeriodData {
   prCount: number;
 }
 
-function getSessionsInWeeks(logs: LogsData, cycle: number, weekNumbers: number[]): WorkoutSession[] {
-  const set = new Set(weekNumbers);
-  return logs.sessions.filter((s) => (s.cycle ?? 0) === cycle && set.has(s.weekNumber));
-}
-
-export function getPeriodData(logs: LogsData, program: Program, cycle: number, period: PeriodRef): PeriodData {
-  const weekNumbers = getWeeksInPeriod(program, period);
-  const dataWeeks = dataWeeksInPeriod(program, period);
-  const completedSessions = getSessionsInWeeks(logs, cycle, weekNumbers).filter((s) => s.status === "completed");
-  const dataSessions = getSessionsInWeeks(logs, cycle, dataWeeks).filter((s) => s.status === "completed");
+export function getPeriodData(logs: LogsData, program: Program, cycle: number, weekNumber: number): PeriodData {
+  const sessions = logs.sessions.filter((s) => (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber);
+  const completedSessions = sessions.filter((s) => s.status === "completed");
 
   let tonnageKg = 0;
   let totalSets = 0;
   const rirValues: number[] = [];
-  for (const s of dataSessions) {
+  for (const s of completedSessions) {
     for (const ex of s.exercises) {
       for (const set of ex.sets) {
         if (!isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
@@ -130,19 +70,18 @@ export function getPeriodData(logs: LogsData, program: Program, cycle: number, p
     }
   }
   const avgRir = rirValues.length > 0 ? rirValues.reduce((a, b) => a + b, 0) / rirValues.length : null;
-  const durations = dataSessions.map((s) => s.durationSec).filter((d): d is number => d !== null);
+  const durations = completedSessions.map((s) => s.durationSec).filter((d): d is number => d !== null);
   const avgSessionDurationSec = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
 
   const prCount = getPersonalRecordEvents(logs).filter(
-    (e) => e.kind === "weight" && e.cycle === cycle && weekNumbers.includes(e.weekNumber)
+    (e) => e.kind === "weight" && e.cycle === cycle && e.weekNumber === weekNumber
   ).length;
 
   return {
-    period,
-    weekNumbers,
-    isDeload: periodContainsDeload(program, period),
+    weekNumber,
+    isDeload: isDeloadWeek(program, weekNumber),
     sessionsCompleted: completedSessions.length,
-    sessionsPlanned: weekNumbers.length * daysPerWeek(program),
+    sessionsPlanned: daysPerWeek(program),
     tonnageKg,
     totalSets,
     avgRir,
@@ -152,14 +91,15 @@ export function getPeriodData(logs: LogsData, program: Program, cycle: number, p
 }
 
 // ---------------------------------------------------------------------------
-// Por ejercicio (agrupado por tipo de día)
+// Por ejercicio (agrupado por tipo de día) — bases de comparación independientes
 // ---------------------------------------------------------------------------
-
-export type ComparisonReason = "ok" | "variant-mismatch" | "no-data";
 
 export interface ComparisonCell {
   variationPct: number | null;
-  reason: ComparisonReason;
+  /** Semana de la que sale la base, o null si no hay ninguna base disponible. */
+  baseWeekNumber: number | null;
+  /** true = la base coincide con la columna "estándar" (semana 1 para inicio, la semana no-deload inmediatamente anterior para anterior) y no hace falta etiqueta de origen. */
+  isStandardBase: boolean;
 }
 
 export type ExerciseStatus = "progress" | "stable" | "decline" | "new-variant";
@@ -170,8 +110,10 @@ export interface ExerciseRow {
   avgE1rm: number | null;
   setsCount: number;
   status: ExerciseStatus;
-  vsPrevious: ComparisonCell;
-  vsFirst: ComparisonCell;
+  /** true si la semana actual es el primer registro histórico de este ejercicio (variante) — no hay ninguna base para comparar. */
+  isFirstRecordOverall: boolean;
+  vsInicio: ComparisonCell;
+  vsAnterior: ComparisonCell;
 }
 
 function avgE1rmFor(
@@ -198,76 +140,93 @@ function avgE1rmFor(
   return { avg: e1rms.length > 0 ? e1rms.reduce((a, b) => a + b, 0) / e1rms.length : null, sets: e1rms.length };
 }
 
-function exercisesTrainedOnDay(logs: LogsData, cycle: number, dayName: string, weekNumbers: number[]): Set<string> {
-  const weeks = new Set(weekNumbers);
-  const names = new Set<string>();
-  logs.sessions
-    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.dayName === dayName && weeks.has(s.weekNumber))
-    .forEach((s) => s.exercises.forEach((ex) => {
-      if (ex.sets.some(isSetLogged)) names.add(ex.exercise);
-    }));
-  return names;
-}
-
-function compareTo(
+/** Semanas (ascendente, sin deload) anteriores a `beforeWeek` en las que este ejercicio (día + nombre efectivamente hecho) tiene al menos una serie registrada. */
+function recordedWeeksBefore(
   logs: LogsData,
   program: Program,
   cycle: number,
   dayName: string,
   exercise: string,
-  currentAvg: number | null,
-  comparePeriod: PeriodRef | null
-): ComparisonCell {
-  if (!comparePeriod) return { variationPct: null, reason: "no-data" };
-  const weeks = dataWeeksInPeriod(program, comparePeriod);
-  const trained = exercisesTrainedOnDay(logs, cycle, dayName, weeks);
-  if (trained.size === 0) return { variationPct: null, reason: "no-data" };
-  if (!trained.has(exercise)) return { variationPct: null, reason: "variant-mismatch" };
-  const { avg } = avgE1rmFor(logs, cycle, dayName, exercise, weeks);
-  if (avg === null || currentAvg === null || avg === 0) return { variationPct: null, reason: "no-data" };
-  return { variationPct: ((currentAvg - avg) / avg) * 100, reason: "ok" };
+  beforeWeek: number
+): number[] {
+  const weeks = new Set<number>();
+  logs.sessions.forEach((s) => {
+    if (s.status !== "completed" || (s.cycle ?? 0) !== cycle) return;
+    if (s.dayName !== dayName || s.weekNumber >= beforeWeek) return;
+    if (isDeloadWeek(program, s.weekNumber)) return;
+    const ex = s.exercises.find((e) => e.exercise === exercise);
+    if (ex && ex.sets.some(isSetLogged)) weeks.add(s.weekNumber);
+  });
+  return [...weeks].sort((a, b) => a - b);
 }
+
+function buildComparisonCell(
+  logs: LogsData,
+  cycle: number,
+  dayName: string,
+  exercise: string,
+  currentAvg: number,
+  baseWeek: number,
+  standardWeek: number | null
+): ComparisonCell {
+  const { avg } = avgE1rmFor(logs, cycle, dayName, exercise, [baseWeek]);
+  const variationPct = avg !== null && avg !== 0 ? ((currentAvg - avg) / avg) * 100 : null;
+  return { variationPct, baseWeekNumber: baseWeek, isStandardBase: baseWeek === standardWeek };
+}
+
+const EMPTY_CELL: ComparisonCell = { variationPct: null, baseWeekNumber: null, isStandardBase: false };
 
 /**
  * Filas de la tabla "por ejercicio", agrupadas por tipo de día. Cada fila es
  * un par (tipo de día, ejercicio efectivamente hecho) — si el mismo nombre
- * aparece en dos días (sustituto en uno, prescripto en otro), son dos filas
- * separadas, cada una comparada contra el mismo tipo de día en los otros
- * períodos (nunca se mezclan prescripciones de rutinas distintas).
+ * aparece en dos días, son dos filas separadas.
+ *
+ * Las bases de comparación son independientes por ejercicio: "inicio" es la
+ * semana (sin deload) más vieja con registro de ESE ejercicio, no
+ * necesariamente la semana 1; "anterior" es la semana (sin deload) más
+ * reciente con registro antes de la actual, no necesariamente la
+ * inmediatamente anterior. Así un ejercicio con pocos registros (porque
+ * antes se hacía otra variante) siempre tiene con qué compararse, en vez de
+ * quedar en "—" solo porque la semana estándar no lo incluye.
  */
-export function getExerciseRows(logs: LogsData, program: Program, cycle: number, period: PeriodRef): ExerciseRow[] {
-  const weeks = dataWeeksInPeriod(program, period);
+export function getExerciseRows(logs: LogsData, program: Program, cycle: number, weekNumber: number): ExerciseRow[] {
   const pairs = new Set<string>();
   logs.sessions
-    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && weeks.includes(s.weekNumber))
+    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber)
     .forEach((s) => s.exercises.forEach((ex) => {
       if (ex.sets.some(isSetLogged)) pairs.add(`${s.dayName}::${ex.exercise}`);
     }));
 
-  const isFirst = period.index === 1;
-  const previousPeriod = getPreviousPeriod(program, period);
-  const firstPeriod = isFirst ? null : getFirstPeriod(period.kind);
+  const standardAnterior = getPreviousNonDeloadWeek(program, weekNumber);
 
   const rows: ExerciseRow[] = [];
   for (const pair of pairs) {
     const [dayName, exercise] = pair.split("::");
-    const { avg, sets } = avgE1rmFor(logs, cycle, dayName, exercise, weeks);
+    const { avg, sets } = avgE1rmFor(logs, cycle, dayName, exercise, [weekNumber]);
+    const priorWeeks = recordedWeeksBefore(logs, program, cycle, dayName, exercise, weekNumber);
+    const isFirstRecordOverall = priorWeeks.length === 0;
 
-    const vsPrevious = compareTo(logs, program, cycle, dayName, exercise, avg, previousPeriod);
-    const vsFirst = firstPeriod ? compareTo(logs, program, cycle, dayName, exercise, avg, firstPeriod) : { variationPct: null, reason: "no-data" as const };
+    let vsInicio = EMPTY_CELL;
+    let vsAnterior = EMPTY_CELL;
+    if (!isFirstRecordOverall && avg !== null) {
+      const inicioWeek = priorWeeks[0];
+      const anteriorWeek = priorWeeks[priorWeeks.length - 1];
+      vsInicio = buildComparisonCell(logs, cycle, dayName, exercise, avg, inicioWeek, 1);
+      vsAnterior = buildComparisonCell(logs, cycle, dayName, exercise, avg, anteriorWeek, standardAnterior);
+    }
 
     let status: ExerciseStatus;
-    if (vsPrevious.reason !== "ok" || vsPrevious.variationPct === null) {
+    if (isFirstRecordOverall || vsAnterior.variationPct === null) {
       status = "new-variant";
-    } else if (vsPrevious.variationPct > SUMMARY_CONFIG.exerciseStatusStablePct) {
+    } else if (vsAnterior.variationPct > SUMMARY_CONFIG.exerciseStatusStablePct) {
       status = "progress";
-    } else if (vsPrevious.variationPct < -SUMMARY_CONFIG.exerciseStatusStablePct) {
+    } else if (vsAnterior.variationPct < -SUMMARY_CONFIG.exerciseStatusStablePct) {
       status = "decline";
     } else {
       status = "stable";
     }
 
-    rows.push({ dayName, exercise, avgE1rm: avg, setsCount: sets, status, vsPrevious, vsFirst });
+    rows.push({ dayName, exercise, avgE1rm: avg, setsCount: sets, status, isFirstRecordOverall, vsInicio, vsAnterior });
   }
 
   return rows.sort((a, b) => {
@@ -277,13 +236,13 @@ export function getExerciseRows(logs: LogsData, program: Program, cycle: number,
   });
 }
 
-/** Variación promedio de e1RM del período (promedio de las filas con comparación válida), contra el anterior y contra el inicio. */
-export function getPerformanceVariation(rows: ExerciseRow[]): { vsPrevious: number | null; vsFirst: number | null } {
+/** Variación promedio de e1RM del período (promedio de las filas con comparación válida), contra el anterior y contra el inicio — cada fila con su propia base. */
+export function getPerformanceVariation(rows: ExerciseRow[]): { vsAnterior: number | null; vsInicio: number | null } {
   function avgOf(cells: ComparisonCell[]): number | null {
-    const vals = cells.filter((c) => c.reason === "ok" && c.variationPct !== null).map((c) => c.variationPct as number);
+    const vals = cells.filter((c) => c.variationPct !== null).map((c) => c.variationPct as number);
     return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   }
-  return { vsPrevious: avgOf(rows.map((r) => r.vsPrevious)), vsFirst: avgOf(rows.map((r) => r.vsFirst)) };
+  return { vsAnterior: avgOf(rows.map((r) => r.vsAnterior)), vsInicio: avgOf(rows.map((r) => r.vsInicio)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -296,11 +255,11 @@ export interface DaySetsRow {
   vsPreviousPct: number | null;
 }
 
-function setsByDay(logs: LogsData, cycle: number, weekNumbers: number[]): Map<string, number> {
-  const weeks = new Set(weekNumbers);
+function setsByDay(logs: LogsData, cycle: number, weekNumber: number | null): Map<string, number> {
   const m = new Map<string, number>();
+  if (weekNumber === null) return m;
   logs.sessions
-    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && weeks.has(s.weekNumber))
+    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber)
     .forEach((s) => {
       const sets = s.exercises.reduce((sum, ex) => sum + ex.sets.filter(isSetLogged).length, 0);
       m.set(s.dayName, (m.get(s.dayName) ?? 0) + sets);
@@ -308,14 +267,11 @@ function setsByDay(logs: LogsData, cycle: number, weekNumbers: number[]): Map<st
   return m;
 }
 
-/** Series totales por tipo de día del período (Upper/Lower/Push/Pull) — vista alternativa a "por músculo". */
-export function getSetsByDayType(logs: LogsData, program: Program, cycle: number, period: PeriodRef): DaySetsRow[] {
-  const weeks = dataWeeksInPeriod(program, period);
-  const previousPeriod = getPreviousPeriod(program, period);
-  const prevWeeks = previousPeriod ? dataWeeksInPeriod(program, previousPeriod) : [];
-
-  const current = setsByDay(logs, cycle, weeks);
-  const previous = setsByDay(logs, cycle, prevWeeks);
+/** Series totales por tipo de día de la semana (Upper/Lower/Push/Pull) — vista alternativa a "por músculo". */
+export function getSetsByDayType(logs: LogsData, program: Program, cycle: number, weekNumber: number): DaySetsRow[] {
+  const previousWeek = getPreviousNonDeloadWeek(program, weekNumber);
+  const current = setsByDay(logs, cycle, weekNumber);
+  const previous = setsByDay(logs, cycle, previousWeek);
 
   return DAY_ORDER.filter((d) => current.has(d)).map((dayName) => {
     const sets = current.get(dayName) ?? 0;
@@ -335,12 +291,12 @@ export interface MuscleSetsRow {
   vsPreviousPct: number | null;
 }
 
-/** Series ponderadas por músculo (1 por serie al primario, SECONDARY_MUSCLE_WEIGHT a cada secundario — ver `muscleMapping.ts`), sumando todas las sesiones del rango de semanas. */
-function setsByMuscle(logs: LogsData, cycle: number, weekNumbers: number[]): Map<string, number> {
-  const weeks = new Set(weekNumbers);
+/** Series ponderadas por músculo (1 por serie al primario, SECONDARY_MUSCLE_WEIGHT a cada secundario — ver `muscleMapping.ts`), de la semana. */
+function setsByMuscle(logs: LogsData, cycle: number, weekNumber: number | null): Map<string, number> {
   const m = new Map<string, number>();
+  if (weekNumber === null) return m;
   logs.sessions
-    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && weeks.has(s.weekNumber))
+    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber)
     .forEach((s) => {
       s.exercises.forEach((ex) => {
         const setsCount = ex.sets.filter(isSetLogged).length;
@@ -353,14 +309,11 @@ function setsByMuscle(logs: LogsData, cycle: number, weekNumbers: number[]): Map
   return m;
 }
 
-/** Series ponderadas por grupo muscular del período, con la variación vs. el período anterior (mismo criterio que "por tipo de día"). */
-export function getSetsByMuscleGroup(logs: LogsData, program: Program, cycle: number, period: PeriodRef): MuscleSetsRow[] {
-  const weeks = dataWeeksInPeriod(program, period);
-  const previousPeriod = getPreviousPeriod(program, period);
-  const prevWeeks = previousPeriod ? dataWeeksInPeriod(program, previousPeriod) : [];
-
-  const current = setsByMuscle(logs, cycle, weeks);
-  const previous = setsByMuscle(logs, cycle, prevWeeks);
+/** Series ponderadas por grupo muscular de la semana, con la variación vs. la semana anterior (mismo criterio que "por tipo de día"). */
+export function getSetsByMuscleGroup(logs: LogsData, program: Program, cycle: number, weekNumber: number): MuscleSetsRow[] {
+  const previousWeek = getPreviousNonDeloadWeek(program, weekNumber);
+  const current = setsByMuscle(logs, cycle, weekNumber);
+  const previous = setsByMuscle(logs, cycle, previousWeek);
 
   const order = [...MUSCLE_GROUPS, OTHER_MUSCLE_GROUP];
   return order
@@ -374,7 +327,7 @@ export function getSetsByMuscleGroup(logs: LogsData, program: Program, cycle: nu
 }
 
 // ---------------------------------------------------------------------------
-// Lifestyle del período
+// Lifestyle de la semana
 // ---------------------------------------------------------------------------
 
 export interface LifestylePeriodRow {
@@ -385,11 +338,11 @@ export interface LifestylePeriodRow {
   vsPreviousPct: number | null;
 }
 
-/** Rango de fechas calendario cubierto por las sesiones (de cualquier estado final) de un conjunto de semanas del programa — el programa no tiene fechas fijas por semana. */
-function getPeriodDateRange(logs: LogsData, cycle: number, weekNumbers: number[]): { start: string; end: string } | null {
-  const weeks = new Set(weekNumbers);
+/** Rango de fechas calendario cubierto por las sesiones (de cualquier estado final) de una semana del programa — el programa no tiene fechas fijas por semana. */
+function getWeekDateRange(logs: LogsData, cycle: number, weekNumber: number | null): { start: string; end: string } | null {
+  if (weekNumber === null) return null;
   const dates = logs.sessions
-    .filter((s) => (s.cycle ?? 0) === cycle && weeks.has(s.weekNumber) && s.status !== "in_progress")
+    .filter((s) => (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber && s.status !== "in_progress")
     .map((s) => (s.completedAt ?? s.startedAt).slice(0, 10));
   if (dates.length === 0) return null;
   return { start: dates.reduce((a, b) => (a < b ? a : b)), end: dates.reduce((a, b) => (a > b ? a : b)) };
@@ -403,11 +356,11 @@ function averageInRange(daily: Map<string, number>, range: { start: string; end:
 export function getLifestylePeriod(
   logs: LogsData,
   cycle: number,
-  weekNumbers: number[],
-  previousWeekNumbers: number[]
+  weekNumber: number,
+  previousWeekNumber: number | null
 ): LifestylePeriodRow[] {
-  const range = getPeriodDateRange(logs, cycle, weekNumbers);
-  const prevRange = getPeriodDateRange(logs, cycle, previousWeekNumbers);
+  const range = getWeekDateRange(logs, cycle, weekNumber);
+  const prevRange = getWeekDateRange(logs, cycle, previousWeekNumber);
   if (!range) return [];
 
   const rows: LifestylePeriodRow[] = [];
@@ -440,8 +393,7 @@ export interface MarginToPushRow {
 /**
  * Ejercicios donde sobró RIR respecto al objetivo del programa, sin falsos
  * positivos: reps dentro o por encima del rango pedido, sin haber bajado el
- * peso entre series de la misma sesión, y fuera de semanas de deload. Un
- * registro por (día, ejercicio): el de la sesión más reciente del período.
+ * peso entre series de la misma sesión, y fuera de semanas de deload.
  */
 export function getMarginToPush(
   logs: LogsData,
@@ -449,15 +401,14 @@ export function getMarginToPush(
   flatDays: FlatProgramDay[],
   settings: AppSettings,
   cycle: number,
-  period: PeriodRef
+  weekNumber: number
 ): MarginToPushRow[] {
-  const weeks = dataWeeksInPeriod(program, period);
   const sessions = logs.sessions
     .filter(
       (s) =>
         s.status === "completed" &&
         (s.cycle ?? 0) === cycle &&
-        weeks.includes(s.weekNumber) &&
+        s.weekNumber === weekNumber &&
         !isDeloadWeek(program, s.weekNumber)
     )
     .sort((a, b) => a.programIndex - b.programIndex);

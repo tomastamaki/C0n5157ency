@@ -27,12 +27,26 @@ export function VariationPill({ pct, neutral = false }: { pct: number | null; ne
   );
 }
 
-/** Igual que VariationPill pero para una celda de comparación que puede no ser calculable ("—" + motivo). */
-export function ComparisonPill({ cell }: { cell: ComparisonCell }) {
-  if (cell.reason !== "ok") {
-    return (
-      <span className="text-xs text-faint">— {cell.reason === "variant-mismatch" ? "variante distinta" : "sin registro"}</span>
-    );
+/**
+ * Igual que VariationPill pero para una celda de comparación con base propia
+ * por ejercicio: si la base no coincide con la columna estándar (semana 1
+ * para "inicio", la semana anterior no-deload para "anterior"), muestra de
+ * dónde sale debajo del pill. "Inicio" siempre es por definición el primer
+ * registro de ese ejercicio, así que esa columna agrega esa aclaración.
+ */
+export function ComparisonPill({ cell, kind }: { cell: ComparisonCell; kind: "inicio" | "anterior" }) {
+  if (cell.baseWeekNumber === null) {
+    return <span className="text-xs text-faint">Primer registro</span>;
   }
-  return <VariationPill pct={cell.variationPct} />;
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <VariationPill pct={cell.variationPct} />
+      {!cell.isStandardBase && (
+        <span className="text-[10px] text-faint">
+          vs S{cell.baseWeekNumber}
+          {kind === "inicio" ? " (1er registro)" : ""}
+        </span>
+      )}
+    </span>
+  );
 }

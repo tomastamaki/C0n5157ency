@@ -16,7 +16,7 @@ import {
 import { formatDate, formatDuration } from "../lib/time";
 import { getRecommendation } from "../lib/recommendation";
 import { getLifestyleKpis, type LifestyleMetricKey } from "../lib/lifestyleKpis";
-import { getPeriodData, getExerciseRows, getPerformanceVariation, type PeriodRef } from "../lib/periodSummary";
+import { getPeriodData, getExerciseRows, getPerformanceVariation } from "../lib/periodSummary";
 import { IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
@@ -55,14 +55,19 @@ export function HomeDashboard({
   const selected = pendingDays[Math.min(selectedIdx, pendingDays.length - 1)];
 
   const currentWeekNumber = weekDays[0]?.flatDay.weekNumber ?? 1;
-  const weekPeriod: PeriodRef = useMemo(() => ({ kind: "week", index: currentWeekNumber }), [currentWeekNumber]);
-  const weekSummary = useMemo(() => getPeriodData(logs, program, cycle, weekPeriod), [logs, program, cycle, weekPeriod]);
-  const weekRows = useMemo(() => getExerciseRows(logs, program, cycle, weekPeriod), [logs, program, cycle, weekPeriod]);
+  const weekSummary = useMemo(
+    () => getPeriodData(logs, program, cycle, currentWeekNumber),
+    [logs, program, cycle, currentWeekNumber]
+  );
+  const weekRows = useMemo(
+    () => getExerciseRows(logs, program, cycle, currentWeekNumber),
+    [logs, program, cycle, currentWeekNumber]
+  );
   const weekPerf = useMemo(() => getPerformanceVariation(weekRows), [weekRows]);
 
   const streak = useMemo(() => getCurrentStreak(logs, cycle), [logs, cycle]);
   const attention = useMemo(() => getAttentionFlags(logs, cycle, program), [logs, cycle, program]);
-  const highlight = useMemo(() => getHighlightExercise(logs, cycle), [logs, cycle]);
+  const highlight = useMemo(() => getHighlightExercise(logs, cycle, program), [logs, cycle, program]);
   const lastSession = useMemo(() => getLastCompletedSession(logs, cycle), [logs, cycle]);
   const lastSessionPRs = useMemo(
     () => (lastSession ? countPRsInSession(logs, lastSession) : 0),
@@ -145,7 +150,7 @@ export function HomeDashboard({
           <span className="text-xs text-muted">
             RIR prom. {weekSummary.avgRir !== null ? weekSummary.avgRir.toFixed(1) : "—"}
           </span>
-          <VariationPill pct={weekPerf.vsPrevious} />
+          <VariationPill pct={weekPerf.vsAnterior} />
         </div>
         {highlight && (
           <p className="mt-2 text-xs text-success">

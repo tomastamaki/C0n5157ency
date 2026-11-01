@@ -13,15 +13,9 @@ import {
   getSetsByMuscleGroup,
   getLifestylePeriod,
   getMarginToPush,
-  getPreviousPeriod,
-  getFirstPeriod,
-  getWeeksInPeriod,
+  getPreviousNonDeloadWeek,
   getTotalWeeks,
-  getTotalMonths,
-  getCurrentPeriodIndex,
   getPeriodLabel,
-  type PeriodKind,
-  type PeriodRef,
   type ExerciseRow,
 } from "../lib/periodSummary";
 import { ProgressChart } from "../components/ProgressChart";
@@ -47,24 +41,16 @@ const STATUS_BORDER: Record<ExerciseRow["status"], string> = {
   "new-variant": "border-l-border",
 };
 
-function noPreviousMessage(period: PeriodRef): string {
-  if (period.kind === "month") {
-    const endOfThisMonth = period.index * 4;
-    return `El mes anterior aparece al completar la semana ${endOfThisMonth + 1}.`;
-  }
-  return "La semana anterior aparece al completar esta semana.";
-}
-
-function ExerciseRowDetail({ row, dayName: _dayName }: { row: ExerciseRow; dayName: string }) {
-  const { logs } = useApp();
+function ExerciseRowDetail({ row }: { row: ExerciseRow }) {
+  const { logs, program } = useApp();
   const points = useMemo(
-    () => getExerciseProgression(logs, row.exercise, 0, row.dayName),
-    [logs, row.exercise, row.dayName]
+    () => getExerciseProgression(logs, program, row.exercise, 0, row.dayName),
+    [logs, program, row.exercise, row.dayName]
   );
   return (
     <div className="mt-2 rounded-block border border-border bg-surface2 p-3">
       <p className="mb-2 text-xs text-muted">
-        Promedio del período: <span className="font-mono text-ink">{row.avgE1rm ? Math.round(row.avgE1rm) : "—"}kg e1RM</span>{" "}
+        Promedio de esta semana: <span className="font-mono text-ink">{row.avgE1rm ? Math.round(row.avgE1rm) : "—"}kg e1RM</span>{" "}
         · {row.setsCount} serie{row.setsCount !== 1 ? "s" : ""}
       </p>
       <ProgressChart points={points} />
@@ -78,59 +64,37 @@ export function PeriodSummaryScreen({ onBack }: Props) {
 
   const weekDays = useMemo(() => getCurrentWeekDays(flatDays, logs, cycle), [flatDays, logs, cycle]);
   const totalWeeks = getTotalWeeks(program);
-  const totalMonths = getTotalMonths(program);
   const currentWeekNumber = weekDays[0]?.flatDay.weekNumber ?? totalWeeks;
 
-  const [kind, setKind] = useState<PeriodKind>("week");
-  const [index, setIndex] = useState(() => getCurrentPeriodIndex("week", currentWeekNumber));
+  const [weekNumber, setWeekNumber] = useState(currentWeekNumber);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<"muscle" | "day">("muscle");
   const [showAllPRs, setShowAllPRs] = useState(false);
 
-  function changeKind(next: PeriodKind) {
-    setKind(next);
-    setIndex(getCurrentPeriodIndex(next, currentWeekNumber));
-    setExpanded(null);
-  }
-
-  const currentIndex = getCurrentPeriodIndex(kind, currentWeekNumber);
-  const totalPeriods = kind === "week" ? totalWeeks : totalMonths;
-  const period: PeriodRef = { kind, index };
-
-  const data = useMemo(() => getPeriodData(logs, program, cycle, period), [logs, program, cycle, period]);
-  const rows = useMemo(() => getExerciseRows(logs, program, cycle, period), [logs, program, cycle, period]);
+  const data = useMemo(() => getPeriodData(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
+  const rows = useMemo(() => getExerciseRows(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
   const perf = useMemo(() => getPerformanceVariation(rows), [rows]);
-  const daySets = useMemo(() => getSetsByDayType(logs, program, cycle, period), [logs, program, cycle, period]);
-  const muscleSets = useMemo(() => getSetsByMuscleGroup(logs, program, cycle, period), [logs, program, cycle, period]);
-  const previousPeriod = useMemo(() => getPreviousPeriod(program, period), [program, period]);
-  const isFirstPeriod = period.index === 1;
+  const daySets = useMemo(() => getSetsByDayType(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
+  const muscleSets = useMemo(() => getSetsByMuscleGroup(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
+  const previousWeek = useMemo(() => getPreviousNonDeloadWeek(program, weekNumber), [program, weekNumber]);
 
   const lifestyle = useMemo(
-    () =>
-      getLifestylePeriod(
-        logs,
-        cycle,
-        data.weekNumbers,
-        previousPeriod ? getWeeksInPeriod(program, previousPeriod) : []
-      ),
-    [logs, cycle, data.weekNumbers, previousPeriod, program]
+    () => getLifestylePeriod(logs, cycle, weekNumber, previousWeek),
+    [logs, cycle, weekNumber, previousWeek]
   );
 
   const attention = useMemo(() => getAttentionFlags(logs, cycle, program), [logs, cycle, program]);
   const marginToPush = useMemo(
-    () => getMarginToPush(logs, program, flatDays, settings, cycle, period),
-    [logs, program, flatDays, settings, cycle, period]
+    () => getMarginToPush(logs, program, flatDays, settings, cycle, weekNumber),
+    [logs, program, flatDays, settings, cycle, weekNumber]
   );
   const periodPRs = useMemo(
-    () =>
-      getPersonalRecordEvents(logs).filter(
-        (e) => e.kind === "weight" && e.cycle === cycle && data.weekNumbers.includes(e.weekNumber)
-      ),
-    [logs, cycle, data.weekNumbers]
+    () => getPersonalRecordEvents(logs).filter((e) => e.kind === "weight" && e.cycle === cycle && e.weekNumber === weekNumber),
+    [logs, cycle, weekNumber]
   );
   const bestImprovement = useMemo(() => {
-    const progressing = rows.filter((r) => r.status === "progress" && r.vsPrevious.variationPct !== null);
-    return progressing.sort((a, b) => (b.vsPrevious.variationPct ?? 0) - (a.vsPrevious.variationPct ?? 0))[0] ?? null;
+    const progressing = rows.filter((r) => r.status === "progress" && r.vsAnterior.variationPct !== null);
+    return progressing.sort((a, b) => (b.vsAnterior.variationPct ?? 0) - (a.vsAnterior.variationPct ?? 0))[0] ?? null;
   }, [rows]);
 
   const rowsByDay = DAY_ORDER.map((day) => ({ day, rows: rows.filter((r) => r.dayName === day) })).filter(
@@ -138,6 +102,7 @@ export function PeriodSummaryScreen({ onBack }: Props) {
   );
 
   const fairnessIncomplete = data.sessionsCompleted < data.sessionsPlanned;
+  const noPerfData = perf.vsAnterior === null && perf.vsInicio === null;
 
   if (showAllPRs) {
     return (
@@ -156,37 +121,22 @@ export function PeriodSummaryScreen({ onBack }: Props) {
         <IconChevronLeft className="h-[18px] w-[18px]" />
       </button>
 
-      <div className="flex gap-2">
-        {(["week", "month"] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => changeKind(k)}
-            className={`rounded-pill px-3 py-1.5 text-sm font-medium ${
-              kind === k ? "bg-primary text-white" : "bg-surface2 text-faint"
-            }`}
-          >
-            {k === "week" ? "Semana" : "Mes"}
-          </button>
-        ))}
-      </div>
-
       <div className="flex items-center justify-between">
         <button
           type="button"
-          onClick={() => setIndex((i) => Math.max(1, i - 1))}
-          disabled={index <= 1}
-          aria-label="Período anterior"
+          onClick={() => setWeekNumber((w) => Math.max(1, w - 1))}
+          disabled={weekNumber <= 1}
+          aria-label="Semana anterior"
           className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink disabled:opacity-30"
         >
           <IconChevronLeft className="h-[16px] w-[16px]" />
         </button>
-        <h2 className="text-lg font-bold text-ink">{getPeriodLabel(period)}</h2>
+        <h2 className="text-lg font-bold text-ink">{getPeriodLabel(weekNumber)}</h2>
         <button
           type="button"
-          onClick={() => setIndex((i) => Math.min(totalPeriods, i + 1))}
-          disabled={index >= currentIndex}
-          aria-label="Período siguiente"
+          onClick={() => setWeekNumber((w) => Math.min(totalWeeks, w + 1))}
+          disabled={weekNumber >= currentWeekNumber}
+          aria-label="Semana siguiente"
           className="flex h-[34px] w-[34px] items-center justify-center rounded-pill border border-border bg-surface2 text-ink disabled:opacity-30"
         >
           <IconChevronRight className="h-[16px] w-[16px]" />
@@ -195,9 +145,7 @@ export function PeriodSummaryScreen({ onBack }: Props) {
 
       <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted">
-            {data.weekNumbers.length > 1 ? `Semanas ${data.weekNumbers[0]}-${data.weekNumbers[data.weekNumbers.length - 1]}` : `Semana ${data.weekNumbers[0] ?? "—"}`}
-          </p>
+          <p className="text-sm text-muted">Semana {data.weekNumber}</p>
           {data.isDeload && (
             <span className="rounded-pill bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">deload</span>
           )}
@@ -207,7 +155,7 @@ export function PeriodSummaryScreen({ onBack }: Props) {
         </p>
         {fairnessIncomplete && (
           <p className="mt-1 text-xs text-muted">
-            Período incompleto · {data.sessionsCompleted} de {data.sessionsPlanned} sesiones hechas hasta ahora.
+            Semana incompleta · {data.sessionsCompleted} de {data.sessionsPlanned} sesiones hechas hasta ahora.
           </p>
         )}
       </div>
@@ -235,27 +183,25 @@ export function PeriodSummaryScreen({ onBack }: Props) {
 
       <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
         <p className="mb-2 text-sm font-medium text-ink">Rendimiento (e1RM promedio)</p>
-        {isFirstPeriod || !previousPeriod ? (
-          <p className="text-sm text-muted">{noPreviousMessage(period)}</p>
+        {noPerfData ? (
+          <p className="text-sm text-muted">Todavía no hay semanas anteriores con registro para comparar.</p>
         ) : (
           <div className="flex items-center gap-4">
             <div>
-              <p className="text-xs text-faint">vs. {getPeriodLabel(previousPeriod)}</p>
-              <VariationPill pct={perf.vsPrevious} />
+              <p className="text-xs text-faint">vs. anterior</p>
+              <VariationPill pct={perf.vsAnterior} />
             </div>
-            {!isFirstPeriod && (
-              <div>
-                <p className="text-xs text-faint">vs. {getPeriodLabel(getFirstPeriod(kind))}</p>
-                <VariationPill pct={perf.vsFirst} />
-              </div>
-            )}
+            <div>
+              <p className="text-xs text-faint">vs. inicio</p>
+              <VariationPill pct={perf.vsInicio} />
+            </div>
           </div>
         )}
       </div>
 
       <div className="space-y-2">
         <p className="text-sm font-semibold text-ink">Por ejercicio</p>
-        {rowsByDay.length === 0 && <p className="text-sm text-muted">Sin registros en este período todavía.</p>}
+        {rowsByDay.length === 0 && <p className="text-sm text-muted">Sin registros en esta semana todavía.</p>}
         {rowsByDay.map(({ day, rows: dayRows }) => (
           <div key={day} className="space-y-1.5">
             <p className="text-xs font-medium text-faint">{day}</p>
@@ -274,12 +220,22 @@ export function PeriodSummaryScreen({ onBack }: Props) {
                         {row.avgE1rm !== null ? `${Math.round(row.avgE1rm)}kg e1RM` : "sin datos"} · {STATUS_LABEL[row.status]}
                       </p>
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <ComparisonPill cell={row.vsPrevious} />
-                      {!isFirstPeriod && <ComparisonPill cell={row.vsFirst} />}
-                    </div>
+                    {row.isFirstRecordOverall ? (
+                      <span className="shrink-0 text-xs text-faint">Primer registro</span>
+                    ) : (
+                      <div className="flex shrink-0 gap-3">
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] text-faint">anterior</span>
+                          <ComparisonPill cell={row.vsAnterior} kind="anterior" />
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] text-faint">inicio</span>
+                          <ComparisonPill cell={row.vsInicio} kind="inicio" />
+                        </div>
+                      </div>
+                    )}
                   </button>
-                  {expanded === rowKey && <ExerciseRowDetail row={row} dayName={row.dayName} />}
+                  {expanded === rowKey && <ExerciseRowDetail row={row} />}
                 </div>
               );
             })}
@@ -332,7 +288,7 @@ export function PeriodSummaryScreen({ onBack }: Props) {
 
       {lifestyle.length > 0 && (
         <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-          <p className="mb-2 text-sm font-medium text-ink">Lifestyle del período</p>
+          <p className="mb-2 text-sm font-medium text-ink">Lifestyle de la semana</p>
           <div className="space-y-1.5">
             {lifestyle.map((l) => (
               <div key={l.key} className="flex items-center justify-between text-sm">
@@ -354,9 +310,9 @@ export function PeriodSummaryScreen({ onBack }: Props) {
           <div className="flex items-start gap-2 rounded-block border border-success/30 bg-success/5 p-3">
             <IconFlame className="h-8 w-8 shrink-0 text-success" />
             <div>
-              <p className="text-xs font-medium text-success">Mejor mejora del período</p>
+              <p className="text-xs font-medium text-success">Mejor mejora de la semana</p>
               <p className="text-sm text-ink">{bestImprovement.exercise}</p>
-              <VariationPill pct={bestImprovement.vsPrevious.variationPct} />
+              <VariationPill pct={bestImprovement.vsAnterior.variationPct} />
             </div>
           </div>
         )}

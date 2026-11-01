@@ -87,18 +87,22 @@ function SetBlock({
           </span>
         )}
       </div>
-      {reference && (
-        <div className="mb-2">
-          <p className="font-mono text-xs text-muted">
-            última vez: {reference.set.weightKg}kg × {reference.set.reps}, RIR {reference.set.rir}
-          </p>
-          <p className={`text-[11px] ${reference.tier === "same-day" ? "text-faint" : "text-warning"}`}>
-            {reference.dayName} · S{reference.weekNumber} · {reference.set.reps} reps
-            {reference.tier === "other-day" && " · otra rutina"}
-            {reference.tier === "approx" && " · aproximada"}
-          </p>
-        </div>
-      )}
+      <div className="mb-2">
+        {reference ? (
+          <>
+            <p className="font-mono text-xs text-muted">
+              última vez: {reference.set.weightKg}kg × {reference.set.reps}, RIR {reference.set.rir}
+            </p>
+            <p className={`text-[11px] ${reference.tier === "same-day" ? "text-faint" : "text-warning"}`}>
+              {reference.dayName} · S{reference.weekNumber} · {reference.set.reps} reps
+              {reference.tier === "other-day" && " · otra rutina"}
+              {reference.tier === "approx" && " · aproximada"}
+            </p>
+          </>
+        ) : (
+          <p className="font-mono text-xs text-faint">última vez: sin datos</p>
+        )}
+      </div>
       {prInRange && (
         <p className="mb-2 flex items-center gap-1 font-mono text-xs text-muted">
           <IconTrophy className="h-3 w-3 text-accent" />
@@ -247,7 +251,7 @@ export function ExerciseCard({
   session,
   onUpdateSession,
 }: Props) {
-  const { logs, flatDays, settings, updateSettings, upsertExerciseNoteEntry, exerciseInfoIndex } = useApp();
+  const { logs, program, flatDays, settings, updateSettings, upsertExerciseNoteEntry, exerciseInfoIndex } = useApp();
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
@@ -263,8 +267,8 @@ export function ExerciseCard({
   const pr = useMemo(() => getPersonalRecord(logs, displayName), [logs, displayName]);
   const e1rmRecord = useMemo(() => getE1rmRecord(logs, displayName), [logs, displayName]);
   const progression = useMemo(
-    () => getExerciseProgression(logs, displayName, 0, session.dayName),
-    [logs, displayName, session.dayName]
+    () => getExerciseProgression(logs, program, displayName, 0, session.dayName),
+    [logs, program, displayName, session.dayName]
   );
   const currentNoteEntry = useMemo(() => getCurrentNote(logs, displayName), [logs, displayName]);
   const fallbackNoteEntry = useMemo(
@@ -391,11 +395,13 @@ export function ExerciseCard({
           {group.intensityTechnique && (
             <p className="text-sm font-medium text-primary">{group.intensityTechnique}</p>
           )}
-          {pr && (
+          {(pr || e1rmRecord) && (
             <p className="flex items-center gap-1 text-xs text-muted">
               <IconTrophy className="h-3.5 w-3.5 text-accent" />
               <span className="font-mono">
-                PR: {pr.weightKg}kg × {pr.reps}
+                {pr && `PR: ${pr.weightKg}kg × ${pr.reps}`}
+                {pr && e1rmRecord && " · "}
+                {e1rmRecord && `e1RM ${Math.round(e1rmRecord.e1rm)}kg`}
               </span>
             </p>
           )}
@@ -453,6 +459,9 @@ export function ExerciseCard({
             return { set, i, logged, done };
           });
           const firstPendingIdx = setViews.findIndex((v) => !v.done);
+          // El PR de un rango de reps es el mismo para todas las series que comparten esa prescripción
+          // (ej. dos series "4-6"): se muestra una sola vez, en la primera de ellas, no repetido.
+          const shownPrRanges = new Set<string>();
 
           return setViews.map(({ set, i, logged, done }) => {
             const reference = findExerciseReference(logs, flatDays, displayName, session.dayName, set.reps, beforeGlobalSeq);
@@ -465,7 +474,8 @@ export function ExerciseCard({
               beforeGlobalSeq,
               incrementKg
             );
-            const prInRange = getPersonalRecordInRepRange(logs, displayName, set.reps);
+            const prInRange = shownPrRanges.has(set.reps) ? null : getPersonalRecordInRepRange(logs, displayName, set.reps);
+            shownPrRanges.add(set.reps);
             const filled = isSetFilled(logged);
             const isWeightPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
             const isE1rmPR =

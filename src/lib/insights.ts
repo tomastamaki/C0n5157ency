@@ -133,7 +133,7 @@ export interface HighlightExercise {
  * mezclar el historial de un mismo nombre usado como sustituto en una
  * rutina y prescripto en otra con una prescripción de reps distinta.
  */
-export function getHighlightExercise(logs: LogsData, cycle: number): HighlightExercise | null {
+export function getHighlightExercise(logs: LogsData, cycle: number, program: Program): HighlightExercise | null {
   const scoped = filterByCycle(logs, cycle);
   const pairs = new Set<string>();
   for (const s of scoped.sessions) {
@@ -144,7 +144,7 @@ export function getHighlightExercise(logs: LogsData, cycle: number): HighlightEx
   let best: HighlightExercise | null = null;
   for (const pair of pairs) {
     const [dayName, name] = pair.split("::");
-    const pct = getPctImprovement(getExerciseProgression(scoped, name, 0, dayName));
+    const pct = getPctImprovement(getExerciseProgression(scoped, program, name, 0, dayName));
     if (pct !== null && pct > 0 && (!best || pct > best.pct)) {
       best = { exercise: name, pct };
     }
