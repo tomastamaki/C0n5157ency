@@ -15,6 +15,8 @@ import { getCurrentNote, noteEntryId } from "../lib/exerciseNotes";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { buildWeightSuggestions, type WeightSuggestion } from "../lib/suggestions";
+import { getWarmupSuggestion, type WarmupSuggestion } from "../lib/warmup";
+import { WARMUP_CONFIG } from "../lib/warmupConfig";
 import { getPersonalRecord, getE1rmRecord, getPersonalRecordInRepRange } from "../lib/records";
 import { matchExerciseReferences, type SetReference } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
@@ -178,6 +180,52 @@ function SetBlock({
   );
 }
 
+/**
+ * Nota de calentamiento sugerido: se tilda a mano (sin persistir, es solo una
+ * guía) y no afecta volumen/tonelaje/e1RM/PRs/referencias — esas series nunca
+ * se loguean como series de trabajo.
+ */
+function WarmupNote({ suggestion }: { suggestion: WarmupSuggestion }) {
+  const [expanded, setExpanded] = useState(true);
+  const [done, setDone] = useState<boolean[]>(() => suggestion.sets.map(() => false));
+
+  return (
+    <div className="mt-3 rounded-block border border-border bg-surface2 p-3">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="flex w-full items-center justify-between text-left text-sm font-medium text-ink"
+      >
+        <span>
+          Calentamiento sugerido · {suggestion.countLabel} serie{suggestion.countLabel !== "1" ? "s" : ""}
+          {suggestion.optional && " (opcional)"}
+        </span>
+        <span className="text-xs font-normal text-faint">{expanded ? "ocultar" : "ver"}</span>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1.5">
+          {suggestion.sets.map((s, i) => (
+            <label key={i} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={done[i] ?? false}
+                onChange={() => setDone((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
+                className="h-4 w-4 shrink-0 rounded border-border accent-primary"
+              />
+              <span className={`font-mono ${done[i] ? "text-faint line-through" : "text-ink"}`}>
+                {s.weightKg}kg <span className="text-faint">· {Math.round(s.pct * 100)}%</span>
+              </span>
+            </label>
+          ))}
+          <p className="text-[11px] text-faint">
+            Descanso {WARMUP_CONFIG.restSeconds.min}-{WARMUP_CONFIG.restSeconds.max}s entre series de calentamiento.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExerciseNotes({
   currentText,
   fallbackText,
@@ -290,6 +338,12 @@ export function ExerciseCard({
   const suggestions = useMemo(
     () => buildWeightSuggestions(literalSets, referencesBySet[0].map((r) => r.set), incrementKg),
     [literalSets, referencesBySet, incrementKg]
+  );
+  // Peso de referencia para el calentamiento: la sugerencia de hoy para la primera serie de trabajo si existe, o si no el peso de la última vez (fase 1).
+  const warmupReferenceWeightKg = suggestions[0]?.weightKg ?? referencesBySet[0][0]?.set?.weightKg ?? null;
+  const warmupSuggestion = useMemo(
+    () => getWarmupSuggestion(group, warmupReferenceWeightKg, incrementKg),
+    [group, warmupReferenceWeightKg, incrementKg]
   );
   const progression = useMemo(
     () => getExerciseProgression(logs, program, displayName, 0, session.dayName),
@@ -467,11 +521,15 @@ export function ExerciseCard({
         onSave={saveExerciseNote}
       />
 
-      {warmup && (
-        <p className="mt-3 text-sm text-muted">
-          Calentamiento: {warmup.count} serie{warmup.count !== "1" ? "s" : ""} livianas
-        </p>
-      )}
+      {warmup &&
+        (warmupSuggestion ? (
+          <WarmupNote suggestion={warmupSuggestion} />
+        ) : (
+          <p className="mt-3 text-sm text-muted">
+            Calentamiento: {warmup.count} serie{warmup.count !== "1" ? "s" : ""} livianas (todavía sin datos para
+            sugerir el peso)
+          </p>
+        ))}
 
       <div className="mt-4 space-y-4">
         {(() => {
