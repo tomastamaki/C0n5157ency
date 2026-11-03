@@ -146,15 +146,16 @@ function SetBlock({
           >
             {suggestion.mode === "raise" && (
               <>
-                Sugerido: {suggestion.weightKg}kg
+                Podés probar {suggestion.weightKg}kg
                 {suggestion.estimatedReps && ` · ~${suggestion.estimatedReps.min}-${suggestion.estimatedReps.max} reps`}
               </>
             )}
-            {suggestion.mode === "hold" && <>Mantener: {suggestion.weightKg}kg</>}
-            {suggestion.mode === "step-down" && <>Bajar a: {suggestion.weightKg}kg</>}
+            {suggestion.mode === "hold" && <>Conviene repetir el peso: {suggestion.weightKg}kg</>}
+            {suggestion.mode === "step-down" && <>Conviene bajar a {suggestion.weightKg}kg</>}
             {" "}
             ({suggestion.reason})
           </button>
+          {suggestion.warning && <p className="mt-0.5 text-[11px] font-medium text-warning">{suggestion.warning}</p>}
           {suggestion.extendedRange && (
             <p className="mt-0.5 text-[11px] text-faint">
               Rango de hoy: {reps} · buscá {suggestion.extendedRange.min}-{suggestion.extendedRange.max} reps con{" "}

@@ -13,4 +13,20 @@ export const TRAINING_CONFIG = {
   rangeExtensionReps: 2,
   /** Si está apagado, al no llegar al piso del rango se repite el mismo peso en vez de ofrecer el rango extendido. */
   extendRangeEnabled: true,
+  /**
+   * Criterio para subir de peso: las reps mandan, el RIR solo informa. Hasta esta cantidad
+   * de reps por debajo del tope se tolera en UNA sola serie del grupo (con aviso ámbar) sin
+   * bloquear la subida; dos o más series cortas, o una serie a más distancia que esta, sí
+   * bloquean. También define "llegó al tope" al evaluar si una serie puede igualar el peso
+   * de la anterior (fase de pesos distintos entre series). Fija a propósito: ante la duda, la
+   * app prioriza la sobrecarga progresiva. No es configurable en Ajustes.
+   */
+  ceilingToleranceReps: 1,
+  /**
+   * Diferencia de RIR (objetivo − real) a partir de la cual se muestra un aviso ámbar
+   * informativo (ej. RIR 0 contra un objetivo de RIR 2). El RIR ya no bloquea subir de peso;
+   * por debajo de esta diferencia tampoco bloquea igualar el peso entre series. Fija a
+   * propósito, no es configurable en Ajustes.
+   */
+  rirWarningGap: 2,
 };

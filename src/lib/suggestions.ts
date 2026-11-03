@@ -18,6 +18,8 @@ export interface WeightSuggestion {
   /** Rango extendido a buscar la próxima vez, mientras no se suba de peso (solo cuando aplica y está habilitado). */
   extendedRange: { min: number; max: number } | null;
   reason: string;
+  /** Aviso informativo (ej. una serie short de reps con tolerancia, o RIR lejos del objetivo) que no bloquea la sugerencia. */
+  warning: string | null;
 }
 
 interface LiteralSetSpec {
@@ -30,16 +32,32 @@ function targetRirNumber(targetRIR: string): number | null {
   return targetRIR === "3+" ? 3.5 : Number(targetRIR);
 }
 
+/** Lista en castellano de series (1-based) para un mensaje: "2", "2 y 3", "2, 3 y 4". */
+function listSeries(indexes: number[]): string {
+  const names = indexes.map((i) => `${i + 1}`);
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+}
+
 /**
  * Sugerencias de peso por grupo de prescripción (todas las series que
  * comparten el mismo rango de reps dentro del ejercicio), no serie por serie
- * aislada ni para todo el ejercicio junto: "¿subo de peso en este grupo?"
- * depende de que ESE grupo haya llegado al tope con buen RIR y sin bajar el
- * peso entre sus propias series — no bloquea una serie "20" liviana de
- * backoff el que la serie "4-6" pesada sí haya progresado, y viceversa.
+ * aislada ni para todo el ejercicio junto. El criterio principal para subir
+ * son las REPS: el grupo sube si todas sus series llegaron al tope del rango,
+ * permitiendo que como máximo una se quede a `ceilingToleranceReps` reps del
+ * tope (con aviso). El RIR ya no bloquea subir: solo agrega un aviso cuando
+ * alguna serie quedó muy por debajo del RIR pedido.
+ *
+ * Si alguna serie se hizo con menos peso que la anterior del mismo grupo, no
+ * se evalúa para subir: si esa serie liviana igual llegó al tope con RIR
+ * aceptable, se sugiere igualar su peso al de la serie anterior (y recién
+ * cuando todo el grupo quede al mismo peso se vuelve a evaluar si sube); si
+ * no llegó al tope o su RIR quedó muy lejos, se repite el peso de esa serie
+ * sin más.
+ *
  * `references[i]` es el set logueado de la sesión de referencia para la
  * serie `i` (ver `exerciseReference.ts`), alineado por índice; `null` = sin
- * referencia, sin sugerencia para esa serie (fase 2b).
+ * referencia, sin sugerencia para esa serie.
  */
 export function buildWeightSuggestions(
   literalSets: LiteralSetSpec[],
@@ -50,61 +68,108 @@ export function buildWeightSuggestions(
   const ranges = literalSets.map((s) => parseRepRange(s.reps));
   const targetRirs = literalSets.map((s) => targetRirNumber(s.targetRIR));
 
-  // Índices de cada grupo de prescripción (mismo rango de reps), en el orden en que aparecen.
   const groupIndexesByReps = new Map<string, number[]>();
   literalSets.forEach((s, i) => {
     if (!groupIndexesByReps.has(s.reps)) groupIndexesByReps.set(s.reps, []);
     groupIndexesByReps.get(s.reps)!.push(i);
   });
 
-  // Estado de cada serie individual contra SU PROPIA referencia, para poder explicar
-  // con precisión cuál fue el motivo real de no subir (y de quién, si no es de esta serie).
-  interface PositionStatus {
-    reachedCeiling: boolean;
-    rirOk: boolean;
+  function estimateRepsAt(ref: LoggedSet, targetRir: number | null, newWeight: number): number {
+    const e1rm = estimatedE1RM(ref.weightKg as number, ref.reps as number, rirToNumber(ref.rir as "0" | "1" | "2" | "3+"));
+    return (e1rm / newWeight - 1) * PROGRESSION_CONFIG.epleyDivisor - (targetRir ?? 0);
   }
-  const positionStatus: (PositionStatus | null)[] = literalSets.map((_, i) => {
+
+  interface PositionInfo {
+    ref: LoggedSet;
+    /** range.max - reps; 0 o negativo = llegó al tope (o más). */
+    ceilingGap: number;
+    /** targetRIR - RIR real; positivo = fue más cerca del fallo de lo pedido. */
+    rirGap: number;
+  }
+  const positionInfo: (PositionInfo | null)[] = literalSets.map((_, i) => {
     const ref = references[i];
-    if (!ref || ref.reps === null || ref.rir === null) return null; // no evaluable: no bloquea al resto del grupo
+    if (!ref || ref.weightKg === null || ref.reps === null || ref.rir === null) return null;
     const targetRir = targetRirs[i];
-    const rirOk = targetRir === null || rirToNumber(ref.rir) >= targetRir;
-    return { reachedCeiling: ref.reps >= ranges[i].max, rirOk };
+    return {
+      ref,
+      ceilingGap: ranges[i].max - ref.reps,
+      rirGap: targetRir === null ? 0 : targetRir - rirToNumber(ref.rir),
+    };
   });
 
-  const groupCanRaise = new Map<string, boolean>();
-  const groupWeightDropped = new Map<string, boolean>();
+  interface EqualizePlan {
+    kind: "equalize";
+    lightIdx: number;
+    catchupWeight: number;
+    qualifies: boolean;
+  }
+  interface NormalPlan {
+    kind: "normal";
+    tooFar: number[];
+    oneShort: number[];
+    raiseEligible: boolean;
+    warning: string | null;
+  }
+  const groupPlan = new Map<string, EqualizePlan | NormalPlan>();
+
   for (const [reps, indexes] of groupIndexesByReps) {
-    const groupRefs = indexes.map((i) => references[i]).filter(
-      (r): r is LoggedSet => r !== null && r.weightKg !== null && r.reps !== null && r.rir !== null
-    );
-    const weights = groupRefs.map((r) => r.weightKg as number);
-    const weightDropped = weights.some((w, i) => i > 0 && w < weights[i - 1]);
-    const reachedCeilingWithRir = indexes.every((i) => {
-      const status = positionStatus[i];
-      return status === null || (status.reachedCeiling && status.rirOk); // no evaluable: no bloquea al resto del grupo
+    // ¿Alguna serie se hizo con menos peso que la inmediatamente anterior del mismo grupo?
+    let dropIdx: number | null = null;
+    for (let k = 1; k < indexes.length; k++) {
+      const prev = positionInfo[indexes[k - 1]];
+      const cur = positionInfo[indexes[k]];
+      if (prev && cur && (cur.ref.weightKg as number) < (prev.ref.weightKg as number)) {
+        dropIdx = indexes[k];
+        break;
+      }
+    }
+
+    if (dropIdx !== null) {
+      const lightIdx = dropIdx;
+      const catchupWeight = positionInfo[indexes[indexes.indexOf(lightIdx) - 1]]!.ref.weightKg as number;
+      const light = positionInfo[lightIdx]!;
+      const qualifies = light.ceilingGap <= config.ceilingToleranceReps && light.rirGap < config.rirWarningGap;
+      groupPlan.set(reps, { kind: "equalize", lightIdx, catchupWeight, qualifies });
+      continue;
+    }
+
+    const tooFar = indexes.filter((i) => positionInfo[i] !== null && positionInfo[i]!.ceilingGap > config.ceilingToleranceReps);
+    const oneShort = indexes.filter((i) => {
+      const info = positionInfo[i];
+      return info !== null && info.ceilingGap > 0 && info.ceilingGap <= config.ceilingToleranceReps;
     });
-    groupWeightDropped.set(reps, weightDropped);
-    groupCanRaise.set(reps, !weightDropped && reachedCeilingWithRir && groupRefs.length > 0);
+    const hasData = indexes.some((i) => positionInfo[i] !== null);
+    const raiseEligible = hasData && tooFar.length === 0 && oneShort.length <= 1;
+
+    let warning: string | null = null;
+    if (raiseEligible) {
+      const notes: string[] = [];
+      if (oneShort.length === 1) {
+        const i = oneShort[0];
+        const info = positionInfo[i]!;
+        notes.push(`la serie ${i + 1} se quedó en ${info.ref.reps} reps (tope ${ranges[i].max})`);
+      }
+      for (const i of indexes) {
+        const info = positionInfo[i];
+        if (info && info.rirGap >= config.rirWarningGap) {
+          notes.push(`la serie ${i + 1} fue con RIR ${info.ref.rir} (pedía ${literalSets[i].targetRIR})`);
+        }
+      }
+      if (notes.length > 0) warning = `Ojo: ${notes.join("; ")}`;
+    }
+
+    groupPlan.set(reps, { kind: "normal", tooFar, oneShort, raiseEligible, warning });
   }
 
-  /** Motivo específico por el que ESTA serie (índice `i`, dentro del grupo `reps`) no sube: su propio déficit, o el de la serie del grupo que sí bloquea. */
-  function explainWhyNotRaising(i: number, reps: string, ref: LoggedSet): string {
-    const own = positionStatus[i]!;
-    const range = ranges[i];
-    if (!own.reachedCeiling) {
+  function explainNormalHold(i: number, plan: NormalPlan, ref: LoggedSet, range: { min: number; max: number }): string {
+    if (plan.tooFar.includes(i) || plan.oneShort.includes(i)) {
       return `te quedaste en ${ref.reps} reps (tope ${range.max}) la última vez: todavía no llegaste al tope de esta serie`;
     }
-    if (!own.rirOk) {
-      return `llegaste a ${ref.reps} reps, pero con RIR ${ref.rir} (pedía RIR ${literalSets[i].targetRIR}): fuiste más cerca del fallo de lo pedido, no cuenta como "al tope"`;
-    }
-    // Esta serie en particular está al tope con buen RIR: si no sube, el bloqueo es de OTRA serie del mismo grupo (nunca de esta misma).
-    const siblingIdx = groupIndexesByReps
-      .get(reps)!
-      .find((j) => j !== i && positionStatus[j] !== null && !(positionStatus[j]!.reachedCeiling && positionStatus[j]!.rirOk));
-    if (siblingIdx !== undefined) {
-      const sibling = positionStatus[siblingIdx]!;
-      const siblingProblem = !sibling.reachedCeiling ? "no llegó al tope" : "llegó pero fue más cerca del fallo de lo pedido";
-      return `esta serie sí llegó al tope, pero la serie ${siblingIdx + 1} de este mismo rango ${siblingProblem} la última vez: suben juntas o no sube ninguna`;
+    const blockers = [...plan.tooFar, ...plan.oneShort].filter((j) => j !== i);
+    if (blockers.length > 0) {
+      const serieWord = blockers.length === 1 ? "la serie" : "las series";
+      const verb = blockers.length === 1 ? "no llegó" : "no llegaron";
+      return `esta serie sí llegó al tope, pero ${serieWord} ${listSeries(blockers)} de este mismo rango ${verb} al tope la última vez: suben juntas o no sube ninguna`;
     }
     return "todavía no hay datos suficientes de este grupo para subir";
   }
@@ -123,7 +188,8 @@ export function buildWeightSuggestions(
           mode: "hold" as const,
           estimatedReps: null,
           extendedRange: null,
-          reason: `te quedaste a 1 rep del piso (${ref.reps} de ${range.min}) la última vez: repetí el peso`,
+          warning: null,
+          reason: `te quedaste a 1 rep del piso (${ref.reps} de ${range.min}) la última vez: conviene repetir el peso`,
         };
       }
       return {
@@ -131,20 +197,69 @@ export function buildWeightSuggestions(
         mode: "step-down" as const,
         estimatedReps: null,
         extendedRange: null,
-        reason: `te quedaste ${deficit} reps del piso (${ref.reps} de ${range.min}) la última vez: bajá un escalón`,
+        warning: null,
+        reason: `te quedaste ${deficit} reps del piso (${ref.reps} de ${range.min}) la última vez: conviene bajar un escalón`,
       };
     }
 
-    if (!groupCanRaise.get(reps)) {
-      const reason = groupWeightDropped.get(reps)
-        ? "bajaste el peso entre series de este mismo rango la última vez"
-        : explainWhyNotRaising(i, reps, ref);
-      return { weightKg: ref.weightKg, mode: "hold" as const, estimatedReps: null, extendedRange: null, reason };
+    const plan = groupPlan.get(reps)!;
+
+    if (plan.kind === "equalize") {
+      if (i !== plan.lightIdx) {
+        return {
+          weightKg: ref.weightKg,
+          mode: "hold" as const,
+          estimatedReps: null,
+          extendedRange: null,
+          warning: null,
+          reason: `esperá a que la serie ${plan.lightIdx + 1} llegue a ${plan.catchupWeight}kg antes de subir juntas`,
+        };
+      }
+      if (!plan.qualifies) {
+        return {
+          weightKg: ref.weightKg,
+          mode: "hold" as const,
+          estimatedReps: null,
+          extendedRange: null,
+          warning: null,
+          reason: "bajaste el peso entre series de este mismo rango la última vez",
+        };
+      }
+      const estRepsRaw = estimateRepsAt(ref, targetRir, plan.catchupWeight);
+      if (estRepsRaw < range.min) {
+        return {
+          weightKg: ref.weightKg,
+          mode: "hold" as const,
+          estimatedReps: null,
+          extendedRange: null,
+          warning: null,
+          reason: `igualar a ${plan.catchupWeight}kg te dejaría debajo del piso: por ahora conviene repetir tu peso`,
+        };
+      }
+      const low = Math.max(range.min, Math.floor(estRepsRaw));
+      return {
+        weightKg: plan.catchupWeight,
+        mode: "raise" as const,
+        estimatedReps: { min: low, max: low + 1 },
+        extendedRange: null,
+        warning: null,
+        reason: `Igualá el peso: la serie ${i + 1} llegó al tope con ${ref.weightKg}kg`,
+      };
+    }
+
+    if (!plan.raiseEligible) {
+      return {
+        weightKg: ref.weightKg,
+        mode: "hold" as const,
+        estimatedReps: null,
+        extendedRange: null,
+        warning: null,
+        reason: explainNormalHold(i, plan, ref, range),
+      };
     }
 
     const newWeight = roundToStep(ref.weightKg + incrementKg, 0.5);
-    const e1rmRef = estimatedE1RM(ref.weightKg, ref.reps, rirToNumber(ref.rir));
-    const estRepsRaw = (e1rmRef / newWeight - 1) * PROGRESSION_CONFIG.epleyDivisor - (targetRir ?? 0);
+    const estRepsRaw = estimateRepsAt(ref, targetRir, newWeight);
 
     if (estRepsRaw < range.min) {
       if (!config.extendRangeEnabled) {
@@ -153,7 +268,8 @@ export function buildWeightSuggestions(
           mode: "hold" as const,
           estimatedReps: null,
           extendedRange: null,
-          reason: "llegaste al tope, pero con el peso nuevo no llegarías al piso: mantené el mismo peso",
+          warning: null,
+          reason: "llegaste al tope, pero con el peso nuevo no llegarías al piso: conviene mantener el mismo peso",
         };
       }
       return {
@@ -161,7 +277,8 @@ export function buildWeightSuggestions(
         mode: "hold" as const,
         estimatedReps: null,
         extendedRange: { min: range.max + 1, max: range.max + config.rangeExtensionReps },
-        reason: `con ${newWeight}kg estimamos ~${Math.max(0, Math.round(estRepsRaw))} reps, debajo del piso: mantené el peso y buscá el rango extendido`,
+        warning: null,
+        reason: `con ${newWeight}kg estimamos ~${Math.max(0, Math.round(estRepsRaw))} reps, debajo del piso: conviene mantener el peso y buscar el rango extendido`,
       };
     }
 
@@ -171,7 +288,8 @@ export function buildWeightSuggestions(
       mode: "raise" as const,
       estimatedReps: { min: low, max: low + 1 },
       extendedRange: null,
-      reason: "llegaste al tope con buen RIR la última vez, sin bajar el peso entre series",
+      warning: plan.warning,
+      reason: "llegaste al tope con las reps la última vez, sin bajar el peso entre series",
     };
   });
 }
