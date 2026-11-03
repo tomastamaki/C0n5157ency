@@ -5,7 +5,7 @@ import { getLiteralWorkingSets } from "./program";
 import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
 import { localDateKey } from "./time";
-import { getExerciseMuscles, OTHER_MUSCLE_GROUP } from "./muscleMapping";
+import { getExerciseMuscles, getMuscleContributions, OTHER_MUSCLE_GROUP } from "./muscleMapping";
 import {
   LAYER2_MIN_SESSIONS,
   LAYER2_PARAM_WEIGHTS,
@@ -13,6 +13,7 @@ import {
   LAYER2_THRESHOLDS,
   LAYER2_WINDOW_SIZE,
   MUSCLE_RECOVERY_HOURS,
+  MUSCLE_STIMULUS,
   PARAM_THRESHOLDS,
   RECOVERY_INTENSITY_ADJUSTMENT,
   SLEEP_MIN_NIGHTS,
@@ -22,6 +23,39 @@ import {
 function exerciseMuscleSet(ex: LoggedExercise): string[] {
   const mapping = getExerciseMuscles(ex.exercise, ex.originalExercise);
   return mapping ? [mapping.primary, ...mapping.secondary] : [];
+}
+
+/** Peso de contribución de un ejercicio efectivamente hecho hacia un músculo dado (1 primario, SECONDARY_MUSCLE_WEIGHT secundario, 0 si no lo toca). */
+function exerciseMuscleWeight(ex: LoggedExercise, muscle: string): number {
+  return getMuscleContributions(ex.exercise, ex.originalExercise).find((c) => c.muscle === muscle)?.weight ?? 0;
+}
+
+/** Series ponderadas (confirmadas) que una sesión le aportó a un músculo dado, sumando todos sus ejercicios. */
+function getWeightedSeriesForMuscle(session: WorkoutSession, muscle: string): number {
+  return session.exercises.reduce((sum, ex) => {
+    const weight = exerciseMuscleWeight(ex, muscle);
+    if (weight === 0) return sum;
+    return sum + ex.sets.filter(isSetLogged).length * weight;
+  }, 0);
+}
+
+/**
+ * Factor que escala las horas de recuperación según cuánto se estimuló el
+ * músculo: el mínimo "estimulado" (`MUSCLE_STIMULUS.minSeries`) recupera más
+ * rápido que una sesión de volumen completo (`fullVolumeSeries` o más),
+ * escalando lineal entre `minFactor` y 1 en el medio.
+ */
+function recoveryVolumeFactor(weightedSeries: number): number {
+  const { minSeries, fullVolumeSeries, minFactor } = MUSCLE_STIMULUS;
+  if (weightedSeries >= fullVolumeSeries) return 1;
+  const t = (weightedSeries - minSeries) / (fullVolumeSeries - minSeries);
+  return minFactor + (1 - minFactor) * t;
+}
+
+/** "7" o "4,5" según tenga o no parte fraccionaria (series secundarias pesan 0.5). */
+function formatSeriesCount(n: number): string {
+  const rounded = Math.round(n * 10) / 10;
+  return rounded % 1 === 0 ? String(rounded) : rounded.toFixed(1).replace(".", ",");
 }
 
 /** Todos los músculos que entrena un día del programa (unión de primario + secundarios de sus ejercicios prescriptos). */
@@ -58,11 +92,29 @@ export interface MuscleAlert {
   muscle: string;
   hoursSince: number;
   recommendedHours: number;
+  /** Series ponderadas que recibió el músculo en esa última sesión (≥ MUSCLE_STIMULUS.minSeries, si no esa sesión no cuenta como "entrenado"). */
+  seriesCount: number;
+  /** Texto ya armado, única fuente para mostrar esta alerta (evita que cada pantalla rearme el formato). */
+  detail: string;
 }
 
-/** Sesión completada más reciente (cualquier ciclo) que haya entrenado un músculo dado, mirando los ejercicios efectivamente hechos (sustituto incluido), no el tipo de día. */
-function findLastSessionForMuscle(completedByRecency: WorkoutSession[], muscle: string): WorkoutSession | null {
-  return completedByRecency.find((s) => s.exercises.some((ex) => exerciseMuscleSet(ex).includes(muscle))) ?? null;
+/**
+ * Sesión completada más reciente (cualquier ciclo) que haya entrenado un
+ * músculo dado con al menos `MUSCLE_STIMULUS.minSeries` series ponderadas
+ * (primario=1, secundario=SECONDARY_MUSCLE_WEIGHT), mirando los ejercicios
+ * efectivamente hechos (sustituto incluido), no el tipo de día. Una sesión
+ * que solo lo tocó de refilón (ej. 1 serie secundaria) no cuenta como
+ * "entrenado": no dispara alerta ni sirve de base para buscar más atrás.
+ */
+function findLastTrainedSessionForMuscle(
+  completedByRecency: WorkoutSession[],
+  muscle: string
+): { session: WorkoutSession; seriesCount: number } | null {
+  for (const session of completedByRecency) {
+    const seriesCount = getWeightedSeriesForMuscle(session, muscle);
+    if (seriesCount >= MUSCLE_STIMULUS.minSeries) return { session, seriesCount };
+  }
+  return null;
 }
 
 export function checkMuscleRecovery(logs: LogsData, todayFlatDay: FlatProgramDay, now: Date = new Date()): MuscleAlert[] {
@@ -79,8 +131,9 @@ export function checkMuscleRecovery(logs: LogsData, todayFlatDay: FlatProgramDay
   const alerts: MuscleAlert[] = [];
 
   for (const muscle of musclesToday) {
-    const lastSession = findLastSessionForMuscle(completedByRecency, muscle);
-    if (!lastSession) continue;
+    const found = findLastTrainedSessionForMuscle(completedByRecency, muscle);
+    if (!found) continue;
+    const { session: lastSession, seriesCount } = found;
 
     const lastDate = new Date(lastSession.completedAt ?? lastSession.startedAt);
     const hoursSince = (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60);
@@ -102,9 +155,18 @@ export function checkMuscleRecovery(logs: LogsData, todayFlatDay: FlatProgramDay
         recommendedHours *= 1 + RECOVERY_INTENSITY_ADJUSTMENT.hardIncreasePct;
       }
     }
+    recommendedHours *= recoveryVolumeFactor(seriesCount);
 
     if (hoursSince < recommendedHours) {
-      alerts.push({ muscle, hoursSince, recommendedHours });
+      alerts.push({
+        muscle,
+        hoursSince,
+        recommendedHours,
+        seriesCount,
+        detail: `${capitalize(muscle)} entrenado hace ${Math.round(hoursSince)}h (${formatSeriesCount(
+          seriesCount
+        )} series), recomendado ${Math.round(recommendedHours)}h`,
+      });
     }
   }
 
@@ -369,12 +431,7 @@ export function getRecommendation(
   const muscleAlerts = todayFlatDay ? checkMuscleRecovery(logs, todayFlatDay) : [];
   if (muscleAlerts.length > 0) {
     const detail = muscleAlerts
-      .map(
-        (a) =>
-          `${capitalize(a.muscle)} entrenado hace ${Math.round(a.hoursSince)}h, recomendado ${Math.round(
-            a.recommendedHours
-          )}h — considerá descansar o ajustar el volumen de hoy.`
-      )
+      .map((a) => `${a.detail} — considerá descansar o ajustar el volumen de hoy.`)
       .join("\n");
     return {
       level: "muscle-alert",

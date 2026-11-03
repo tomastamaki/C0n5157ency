@@ -34,6 +34,22 @@ export const RECOVERY_INTENSITY_ADJUSTMENT = {
   hardIncreasePct: 0.1,
 };
 
+/**
+ * Cuánto "estímulo" (series ponderadas: 1 si el músculo es primario del
+ * ejercicio, `SECONDARY_MUSCLE_WEIGHT` si es secundario — ver
+ * `muscleMapping.ts`) hace falta para considerar que un músculo fue
+ * efectivamente entrenado en una sesión, y cuánto escala el tiempo de
+ * recuperación según ese volumen.
+ */
+export const MUSCLE_STIMULUS = {
+  /** Por debajo de esto, el músculo no se considera "estimulado" (ej. 1 serie secundaria de cuádriceps en un día Push no cuenta como pierna entrenada). */
+  minSeries: 3,
+  /** A partir de esto (o más), se usa el 100% de las horas de recuperación. */
+  fullVolumeSeries: 6,
+  /** Factor aplicado a `minSeries` (el mínimo estimulado se recupera más rápido que una sesión de volumen completo). Entre `minSeries` y `fullVolumeSeries` escala lineal hasta 1. */
+  minFactor: 0.5,
+};
+
 // ---- Capa 2: score de fatiga general ----
 
 /** Cantidad de sesiones elegibles a considerar como máximo (promedio móvil ponderado). */

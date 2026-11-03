@@ -48,8 +48,7 @@ export function RecommendationCard({ recommendation }: { recommendation: Recomme
         <div className="mt-2 space-y-1 rounded-block border border-border bg-surface2 p-3">
           {recommendation.muscleAlerts.map((a) => (
             <p key={a.muscle} className="text-xs text-muted">
-              {a.muscle}: {Math.round(a.hoursSince)}h desde la última vez · recomendado{" "}
-              {Math.round(a.recommendedHours)}h
+              {a.detail}
             </p>
           ))}
           {recommendation.layer2?.params.map((p) => (
