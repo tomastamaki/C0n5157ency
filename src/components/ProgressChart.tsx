@@ -71,6 +71,17 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
   const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
   const shown = points[selectedIdx ?? points.length - 1];
 
+  // Etiquetas visibles por defecto: primero, último, máximo y mínimo (evita amontonar un número en cada punto).
+  // El resto se revela al tocar ese punto (selectedIdx), que además ya muestra el detalle completo abajo.
+  const maxIdx = values.indexOf(max);
+  const minIdx = values.indexOf(min);
+  const labeledIdx = new Set([0, coords.length - 1, maxIdx, minIdx, ...(selectedIdx !== null ? [selectedIdx] : [])]);
+  const midY = PADDING + innerH / 2;
+
+  function formatValue(v: number): string {
+    return `${v.toLocaleString("es-AR", { maximumFractionDigits: 1 })}${active.unit}`;
+  }
+
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -98,16 +109,26 @@ export function ProgressChart({ points }: { points: ProgressionPoint[] }) {
       >
         <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
         {coords.map((c, i) => (
-          <circle
-            key={i}
-            cx={c.x}
-            cy={c.y}
-            r={selectedIdx === i ? 4.5 : 3}
-            fill="currentColor"
-            onClick={() => setSelectedIdx(i)}
-            className="cursor-pointer"
-          />
+          <g key={i} onClick={() => setSelectedIdx(i)} className="cursor-pointer">
+            {/* Área de toque más grande que el punto visible, para que sea fácil de tocar en mobile. */}
+            <circle cx={c.x} cy={c.y} r={10} fill="transparent" />
+            <circle cx={c.x} cy={c.y} r={selectedIdx === i ? 4.5 : 3} fill="currentColor" />
+          </g>
         ))}
+        {coords.map(
+          (c, i) =>
+            labeledIdx.has(i) && (
+              <text
+                key={`label-${i}`}
+                x={c.x}
+                y={c.y + (c.y < midY ? 14 : -8)}
+                textAnchor={i === 0 ? "start" : i === coords.length - 1 ? "end" : "middle"}
+                className="pointer-events-none fill-current font-mono text-[9px] text-ink"
+              >
+                {formatValue(active.valueOf(points[i]))}
+              </text>
+            )
+        )}
       </svg>
       <div className="flex justify-between font-mono text-xs text-faint">
         <span>

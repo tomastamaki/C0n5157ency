@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { EmptyState } from "./EmptyState";
 import { IconActivity } from "./icons";
 
@@ -17,6 +18,8 @@ interface Props {
 }
 
 export function TrendChart({ points, unit = "", colorClassName = "text-primary" }: Props) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
   if (points.length === 0) {
     return (
       <EmptyState
@@ -51,6 +54,17 @@ export function TrendChart({ points, unit = "", colorClassName = "text-primary" 
 
   const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
 
+  // Etiquetas visibles por defecto: primero, último, máximo y mínimo (evita amontonar un número en cada punto).
+  // El resto se revela al tocar ese punto.
+  const maxIdx = values.indexOf(max);
+  const minIdx = values.indexOf(min);
+  const labeledIdx = new Set([0, coords.length - 1, maxIdx, minIdx, ...(selectedIdx !== null ? [selectedIdx] : [])]);
+  const midY = PADDING + innerH / 2;
+
+  function formatValue(v: number): string {
+    return `${v.toLocaleString("es-AR", { maximumFractionDigits: 1 })}${unit}`;
+  }
+
   return (
     <div>
       <svg
@@ -61,23 +75,36 @@ export function TrendChart({ points, unit = "", colorClassName = "text-primary" 
       >
         <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
         {coords.map((c, i) => (
-          <circle key={i} cx={c.x} cy={c.y} r={2.5} fill="currentColor">
-            <title>
-              {c.point.date}: {c.point.value}
-              {unit}
-            </title>
-          </circle>
+          <g key={i} onClick={() => setSelectedIdx(i)} className="cursor-pointer">
+            {/* Área de toque más grande que el punto visible, para que sea fácil de tocar en mobile. */}
+            <circle cx={c.x} cy={c.y} r={10} fill="transparent" />
+            <circle cx={c.x} cy={c.y} r={selectedIdx === i ? 4 : 2.5} fill="currentColor" />
+          </g>
         ))}
+        {coords.map(
+          (c, i) =>
+            labeledIdx.has(i) && (
+              <text
+                key={`label-${i}`}
+                x={c.x}
+                y={c.y + (c.y < midY ? 13 : -7)}
+                textAnchor={i === 0 ? "start" : i === coords.length - 1 ? "end" : "middle"}
+                className="pointer-events-none fill-current font-mono text-[9px] text-ink"
+              >
+                {formatValue(c.point.value)}
+              </text>
+            )
+        )}
       </svg>
+      {selectedIdx !== null && (
+        <p className="mt-1 text-center text-xs text-muted">
+          {coords[selectedIdx].point.date}:{" "}
+          <span className="font-mono text-ink">{formatValue(coords[selectedIdx].point.value)}</span>
+        </p>
+      )}
       <div className="flex justify-between font-mono text-xs text-faint">
-        <span>
-          {min}
-          {unit}
-        </span>
-        <span>
-          {max}
-          {unit}
-        </span>
+        <span>{formatValue(min)}</span>
+        <span>{formatValue(max)}</span>
       </div>
     </div>
   );

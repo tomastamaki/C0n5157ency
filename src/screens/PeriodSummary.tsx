@@ -9,8 +9,6 @@ import {
   getPeriodData,
   getExerciseRows,
   getPerformanceVariation,
-  getSetsByDayType,
-  getSetsByMuscleGroup,
   getLifestylePeriod,
   getMarginToPush,
   getPreviousNonDeloadWeek,
@@ -73,7 +71,6 @@ export function PeriodSummaryScreen({ onBack }: Props) {
 
   const [weekNumber, setWeekNumber] = useState(currentWeekNumber);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<"muscle" | "day">("muscle");
   const [showAllPRs, setShowAllPRs] = useState(false);
 
   const data = useMemo(() => getPeriodData(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
@@ -82,8 +79,6 @@ export function PeriodSummaryScreen({ onBack }: Props) {
     [logs, program, flatDays, cycle, weekNumber]
   );
   const perf = useMemo(() => getPerformanceVariation(rows), [rows]);
-  const daySets = useMemo(() => getSetsByDayType(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
-  const muscleSets = useMemo(() => getSetsByMuscleGroup(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
   const previousWeek = useMemo(() => getPreviousNonDeloadWeek(program, weekNumber), [program, weekNumber]);
 
   const lifestyle = useMemo(
@@ -250,49 +245,6 @@ export function PeriodSummaryScreen({ onBack }: Props) {
           </div>
         ))}
       </div>
-
-      {(muscleSets.length > 0 || daySets.length > 0) && (
-        <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-ink">Series {groupBy === "muscle" ? "por músculo" : "por tipo de día"}</p>
-            <div className="flex gap-1.5">
-              {(["muscle", "day"] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setGroupBy(g)}
-                  className={`rounded-pill px-2.5 py-1 text-xs font-semibold transition-colors ${
-                    groupBy === g ? "bg-primary text-white" : "bg-surface2 text-faint"
-                  }`}
-                >
-                  {g === "muscle" ? "Por músculo" : "Por tipo de día"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            {groupBy === "muscle"
-              ? muscleSets.map((m) => (
-                  <div key={m.muscle} className="flex items-center justify-between text-sm">
-                    <span className="text-muted">{m.muscle}</span>
-                    <span className="flex items-center gap-2">
-                      <span className="font-mono text-ink">{m.sets}</span>
-                      <VariationPill pct={m.vsPreviousPct} neutral />
-                    </span>
-                  </div>
-                ))
-              : daySets.map((d) => (
-                  <div key={d.dayName} className="flex items-center justify-between text-sm">
-                    <span className="text-muted">{d.dayName}</span>
-                    <span className="flex items-center gap-2">
-                      <span className="font-mono text-ink">{d.sets}</span>
-                      <VariationPill pct={d.vsPreviousPct} neutral />
-                    </span>
-                  </div>
-                ))}
-          </div>
-        </div>
-      )}
 
       {lifestyle.length > 0 && (
         <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">

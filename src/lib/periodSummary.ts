@@ -12,7 +12,6 @@ import { parseRepRange } from "./repRange";
 import { SUMMARY_CONFIG } from "./summaryConfig";
 import { DAY_ORDER } from "./history";
 import { dailyValues, metricConfigs, type LifestyleMetricKey } from "./lifestyleKpis";
-import { getMuscleContributions, MUSCLE_GROUPS, OTHER_MUSCLE_GROUP } from "./muscleMapping";
 import { getExerciseProgressForWeek, getWeeksWithData, type ExerciseProgressStatus } from "./progressEngine";
 
 export function getTotalWeeks(program: Program): number {
@@ -240,87 +239,6 @@ export function getPerformanceVariation(rows: ExerciseRow[]): { vsAnterior: numb
     return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   }
   return { vsAnterior: avgOf(rows.map((r) => r.vsAnterior)), vsInicio: avgOf(rows.map((r) => r.vsInicio)) };
-}
-
-// ---------------------------------------------------------------------------
-// Series por tipo de día
-// ---------------------------------------------------------------------------
-
-export interface DaySetsRow {
-  dayName: string;
-  sets: number;
-  vsPreviousPct: number | null;
-}
-
-function setsByDay(logs: LogsData, cycle: number, weekNumber: number | null): Map<string, number> {
-  const m = new Map<string, number>();
-  if (weekNumber === null) return m;
-  logs.sessions
-    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber)
-    .forEach((s) => {
-      const sets = s.exercises.reduce((sum, ex) => sum + ex.sets.filter(isSetLogged).length, 0);
-      m.set(s.dayName, (m.get(s.dayName) ?? 0) + sets);
-    });
-  return m;
-}
-
-/** Series totales por tipo de día de la semana (Upper/Lower/Push/Pull) — vista alternativa a "por músculo". */
-export function getSetsByDayType(logs: LogsData, program: Program, cycle: number, weekNumber: number): DaySetsRow[] {
-  const previousWeek = getPreviousNonDeloadWeek(program, weekNumber);
-  const current = setsByDay(logs, cycle, weekNumber);
-  const previous = setsByDay(logs, cycle, previousWeek);
-
-  return DAY_ORDER.filter((d) => current.has(d)).map((dayName) => {
-    const sets = current.get(dayName) ?? 0;
-    const prevSets = previous.get(dayName);
-    const vsPreviousPct = prevSets && prevSets > 0 ? ((sets - prevSets) / prevSets) * 100 : null;
-    return { dayName, sets, vsPreviousPct };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Series por grupo muscular
-// ---------------------------------------------------------------------------
-
-export interface MuscleSetsRow {
-  muscle: string;
-  sets: number;
-  vsPreviousPct: number | null;
-}
-
-/** Series ponderadas por músculo (1 por serie al primario, SECONDARY_MUSCLE_WEIGHT a cada secundario — ver `muscleMapping.ts`), de la semana. */
-function setsByMuscle(logs: LogsData, cycle: number, weekNumber: number | null): Map<string, number> {
-  const m = new Map<string, number>();
-  if (weekNumber === null) return m;
-  logs.sessions
-    .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber)
-    .forEach((s) => {
-      s.exercises.forEach((ex) => {
-        const setsCount = ex.sets.filter(isSetLogged).length;
-        if (setsCount === 0) return;
-        for (const { muscle, weight } of getMuscleContributions(ex.exercise, ex.originalExercise)) {
-          m.set(muscle, (m.get(muscle) ?? 0) + setsCount * weight);
-        }
-      });
-    });
-  return m;
-}
-
-/** Series ponderadas por grupo muscular de la semana, con la variación vs. la semana anterior (mismo criterio que "por tipo de día"). */
-export function getSetsByMuscleGroup(logs: LogsData, program: Program, cycle: number, weekNumber: number): MuscleSetsRow[] {
-  const previousWeek = getPreviousNonDeloadWeek(program, weekNumber);
-  const current = setsByMuscle(logs, cycle, weekNumber);
-  const previous = setsByMuscle(logs, cycle, previousWeek);
-
-  const order = [...MUSCLE_GROUPS, OTHER_MUSCLE_GROUP];
-  return order
-    .filter((m) => current.has(m))
-    .map((muscle) => {
-      const sets = current.get(muscle) ?? 0;
-      const prevSets = previous.get(muscle);
-      const vsPreviousPct = prevSets && prevSets > 0 ? ((sets - prevSets) / prevSets) * 100 : null;
-      return { muscle, sets: Math.round(sets * 10) / 10, vsPreviousPct };
-    });
 }
 
 // ---------------------------------------------------------------------------
