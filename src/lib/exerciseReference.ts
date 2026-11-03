@@ -1,31 +1,24 @@
 import type { LogsData, LoggedSet, WorkoutSession } from "../types/logs";
-import { isSetLogged, rirToNumber } from "../types/logs";
+import { isSetLogged } from "../types/logs";
 import type { FlatProgramDay } from "../types/program";
 import { getLiteralWorkingSets } from "./program";
-import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
-import { parseRepRange, repRangeDistance, isWithinRepTolerance } from "./repRange";
+import { parseRepRange, repRangeDistance } from "./repRange";
 import { SUMMARY_CONFIG } from "./summaryConfig";
 
-export type ReferenceTier = "same-day" | "other-day" | "approx";
+export type ReferenceTier = "same-day" | "other-day" | "approx" | "none";
 
-export interface ExerciseReference {
-  set: LoggedSet;
-  sessionId: string;
-  dayName: string;
-  weekNumber: number;
-  /** Prescripción histórica reconstruida para esa serie, o null si no se pudo determinar. */
+export interface SetReference {
+  set: LoggedSet | null;
+  sessionId: string | null;
+  dayName: string | null;
+  weekNumber: number | null;
+  /** Prescripción histórica reconstruida para el set devuelto, o null si no se pudo determinar o no hay referencia. */
   prescribedReps: string | null;
   tier: ReferenceTier;
-  e1rm: number;
 }
 
-interface Candidate {
-  set: LoggedSet;
-  session: WorkoutSession;
-  prescribedReps: string | null;
-  e1rm: number;
-}
+const NONE: SetReference = { set: null, sessionId: null, dayName: null, weekNumber: null, prescribedReps: null, tier: "none" };
 
 /**
  * Reconstruye qué rango de reps estaba prescripto para una serie puntual del
@@ -46,123 +39,151 @@ function getHistoricalPrescribedReps(
   return literal[setIndex]?.reps ?? null;
 }
 
-function pickBestInGroup(candidates: Candidate[]): Candidate {
-  let best = candidates[0];
-  for (const c of candidates.slice(1)) {
-    const cWeight = c.set.weightKg as number;
-    const bestWeight = best.set.weightKg as number;
-    if (cWeight > bestWeight || (cWeight === bestWeight && c.e1rm > best.e1rm)) best = c;
-  }
-  return best;
+interface LoggedWithPrescription {
+  set: LoggedSet;
+  prescribedReps: string | null;
 }
 
-function toReference(candidate: Candidate, tier: ReferenceTier): ExerciseReference {
-  return {
-    set: candidate.set,
-    sessionId: candidate.session.id,
-    dayName: candidate.session.dayName,
-    weekNumber: candidate.session.weekNumber,
-    prescribedReps: candidate.prescribedReps,
-    tier,
-    e1rm: candidate.e1rm,
-  };
+/** Sets logueados de un ejercicio en una sesión, con su prescripción histórica reconstruida, en orden de setIndex. */
+function loggedSetsWithPrescription(
+  flatDays: FlatProgramDay[],
+  session: WorkoutSession,
+  exerciseIndex: number,
+  exerciseName: string
+): LoggedWithPrescription[] {
+  const ex = session.exercises[exerciseIndex];
+  if (!ex || ex.exercise !== exerciseName) return [];
+  return ex.sets
+    .filter((s) => isSetLogged(s) && s.weightKg !== null && s.reps !== null && s.rir !== null)
+    .sort((a, b) => a.setIndex - b.setIndex)
+    .map((set) => ({ set, prescribedReps: getHistoricalPrescribedReps(flatDays, session, exerciseIndex, set.setIndex) }));
+}
+
+/** Busca, hacia atrás desde `beforeGlobalSeq`, la sesión más reciente (y el índice del ejercicio en ella) con al menos un set logueado de este ejercicio, opcionalmente filtrando por tipo de día. */
+function findSessionWithExercise(
+  sessionsDesc: WorkoutSession[],
+  exerciseName: string,
+  dayFilter: string | null,
+  skipIds: Set<string>
+): { session: WorkoutSession; exerciseIndex: number } | null {
+  for (const session of sessionsDesc) {
+    if (skipIds.has(session.id)) continue;
+    if (dayFilter !== null && session.dayName !== dayFilter) continue;
+    const exerciseIndex = session.exercises.findIndex((e) => e.exercise === exerciseName);
+    if (exerciseIndex === -1) continue;
+    if (session.exercises[exerciseIndex].sets.some(isSetLogged)) return { session, exerciseIndex };
+  }
+  return null;
 }
 
 /**
- * Encuentra, en orden de recencia, hasta `limit` referencias históricas para
- * una serie de la sesión actual — usando el rango de reps prescripto (no la
- * posición ni el día) como clave, para no mezclar prescripciones distintas
- * de un mismo nombre de ejercicio en rutinas diferentes (ej. "DB Bench
- * Press" sustituto de Upper con 4-6 reps vs. prescripto en Push con 10/20).
+ * Para cada serie actual (identificada por su rango de reps prescripto, en
+ * orden), empareja con SU serie equivalente de una única sesión de
+ * referencia — la más reciente con este ejercicio (misma variante
+ * efectivamente hecha) en el mismo tipo de día; si no hay, la más reciente
+ * en otro tipo de día (con tier "other-day"). Nunca mezcla datos de dos
+ * sesiones distintas para el mismo ejercicio.
  *
- * Prioridad: 1) misma rutina (mismo `dayName`) con la misma prescripción
- * exacta, 2) otra rutina con la misma prescripción exacta, 3) el rango más
- * cercano dentro de la tolerancia configurada (referencia aproximada).
- * Dentro de cada sesión candidata, si hay más de una serie que matchea, se
- * toma la mejor (mayor peso y, si empatan, mayor e1RM).
+ * Emparejamiento dentro de la sesión elegida: por posición dentro del mismo
+ * grupo de prescripción (la 1ª serie de "4-6" con la 1ª de "4-6" de esa
+ * sesión, la 2ª con la 2ª). Si hay más series ahora que en la referencia,
+ * las serie extra reusan la última del grupo. Si un grupo de prescripción
+ * actual no existe en la sesión de referencia, cae a la serie de rango más
+ * cercano todavía no asignada a otra serie actual (tier "approx"). Un mismo
+ * set de la sesión de referencia nunca se asigna a dos series actuales
+ * distintas (salvo el caso de "series extra" explícitamente permitido).
+ *
+ * `limit` sesiones de referencia (de más a menos reciente, todas del mismo
+ * tipo de día que la primera encontrada) para poder comparar "última" contra
+ * "anterior a la última" (ej. sugerencia de peso).
  */
-export function findExerciseReferences(
+export function matchExerciseReferences(
   logs: LogsData,
   flatDays: FlatProgramDay[],
   exerciseName: string,
   currentDayName: string,
-  targetReps: string,
+  currentLiteralReps: string[],
   beforeGlobalSeq: number,
-  limit: number,
+  limit = 1,
   tolerance: number = SUMMARY_CONFIG.repRangeTolerance
-): ExerciseReference[] {
-  const targetRange = parseRepRange(targetReps);
-
-  const sessions = logs.sessions
+): SetReference[][] {
+  const sessionsDesc = logs.sessions
     .filter((s) => s.status === "completed" && globalSeq(s) < beforeGlobalSeq)
     .sort((a, b) => globalSeq(b) - globalSeq(a));
 
-  const sameDayGroups: Candidate[][] = [];
-  const sameRepsGroups: Candidate[][] = [];
-  // Para la referencia aproximada ordenamos por distancia de rango primero, recencia después.
-  const approxFlat: Candidate[] = [];
+  const firstSameDay = findSessionWithExercise(sessionsDesc, exerciseName, currentDayName, new Set());
+  const dayFilter = firstSameDay ? currentDayName : null;
+  const tier: ReferenceTier = firstSameDay ? "same-day" : "other-day";
 
-  for (const session of sessions) {
-    const sameDayCands: Candidate[] = [];
-    const sameRepsCands: Candidate[] = [];
+  const results: SetReference[][] = [];
+  const skipIds = new Set<string>();
+  let next = firstSameDay ?? findSessionWithExercise(sessionsDesc, exerciseName, dayFilter, skipIds);
 
-    session.exercises.forEach((ex, exIndex) => {
-      if (ex.exercise !== exerciseName) return;
-      ex.sets.forEach((set) => {
-        if (!isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) return;
-        const prescribedReps = getHistoricalPrescribedReps(flatDays, session, exIndex, set.setIndex);
-        const e1rm = estimatedE1RM(set.weightKg, set.reps, rirToNumber(set.rir));
-        const candidate: Candidate = { set, session, prescribedReps, e1rm };
-
-        if (prescribedReps === targetReps) {
-          sameRepsCands.push(candidate);
-          if (session.dayName === currentDayName) sameDayCands.push(candidate);
-        } else if (isWithinRepTolerance(set.reps, targetRange, tolerance)) {
-          approxFlat.push(candidate);
-        }
-      });
-    });
-
-    if (sameDayCands.length > 0) sameDayGroups.push(sameDayCands);
-    if (sameRepsCands.length > 0) sameRepsGroups.push(sameRepsCands);
+  while (results.length < limit && next) {
+    results.push(matchWithinSession(flatDays, next.session, next.exerciseIndex, exerciseName, currentLiteralReps, tier, tolerance));
+    skipIds.add(next.session.id);
+    next = findSessionWithExercise(sessionsDesc, exerciseName, dayFilter, skipIds);
   }
 
-  function fromGroups(groups: Candidate[][], tier: ReferenceTier): ExerciseReference[] {
-    return groups.slice(0, limit).map((g) => toReference(pickBestInGroup(g), tier));
-  }
-
-  const sameDay = fromGroups(sameDayGroups, "same-day");
-  if (sameDay.length > 0) return sameDay;
-
-  const sameReps = fromGroups(sameRepsGroups, "other-day");
-  if (sameReps.length > 0) return sameReps;
-
-  if (approxFlat.length === 0) return [];
-  const bySession = new Map<string, Candidate[]>();
-  for (const c of approxFlat) {
-    if (!bySession.has(c.session.id)) bySession.set(c.session.id, []);
-    bySession.get(c.session.id)!.push(c);
-  }
-  const approxGroups = [...bySession.values()].sort((a, b) => {
-    const da = Math.min(...a.map((c) => repRangeDistance(c.set.reps as number, targetRange)));
-    const db = Math.min(...b.map((c) => repRangeDistance(c.set.reps as number, targetRange)));
-    if (da !== db) return da - db;
-    return globalSeq(b[0].session) - globalSeq(a[0].session);
-  });
-  return fromGroups(approxGroups, "approx");
+  while (results.length < limit) results.push(currentLiteralReps.map(() => NONE));
+  return results;
 }
 
-export function findExerciseReference(
-  logs: LogsData,
+function matchWithinSession(
   flatDays: FlatProgramDay[],
+  session: WorkoutSession,
+  exerciseIndex: number,
   exerciseName: string,
-  currentDayName: string,
-  targetReps: string,
-  beforeGlobalSeq: number,
-  tolerance: number = SUMMARY_CONFIG.repRangeTolerance
-): ExerciseReference | null {
-  return (
-    findExerciseReferences(logs, flatDays, exerciseName, currentDayName, targetReps, beforeGlobalSeq, 1, tolerance)[0] ??
-    null
-  );
+  currentLiteralReps: string[],
+  tier: ReferenceTier,
+  tolerance: number
+): SetReference[] {
+  const logged = loggedSetsWithPrescription(flatDays, session, exerciseIndex, exerciseName);
+
+  const groups = new Map<string, LoggedWithPrescription[]>();
+  const ungrouped: LoggedWithPrescription[] = [];
+  for (const item of logged) {
+    if (item.prescribedReps === null) {
+      ungrouped.push(item);
+      continue;
+    }
+    if (!groups.has(item.prescribedReps)) groups.set(item.prescribedReps, []);
+    groups.get(item.prescribedReps)!.push(item);
+  }
+
+  const consumeIndex = new Map<string, number>();
+  const used = new Set<LoggedSet>();
+
+  function toRef(item: LoggedWithPrescription, refTier: ReferenceTier): SetReference {
+    used.add(item.set);
+    return {
+      set: item.set,
+      sessionId: session.id,
+      dayName: session.dayName,
+      weekNumber: session.weekNumber,
+      prescribedReps: item.prescribedReps,
+      tier: refTier,
+    };
+  }
+
+  return currentLiteralReps.map((targetReps) => {
+    const group = groups.get(targetReps);
+    if (group && group.length > 0) {
+      const idx = Math.min(consumeIndex.get(targetReps) ?? 0, group.length - 1);
+      consumeIndex.set(targetReps, (consumeIndex.get(targetReps) ?? 0) + 1);
+      return toRef(group[idx], tier);
+    }
+
+    // Rango no presente en la sesión de referencia: el más cercano entre los sets todavía no usados,
+    // dentro de la tolerancia configurada (si ninguno califica, "sin datos" en vez de un aproximado engañoso).
+    const targetRange = parseRepRange(targetReps);
+    const candidates = logged
+      .filter((item) => !used.has(item.set))
+      .filter((item) => repRangeDistance(item.set.reps as number, targetRange) <= tolerance);
+    if (candidates.length === 0) return NONE;
+    candidates.sort(
+      (a, b) => repRangeDistance(a.set.reps as number, targetRange) - repRangeDistance(b.set.reps as number, targetRange)
+    );
+    return toRef(candidates[0], "approx");
+  });
 }

@@ -3,7 +3,7 @@ import { useApp } from "../context/AppContext";
 import { VideoEmbed } from "../components/VideoEmbed";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getDefaultVariant, withVariantChoice } from "../lib/variants";
-import { findExerciseReference } from "../lib/exerciseReference";
+import { matchExerciseReferences } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
 import { IconChevronLeft } from "../components/icons";
 import type { LogsData } from "../types/logs";
@@ -39,9 +39,14 @@ function PreviewExerciseCard({
   ];
   const isSubstituted = chosen !== group.exercise;
   const literal = getLiteralWorkingSets(group);
-  const references = literal.map((set) =>
-    findExerciseReference(logs, flatDays, chosen, dayName, set.reps, beforeGlobalSeq)
-  );
+  const references = matchExerciseReferences(
+    logs,
+    flatDays,
+    chosen,
+    dayName,
+    literal.map((s) => s.reps),
+    beforeGlobalSeq
+  )[0];
 
   return (
     <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
@@ -56,11 +61,11 @@ function PreviewExerciseCard({
         <span className="shrink-0 text-xs font-medium text-primary">{expanded ? "Ocultar" : "Ver variantes"}</span>
       </button>
 
-      {references.some(Boolean) && (
+      {references.some((r) => r.set !== null) && (
         <ul className="mt-2 space-y-0.5 font-mono text-xs text-muted">
           {literal.map((set, i) => {
             const ref = references[i];
-            if (!ref) return null;
+            if (!ref.set) return null;
             return (
               <li key={i}>
                 S{i + 1} ({set.reps} reps): última vez {ref.set.weightKg}kg × {ref.set.reps}

@@ -12,11 +12,13 @@ import { SettingsScreen } from "./screens/Settings";
 import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import { OnboardingScreen } from "./components/Onboarding";
 import { SyncStatusDot } from "./components/SyncStatusDot";
+import { useAppUpdate } from "./lib/useAppUpdate";
 import type { LifestyleMetricKey } from "./lib/lifestyleKpis";
 import type { WorkoutSession } from "./types/logs";
 
 function AppShell() {
   const { flatDays, logs, settings, updateSettings } = useApp();
+  const { updateAvailable, applyUpdate } = useAppUpdate();
   const [tab, setTab] = useState<TabId>("today");
   const [viewingWorkout, setViewingWorkout] = useState(false);
   const [completedSession, setCompletedSession] = useState<WorkoutSession | null>(null);
@@ -82,6 +84,15 @@ function AppShell() {
 
   return (
     <div className="relative mx-auto min-h-screen max-w-3xl px-4 pt-6 md:flex md:gap-8 md:px-8">
+      {updateAvailable && (
+        <button
+          type="button"
+          onClick={applyUpdate}
+          className="fixed inset-x-0 top-0 z-50 w-full bg-primary py-2 text-center text-sm font-semibold text-white shadow-elevated-sm"
+        >
+          Hay una versión nueva, tocá para actualizar
+        </button>
+      )}
       <Watermark />
       <aside className="relative z-10 hidden shrink-0 md:block md:w-40">
         <div className="mb-6 flex items-center justify-between">

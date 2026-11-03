@@ -5,7 +5,6 @@ import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
 import { buildExerciseDayMap, DAY_ORDER } from "./history";
 import { parseRepRange, isWithinRepTolerance } from "./repRange";
-import { SUMMARY_CONFIG } from "./summaryConfig";
 
 export interface PersonalRecord {
   weightKg: number;
@@ -76,29 +75,38 @@ export function getE1rmRecord(logs: LogsData, exerciseName: string): E1rmRecord 
   return best;
 }
 
+export interface RepRangeRecord {
+  weightKg: number;
+  reps: number;
+  e1rm: number;
+  date: string;
+}
+
 /**
- * Peso máximo histórico registrado para un ejercicio dentro de un rango de
- * reps dado (con tolerancia), sin importar en qué día/rutina se haya hecho —
- * el "PR en 20 reps", independiente del PR general de peso.
+ * Peso máximo histórico registrado para un ejercicio con reps dentro de un
+ * rango dado (por defecto sin tolerancia: el rango literal, ej. "4-6" = 4,5,6),
+ * sin importar en qué día/rutina se haya hecho — el "PR 4-6 reps", independiente
+ * del PR general de peso. Empate de peso se desempata por mayor e1RM.
  */
 export function getPersonalRecordInRepRange(
   logs: LogsData,
   exerciseName: string,
   targetReps: string,
-  tolerance: number = SUMMARY_CONFIG.repRangeTolerance
-): PersonalRecord | null {
+  tolerance = 0
+): RepRangeRecord | null {
   const range = parseRepRange(targetReps);
-  let best: PersonalRecord | null = null;
+  let best: RepRangeRecord | null = null;
 
   for (const session of logs.sessions) {
     if (session.status !== "completed") continue;
     for (const ex of session.exercises) {
       if (ex.exercise !== exerciseName) continue;
       for (const set of ex.sets) {
-        if (!isSetLogged(set) || set.weightKg === null || set.reps === null) continue;
+        if (!isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
         if (!isWithinRepTolerance(set.reps, range, tolerance)) continue;
-        if (!best || set.weightKg > best.weightKg) {
-          best = { weightKg: set.weightKg, reps: set.reps, date: session.completedAt ?? session.startedAt };
+        const e1rm = estimatedE1RM(set.weightKg, set.reps, rirToNumber(set.rir));
+        if (!best || set.weightKg > best.weightKg || (set.weightKg === best.weightKg && e1rm > best.e1rm)) {
+          best = { weightKg: set.weightKg, reps: set.reps, e1rm, date: session.completedAt ?? session.startedAt };
         }
       }
     }

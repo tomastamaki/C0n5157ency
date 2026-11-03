@@ -426,6 +426,16 @@ export function SettingsScreen({ onShowOnboarding }: { onShowOnboarding: () => v
         El token se guarda solo en este dispositivo y nunca se sube al repositorio. Ver el README
         para cómo generar un token con permisos mínimos.
       </p>
+
+      <p className="text-center font-mono text-xs text-faint">
+        Versión {__APP_COMMIT__} · {new Date(__APP_BUILD_DATE__).toLocaleString("es-AR", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </p>
     </div>
   );
 }

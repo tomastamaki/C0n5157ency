@@ -5,6 +5,9 @@ dist
 *.tsbuildinfo
 .tsbuild-node
 
+# Generado en cada build (scripts/gen-sw.mjs) con el hash de commit vigente en ese momento.
+public/sw.js
+
 # El PDF y el Excel de origen son grandes y no hace falta versionarlos;
 # el program.json generado sí se versiona.
 Min-Max_Phase_2_Peak_Physique_4X.pdf

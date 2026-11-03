@@ -16,7 +16,7 @@ import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
 import { getWeightSuggestion } from "../lib/suggestions";
 import { getPersonalRecord, getE1rmRecord, getPersonalRecordInRepRange } from "../lib/records";
-import { findExerciseReference, type ExerciseReference } from "../lib/exerciseReference";
+import { matchExerciseReferences, type SetReference } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
 import { unlockAudio, vibrate } from "../lib/feedback";
 import { withVariantChoice } from "../lib/variants";
@@ -44,8 +44,7 @@ interface SetBlockProps {
   reps: string;
   targetRIR: string;
   logged: LoggedSet;
-  reference: ExerciseReference | null;
-  prInRange: { weightKg: number; reps: number } | null;
+  reference: SetReference;
   suggestion: { weightKg: number; reason: string } | null;
   filled: boolean;
   done: boolean;
@@ -63,7 +62,6 @@ function SetBlock({
   targetRIR,
   logged,
   reference,
-  prInRange,
   suggestion,
   filled,
   done,
@@ -88,7 +86,7 @@ function SetBlock({
         )}
       </div>
       <div className="mb-2">
-        {reference ? (
+        {reference.set ? (
           <>
             <p className="font-mono text-xs text-muted">
               última vez: {reference.set.weightKg}kg × {reference.set.reps}, RIR {reference.set.rir}
@@ -103,12 +101,6 @@ function SetBlock({
           <p className="font-mono text-xs text-faint">última vez: sin datos</p>
         )}
       </div>
-      {prInRange && (
-        <p className="mb-2 flex items-center gap-1 font-mono text-xs text-muted">
-          <IconTrophy className="h-3 w-3 text-accent" />
-          PR en {reps} reps: {prInRange.weightKg}kg × {prInRange.reps}
-        </p>
-      )}
 
       {restTimer && <div className="mb-3">{restTimer}</div>}
 
@@ -266,6 +258,18 @@ export function ExerciseCard({
   const incrementKg = getIncrementKg(settings.exerciseIncrements, displayName);
   const pr = useMemo(() => getPersonalRecord(logs, displayName), [logs, displayName]);
   const e1rmRecord = useMemo(() => getE1rmRecord(logs, displayName), [logs, displayName]);
+  // PR por cada rango de reps distinto que pide esta rutina, una vez por ejercicio (no por serie).
+  const prsByRepRange = useMemo(() => {
+    const uniqueReps = [...new Set(literalSets.map((s) => s.reps))];
+    return uniqueReps
+      .map((reps) => ({ reps, pr: getPersonalRecordInRepRange(logs, displayName, reps) }))
+      .filter((r): r is { reps: string; pr: NonNullable<typeof r.pr> } => r.pr !== null);
+  }, [literalSets, logs, displayName]);
+  const referencesBySet = useMemo(
+    () =>
+      matchExerciseReferences(logs, flatDays, displayName, session.dayName, literalSets.map((s) => s.reps), beforeGlobalSeq, 2),
+    [logs, flatDays, displayName, session.dayName, literalSets, beforeGlobalSeq]
+  );
   const progression = useMemo(
     () => getExerciseProgression(logs, program, displayName, 0, session.dayName),
     [logs, program, displayName, session.dayName]
@@ -395,13 +399,16 @@ export function ExerciseCard({
           {group.intensityTechnique && (
             <p className="text-sm font-medium text-primary">{group.intensityTechnique}</p>
           )}
-          {(pr || e1rmRecord) && (
+          {prsByRepRange.length > 0 && (
             <p className="flex items-center gap-1 text-xs text-muted">
               <IconTrophy className="h-3.5 w-3.5 text-accent" />
               <span className="font-mono">
-                {pr && `PR: ${pr.weightKg}kg × ${pr.reps}`}
-                {pr && e1rmRecord && " · "}
-                {e1rmRecord && `e1RM ${Math.round(e1rmRecord.e1rm)}kg`}
+                {prsByRepRange.map(({ reps, pr: r }, i) => (
+                  <span key={reps}>
+                    {i > 0 && " · "}
+                    PR {reps} reps: {r.weightKg}kg × {r.reps}
+                  </span>
+                ))}
               </span>
             </p>
           )}
@@ -459,23 +466,11 @@ export function ExerciseCard({
             return { set, i, logged, done };
           });
           const firstPendingIdx = setViews.findIndex((v) => !v.done);
-          // El PR de un rango de reps es el mismo para todas las series que comparten esa prescripción
-          // (ej. dos series "4-6"): se muestra una sola vez, en la primera de ellas, no repetido.
-          const shownPrRanges = new Set<string>();
 
           return setViews.map(({ set, i, logged, done }) => {
-            const reference = findExerciseReference(logs, flatDays, displayName, session.dayName, set.reps, beforeGlobalSeq);
-            const suggestion = getWeightSuggestion(
-              logs,
-              flatDays,
-              displayName,
-              session.dayName,
-              set.reps,
-              beforeGlobalSeq,
-              incrementKg
-            );
-            const prInRange = shownPrRanges.has(set.reps) ? null : getPersonalRecordInRepRange(logs, displayName, set.reps);
-            shownPrRanges.add(set.reps);
+            const reference = referencesBySet[0][i];
+            const priorReference = referencesBySet[1][i];
+            const suggestion = getWeightSuggestion(reference, priorReference, incrementKg);
             const filled = isSetFilled(logged);
             const isWeightPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
             const isE1rmPR =
@@ -497,7 +492,6 @@ export function ExerciseCard({
                 targetRIR={set.targetRIR}
                 logged={logged}
                 reference={reference}
-                prInRange={prInRange}
                 suggestion={suggestion}
                 filled={filled}
                 done={done}
