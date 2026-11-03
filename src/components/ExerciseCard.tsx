@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ExerciseGroup } from "../types/program";
-import type { LoggedSet, RIRValue, WorkoutSession } from "../types/logs";
+import type { LoggedSet, RIRValue, TechniqueExtra, WorkoutSession } from "../types/logs";
 import { isSetFilled, isSetLogged, rirToNumber } from "../types/logs";
 import { estimatedE1RM } from "../lib/e1rm";
 import { RIRSelector } from "./RIRSelector";
@@ -17,6 +17,9 @@ import { getIncrementKg } from "../lib/increments";
 import { buildWeightSuggestions, type WeightSuggestion } from "../lib/suggestions";
 import { getWarmupSuggestion, type WarmupSuggestion } from "../lib/warmup";
 import { WARMUP_CONFIG } from "../lib/warmupConfig";
+import { emptyDrop, emptyMiniSet, getDropSetWeightSuggestions, matchTechnique } from "../lib/techniques";
+import { TECHNIQUE_CONFIG } from "../lib/techniqueConfig";
+import type { TechniqueCatalogEntry } from "../lib/techniqueConfig";
 import { getPersonalRecord, getE1rmRecord, getPersonalRecordInRepRange } from "../lib/records";
 import { matchExerciseReferences, type SetReference } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
@@ -52,9 +55,13 @@ interface SetBlockProps {
   done: boolean;
   isNewPR: boolean;
   restTimer?: ReactNode;
+  /** Técnica de intensidad de esta serie (solo la última serie de trabajo del ejercicio puede tenerla), o null. */
+  technique: TechniqueCatalogEntry | null;
+  incrementKg: number;
   onChangeWeight: (weightKg: number | null) => void;
   onChangeReps: (reps: number | null) => void;
   onChangeRir: (rir: RIRValue) => void;
+  onChangeTechnique: (extra: TechniqueExtra | null) => void;
   onConfirm: () => void;
 }
 
@@ -69,9 +76,12 @@ function SetBlock({
   done,
   isNewPR,
   restTimer,
+  technique,
+  incrementKg,
   onChangeWeight,
   onChangeReps,
   onChangeRir,
+  onChangeTechnique,
   onConfirm,
 }: SetBlockProps) {
   return (
@@ -166,6 +176,16 @@ function SetBlock({
         <RIRSelector value={logged.rir} onChange={onChangeRir} />
       </div>
 
+      {technique && done && (
+        <TechniqueSection
+          entry={technique}
+          mainWeightKg={logged.weightKg}
+          incrementKg={incrementKg}
+          extra={logged.technique ?? null}
+          onChange={onChangeTechnique}
+        />
+      )}
+
       <button
         type="button"
         disabled={!filled}
@@ -220,6 +240,191 @@ function WarmupNote({ suggestion }: { suggestion: WarmupSuggestion }) {
           <p className="text-[11px] text-faint">
             Descanso {WARMUP_CONFIG.restSeconds.min}-{WARMUP_CONFIG.restSeconds.max}s entre series de calentamiento.
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Cuenta regresiva simple en segundos; `onDone` se llama una sola vez al llegar a 0. */
+function useCountdown(onDone?: () => void) {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    if (remaining === null || remaining <= 0) return;
+    const t = setTimeout(() => setRemaining((r) => (r !== null ? r - 1 : null)), 1000);
+    return () => clearTimeout(t);
+  }, [remaining]);
+
+  useEffect(() => {
+    if (remaining === 0) onDoneRef.current?.();
+  }, [remaining]);
+
+  return { remaining, start: (seconds: number) => setRemaining(seconds) };
+}
+
+/**
+ * Logueo de la técnica de intensidad (fase 6) de la ÚLTIMA serie de trabajo
+ * de un ejercicio — nunca de toda la serie: son datos "extra" que se
+ * guardan aparte y nunca pisan la serie principal (peso/reps/rir al fallo,
+ * ya logueados arriba), que sigue siendo la única base de e1RM/PR/
+ * sugerencia/referencia/alertas.
+ */
+function TechniqueSection({
+  entry,
+  mainWeightKg,
+  incrementKg,
+  extra,
+  onChange,
+}: {
+  entry: TechniqueCatalogEntry;
+  mainWeightKg: number | null;
+  incrementKg: number;
+  extra: TechniqueExtra | null;
+  onChange: (extra: TechniqueExtra | null) => void;
+}) {
+  const holdCountdown = useCountdown(() => {
+    if (entry.kind !== "static-hold") return;
+    onChange({ kind: "static-hold", weightKg: extra?.kind === "static-hold" ? extra.weightKg : null, seconds: TECHNIQUE_CONFIG.staticHold.seconds });
+  });
+  const restCountdown = useCountdown();
+
+  return (
+    <div className="mt-3 rounded-block border border-primary/30 bg-primary/5 p-3">
+      <p className="text-sm font-semibold text-primary">{entry.label}</p>
+      <p className="mt-0.5 text-xs text-muted">{entry.description}</p>
+
+      {entry.kind === "drop-sets" && (
+        <div className="mt-2 space-y-2">
+          {TECHNIQUE_CONFIG.dropSets.weightPcts.map((pct, i) => {
+            const current = extra?.kind === "drop-sets" ? extra.drops[i] : null;
+            const suggested = mainWeightKg !== null ? getDropSetWeightSuggestions(mainWeightKg, incrementKg)[i] : null;
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <span className="w-12 shrink-0 font-mono text-xs text-faint">~{Math.round(pct * 100)}%</span>
+                <NumericInput
+                  value={current?.weightKg ?? null}
+                  onChange={(weightKg) => {
+                    const base = extra?.kind === "drop-sets" ? extra.drops : [emptyDrop(), emptyDrop()];
+                    const drops = base.map((d, idx) => (idx === i ? { ...d, weightKg } : d));
+                    onChange({ kind: "drop-sets", drops });
+                  }}
+                  allowDecimal
+                  className="h-9 w-20 rounded-pill border border-border bg-surface2 px-2 text-center font-mono text-sm text-ink"
+                />
+                {suggested !== null && (current?.weightKg ?? null) === null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const base = extra?.kind === "drop-sets" ? extra.drops : [emptyDrop(), emptyDrop()];
+                      const drops = base.map((d, idx) => (idx === i ? { ...d, weightKg: suggested } : d));
+                      onChange({ kind: "drop-sets", drops });
+                    }}
+                    className="whitespace-nowrap text-[11px] font-medium text-primary"
+                  >
+                    usar {suggested}kg
+                  </button>
+                )}
+                <span className="text-xs text-faint">×</span>
+                <NumericInput
+                  value={current?.reps ?? null}
+                  onChange={(reps) => {
+                    const base = extra?.kind === "drop-sets" ? extra.drops : [emptyDrop(), emptyDrop()];
+                    const drops = base.map((d, idx) => (idx === i ? { ...d, reps } : d));
+                    onChange({ kind: "drop-sets", drops });
+                  }}
+                  allowDecimal={false}
+                  className="h-9 w-16 rounded-pill border border-border bg-surface2 px-2 text-center font-mono text-sm text-ink"
+                />
+                <span className="text-xs text-faint">reps</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {entry.kind === "partials" && (
+        <div className="mt-2 flex items-center gap-2">
+          <NumericInput
+            value={extra?.kind === "partials" ? extra.partialReps : null}
+            onChange={(partialReps) => onChange({ kind: "partials", partialReps })}
+            allowDecimal={false}
+            className="h-9 w-16 rounded-pill border border-border bg-surface2 px-2 text-center font-mono text-sm text-ink"
+          />
+          <span className="text-xs text-faint">reps parciales</span>
+        </div>
+      )}
+
+      {entry.kind === "myo-reps" && (
+        <div className="mt-2 space-y-2">
+          {(extra?.kind === "myo-reps" ? extra.miniSets : []).map((m, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-xs text-faint">mini {i + 1}</span>
+              <NumericInput
+                value={m.reps}
+                onChange={(reps) => {
+                  const miniSets = (extra?.kind === "myo-reps" ? extra.miniSets : []).map((s, idx) =>
+                    idx === i ? { reps } : s
+                  );
+                  onChange({ kind: "myo-reps", miniSets });
+                }}
+                allowDecimal={false}
+                className="h-9 w-16 rounded-pill border border-border bg-surface2 px-2 text-center font-mono text-sm text-ink"
+              />
+              <span className="text-xs text-faint">reps</span>
+            </div>
+          ))}
+          {(() => {
+            const miniSets = extra?.kind === "myo-reps" ? extra.miniSets : [];
+            const lastMini = miniSets[miniSets.length - 1];
+            const stopped = lastMini && lastMini.reps !== null && lastMini.reps < TECHNIQUE_CONFIG.myoReps.stopBelowReps;
+            if (stopped) return <p className="text-xs text-faint">Listo: esa mini-serie ya dio menos de {TECHNIQUE_CONFIG.myoReps.stopBelowReps} reps.</p>;
+            if (restCountdown.remaining !== null && restCountdown.remaining > 0) {
+              return <p className="font-mono text-sm text-primary">Descansando... {restCountdown.remaining}s</p>;
+            }
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange({ kind: "myo-reps", miniSets: [...miniSets, emptyMiniSet()] });
+                  restCountdown.start(TECHNIQUE_CONFIG.myoReps.restSeconds);
+                }}
+                className="text-sm font-medium text-primary"
+              >
+                + mini-serie (descansá {TECHNIQUE_CONFIG.myoReps.restSeconds}s)
+              </button>
+            );
+          })()}
+        </div>
+      )}
+
+      {entry.kind === "static-hold" && (
+        <div className="mt-2 flex items-center gap-3">
+          <NumericInput
+            value={extra?.kind === "static-hold" ? extra.weightKg : null}
+            onChange={(weightKg) => onChange({ kind: "static-hold", weightKg, seconds: extra?.kind === "static-hold" ? extra.seconds : null })}
+            allowDecimal
+            className="h-9 w-16 rounded-pill border border-border bg-surface2 px-2 text-center font-mono text-sm text-ink"
+          />
+          <span className="text-xs text-faint">kg</span>
+          {holdCountdown.remaining === null ? (
+            <button
+              type="button"
+              onClick={() => holdCountdown.start(TECHNIQUE_CONFIG.staticHold.seconds)}
+              className="text-sm font-medium text-primary"
+            >
+              Arrancar plancha ({TECHNIQUE_CONFIG.staticHold.seconds}s)
+            </button>
+          ) : holdCountdown.remaining > 0 ? (
+            <p className="font-mono text-sm text-primary">{holdCountdown.remaining}s</p>
+          ) : (
+            <p className="text-sm font-medium text-success">¡Listo!</p>
+          )}
+          {extra?.kind === "static-hold" && extra.seconds !== null && (
+            <span className="text-xs text-faint">{extra.seconds}s sostenidos</span>
+          )}
         </div>
       )}
     </div>
@@ -314,6 +519,9 @@ export function ExerciseCard({
 
   const literalSets = useMemo(() => getLiteralWorkingSets(group), [group]);
   const warmup = group.sets.find((s) => s.type === "warmup");
+  // La técnica de intensidad (columna D) se aplica solo sobre la última serie de trabajo, nunca sobre todo el grupo (fase 6).
+  const techniqueEntry = useMemo(() => matchTechnique(group.intensityTechnique), [group.intensityTechnique]);
+  const lastWorkingSetIdx = literalSets.length - 1;
   const beforeGlobalSeq = globalSeq({ programIndex, cycle: session.cycle });
 
   const loggedExercise = session.exercises[groupIndexInDay];
@@ -378,6 +586,18 @@ export function ExerciseCard({
           return next;
         });
         return { ...ex, sets, ...exercisePatch };
+      });
+      return { ...prev, exercises, updatedAt: new Date().toISOString() };
+    });
+  }
+
+  /** A diferencia de `updateSet`, nunca invalida la confirmación: la técnica se carga después de confirmar la serie principal. */
+  function updateSetTechnique(setIndex: number, technique: TechniqueExtra | null) {
+    onUpdateSession((prev) => {
+      const exercises = prev.exercises.map((ex, idx) => {
+        if (idx !== groupIndexInDay) return ex;
+        const sets = ex.sets.map((s) => (s.setIndex === setIndex ? { ...s, technique } : s));
+        return { ...ex, sets };
       });
       return { ...prev, exercises, updatedAt: new Date().toISOString() };
     });
@@ -471,8 +691,8 @@ export function ExerciseCard({
               sustituyendo a {group.exercise} · volver al original
             </button>
           )}
-          {group.intensityTechnique && (
-            <p className="text-sm font-medium text-primary">{group.intensityTechnique}</p>
+          {techniqueEntry && (
+            <p className="text-sm font-medium text-primary">{techniqueEntry.label} en la última serie</p>
           )}
           {prsByRepRange.length > 0 && (
             <p className="flex items-center gap-1 text-xs text-muted">
@@ -579,9 +799,12 @@ export function ExerciseCard({
                     <RestTimer restStartedAt={loggedExercise?.restStartedAt ?? null} targetLabel={group.rest} />
                   ) : undefined
                 }
+                technique={i === lastWorkingSetIdx ? techniqueEntry : null}
+                incrementKg={incrementKg}
                 onChangeWeight={(weightKg) => updateSet(i, { weightKg })}
                 onChangeReps={(reps) => updateSet(i, { reps })}
                 onChangeRir={(rir) => updateSet(i, { rir })}
+                onChangeTechnique={(technique) => updateSetTechnique(i, technique)}
                 onConfirm={() => confirmSet(i, logged)}
               />
             );

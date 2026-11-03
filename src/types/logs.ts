@@ -1,5 +1,19 @@
 export type RIRValue = "0" | "1" | "2" | "3+";
 
+/**
+ * Datos de la técnica de intensidad (columna D del Excel del programa,
+ * `ExerciseGroup.intensityTechnique`) aplicada sobre la ÚLTIMA serie de
+ * trabajo de un ejercicio (fase 6) — nunca sobre el grupo entero. Son datos
+ * "extra": la serie principal (peso/reps/rir ya logueados, al fallo, antes
+ * de la técnica) sigue siendo la única fuente para e1RM/PR/sugerencia/
+ * referencia/alertas/comparaciones. Ver `lib/techniques.ts`.
+ */
+export type TechniqueExtra =
+  | { kind: "drop-sets"; drops: { weightKg: number | null; reps: number | null }[] }
+  | { kind: "partials"; partialReps: number | null }
+  | { kind: "myo-reps"; miniSets: { reps: number | null }[] }
+  | { kind: "static-hold"; weightKg: number | null; seconds: number | null };
+
 export interface LoggedSet {
   /** Índice dentro de los "working sets" de ese ejercicio, en el orden del programa. */
   setIndex: number;
@@ -8,6 +22,8 @@ export interface LoggedSet {
   rir: RIRValue | null;
   /** Confirmación explícita (botón ✓): la serie recién cuenta como registrada cuando esto es true. */
   confirmed: boolean;
+  /** Opcional: ausente en sesiones guardadas antes de la fase 6, o si esta serie no tiene técnica. */
+  technique?: TechniqueExtra | null;
 }
 
 export interface LoggedExercise {

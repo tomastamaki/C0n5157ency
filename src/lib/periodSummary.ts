@@ -13,6 +13,7 @@ import { SUMMARY_CONFIG } from "./summaryConfig";
 import { DAY_ORDER } from "./history";
 import { dailyValues, metricConfigs, type LifestyleMetricKey } from "./lifestyleKpis";
 import { getExerciseProgressForWeek, getWeeksWithData, type ExerciseProgressStatus } from "./progressEngine";
+import { getExtraTonnageKg } from "./techniques";
 
 export function getTotalWeeks(program: Program): number {
   return program.blocks.reduce((sum, b) => sum + b.weeks.length, 0);
@@ -63,7 +64,7 @@ export function getPeriodData(logs: LogsData, program: Program, cycle: number, w
     for (const ex of s.exercises) {
       for (const set of ex.sets) {
         if (!isSetLogged(set) || set.weightKg === null || set.reps === null || set.rir === null) continue;
-        tonnageKg += set.weightKg * set.reps;
+        tonnageKg += set.weightKg * set.reps + getExtraTonnageKg(set);
         totalSets += 1;
         rirValues.push(rirToNumber(set.rir));
       }
