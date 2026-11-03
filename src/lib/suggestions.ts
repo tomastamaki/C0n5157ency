@@ -57,6 +57,20 @@ export function buildWeightSuggestions(
     groupIndexesByReps.get(s.reps)!.push(i);
   });
 
+  // Estado de cada serie individual contra SU PROPIA referencia, para poder explicar
+  // con precisión cuál fue el motivo real de no subir (y de quién, si no es de esta serie).
+  interface PositionStatus {
+    reachedCeiling: boolean;
+    rirOk: boolean;
+  }
+  const positionStatus: (PositionStatus | null)[] = literalSets.map((_, i) => {
+    const ref = references[i];
+    if (!ref || ref.reps === null || ref.rir === null) return null; // no evaluable: no bloquea al resto del grupo
+    const targetRir = targetRirs[i];
+    const rirOk = targetRir === null || rirToNumber(ref.rir) >= targetRir;
+    return { reachedCeiling: ref.reps >= ranges[i].max, rirOk };
+  });
+
   const groupCanRaise = new Map<string, boolean>();
   const groupWeightDropped = new Map<string, boolean>();
   for (const [reps, indexes] of groupIndexesByReps) {
@@ -66,14 +80,33 @@ export function buildWeightSuggestions(
     const weights = groupRefs.map((r) => r.weightKg as number);
     const weightDropped = weights.some((w, i) => i > 0 && w < weights[i - 1]);
     const reachedCeilingWithRir = indexes.every((i) => {
-      const ref = references[i];
-      if (!ref || ref.reps === null || ref.rir === null) return true; // no evaluable: no bloquea al resto del grupo
-      const targetRir = targetRirs[i];
-      const rirOk = targetRir === null || rirToNumber(ref.rir) >= targetRir;
-      return ref.reps >= ranges[i].max && rirOk;
+      const status = positionStatus[i];
+      return status === null || (status.reachedCeiling && status.rirOk); // no evaluable: no bloquea al resto del grupo
     });
     groupWeightDropped.set(reps, weightDropped);
     groupCanRaise.set(reps, !weightDropped && reachedCeilingWithRir && groupRefs.length > 0);
+  }
+
+  /** Motivo específico por el que ESTA serie (índice `i`, dentro del grupo `reps`) no sube: su propio déficit, o el de la serie del grupo que sí bloquea. */
+  function explainWhyNotRaising(i: number, reps: string, ref: LoggedSet): string {
+    const own = positionStatus[i]!;
+    const range = ranges[i];
+    if (!own.reachedCeiling) {
+      return `te quedaste en ${ref.reps} reps (tope ${range.max}) la última vez: todavía no llegaste al tope de esta serie`;
+    }
+    if (!own.rirOk) {
+      return `llegaste a ${ref.reps} reps, pero con RIR ${ref.rir} (pedía RIR ${literalSets[i].targetRIR}): fuiste más cerca del fallo de lo pedido, no cuenta como "al tope"`;
+    }
+    // Esta serie en particular está al tope con buen RIR: si no sube, el bloqueo es de OTRA serie del mismo grupo (nunca de esta misma).
+    const siblingIdx = groupIndexesByReps
+      .get(reps)!
+      .find((j) => j !== i && positionStatus[j] !== null && !(positionStatus[j]!.reachedCeiling && positionStatus[j]!.rirOk));
+    if (siblingIdx !== undefined) {
+      const sibling = positionStatus[siblingIdx]!;
+      const siblingProblem = !sibling.reachedCeiling ? "no llegó al tope" : "llegó pero fue más cerca del fallo de lo pedido";
+      return `esta serie sí llegó al tope, pero la serie ${siblingIdx + 1} de este mismo rango ${siblingProblem} la última vez: suben juntas o no sube ninguna`;
+    }
+    return "todavía no hay datos suficientes de este grupo para subir";
   }
 
   return references.map((ref, i) => {
@@ -105,7 +138,7 @@ export function buildWeightSuggestions(
     if (!groupCanRaise.get(reps)) {
       const reason = groupWeightDropped.get(reps)
         ? "bajaste el peso entre series de este mismo rango la última vez"
-        : "las reps quedaron lejos del tope la última vez";
+        : explainWhyNotRaising(i, reps, ref);
       return { weightKg: ref.weightKg, mode: "hold" as const, estimatedReps: null, extendedRange: null, reason };
     }
 

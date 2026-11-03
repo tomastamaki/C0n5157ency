@@ -115,10 +115,66 @@ describe("buildWeightSuggestions — no sube si bajó el peso entre series o las
     expect(s2!.mode).toBe("hold");
   });
 
-  it("las reps quedaron lejos del tope: mantiene", () => {
+  it("las reps quedaron lejos del tope: mantiene, y el motivo dice que ESTA serie no llegó al tope", () => {
     const literalSets = [{ reps: "4-6", targetRIR: "1" }];
     const [s] = buildWeightSuggestions(literalSets, [set(60, 5, "1")], 2.5); // 5 reps, dentro del rango pero no en el tope (6)
     expect(s!.mode).toBe("hold");
     expect(s!.weightKg).toBe(60);
+    expect(s!.reason).toContain("te quedaste en 5 reps (tope 6)");
+  });
+});
+
+describe("buildWeightSuggestions — bug real encontrado en auditoría: el motivo debe corresponder a la regla que decidió, no un texto genérico", () => {
+  it("caso del usuario: 8 reps logradas en un rango objetivo 6-8, RIR cumplido, sin bajar peso -> sube (nunca 'mantener')", () => {
+    const literalSets = [{ reps: "6-8", targetRIR: "1" }];
+    const [s] = buildWeightSuggestions(literalSets, [set(50, 8, "1")], 2.5);
+    expect(s!.mode).toBe("raise");
+  });
+
+  it("todas las series del grupo llegan al tope y cumplen RIR, pero UNA de ellas bajó el peso: hold, motivo correcto (no el genérico de 'reps lejos')", () => {
+    const literalSets = [
+      { reps: "4-6", targetRIR: "0" },
+      { reps: "4-6", targetRIR: "0" },
+    ];
+    // Ambas llegan a 6 reps (tope) con RIR 0 (cumple), pero el peso bajó de 65 a 60 entre series: no debe sugerir subir.
+    const [s1, s2] = buildWeightSuggestions(literalSets, [set(65, 6, "0"), set(60, 6, "0")], 2.5);
+    expect(s1!.mode).toBe("hold");
+    expect(s2!.mode).toBe("hold");
+    expect(s1!.reason).toContain("bajaste el peso entre series");
+  });
+
+  it("caso real Hack Squat: ambas series llegan a 6 reps (tope), pero una de ellas no cumple SU PROPIO RIR objetivo (fue a RIR 0 cuando pedía RIR 2) — no sube, y el motivo no dice 'reps lejos del tope' porque las reps sí llegaron", () => {
+    const literalSets = [
+      { reps: "4-6", targetRIR: "0" },
+      { reps: "4-6", targetRIR: "2" },
+    ];
+    const references = [set(65, 6, "1"), set(65, 6, "0")]; // set2: RIR logrado 0 < RIR objetivo 2 -> no cumple
+    const [s1, s2] = buildWeightSuggestions(literalSets, references, 2.5);
+    expect(s1!.mode).toBe("hold");
+    expect(s2!.mode).toBe("hold");
+    // La serie 1 (propia) está perfecta: el motivo debe señalar que el bloqueo es de la OTRA serie del grupo, no un genérico de "reps lejos".
+    expect(s1!.reason).not.toContain("reps quedaron lejos del tope");
+    expect(s1!.reason).toContain("serie 2");
+    // La serie 2 es la que falla, por su propio RIR (no por reps, que sí llegaron a 6).
+    expect(s2!.reason).toContain("RIR 0");
+    expect(s2!.reason).toContain("pedía RIR 2");
+  });
+
+  it("esta serie no llegó a su propio tope (reps por debajo), aunque el RIR haya sido perfecto: el motivo debe hablar de reps, no de RIR", () => {
+    const literalSets = [{ reps: "6-8", targetRIR: "0" }];
+    const [s] = buildWeightSuggestions(literalSets, [set(50, 7, "0")], 2.5); // 7 reps < tope 8, RIR 0 cumplido
+    expect(s!.mode).toBe("hold");
+    expect(s!.reason).toContain("te quedaste en 7 reps (tope 8)");
+  });
+
+  it("esta serie llegó al tope pero con menos RIR del pedido (le sobró margen de más, no a propósito): el motivo debe hablar de RIR, no de reps", () => {
+    const literalSets = [{ reps: "6-8", targetRIR: "2" }];
+    const [s] = buildWeightSuggestions(literalSets, [set(50, 8, "0")], 2.5); // 8 reps = tope, pero RIR 0 < objetivo 2
+    expect(s!.mode).toBe("hold");
+    expect(s!.reason).toContain("RIR 0");
+    expect(s!.reason).toContain("pedía RIR 2");
+    expect(s!.reason).toContain("más cerca del fallo de lo pedido");
+    expect(s!.reason).not.toContain("te sobró margen");
+    expect(s!.reason).not.toContain("tope de esta serie");
   });
 });
