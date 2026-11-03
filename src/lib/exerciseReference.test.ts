@@ -53,7 +53,7 @@ describe("matchExerciseReferences — Machine Chest Press (4-6, 4-6, 20)", () =>
   const beforeSeq = globalSeq({ programIndex: week2Upper, cycle: 0 });
 
   it("ninguna serie recibe la referencia de otra: cada '4-6' trae su propio set, no el mismo duplicado", () => {
-    const [refs] = matchExerciseReferences(logs, flatDays, "Machine Chest Press", "Upper", ["4-6", "4-6", "20"], beforeSeq);
+    const [refs] = matchExerciseReferences(logs, flatDays, program, "Machine Chest Press", "Upper", ["4-6", "4-6", "20"], beforeSeq);
     expect(refs[0].set).toEqual(expect.objectContaining({ weightKg: 60, reps: 5, rir: "1" }));
     expect(refs[1].set).toEqual(expect.objectContaining({ weightKg: 62.5, reps: 6, rir: "2" }));
     expect(refs[2].set).toEqual(expect.objectContaining({ weightKg: 40, reps: 20, rir: "1" }));
@@ -66,6 +66,7 @@ describe("matchExerciseReferences — Machine Chest Press (4-6, 4-6, 20)", () =>
     const [refs] = matchExerciseReferences(
       logs,
       flatDays,
+      program,
       "Machine Chest Press",
       "Upper",
       ["4-6", "4-6", "4-6", "20"],
@@ -79,7 +80,7 @@ describe("matchExerciseReferences — Machine Chest Press (4-6, 4-6, 20)", () =>
 
   it("sin ningún registro histórico, todas las series quedan 'sin datos'", () => {
     const empty = logsWith([]);
-    const [refs] = matchExerciseReferences(empty, flatDays, "Machine Chest Press", "Upper", ["4-6", "4-6", "20"], beforeSeq);
+    const [refs] = matchExerciseReferences(empty, flatDays, program, "Machine Chest Press", "Upper", ["4-6", "4-6", "20"], beforeSeq);
     expect(refs.every((r) => r.set === null && r.tier === "none")).toBe(true);
   });
 });
@@ -93,7 +94,7 @@ describe("matchExerciseReferences — fallback a otra rutina y a aproximado", ()
     const week1Push = findProgramIndex(1, "Push");
     const beforeSeq = globalSeq({ programIndex: week1Push, cycle: 0 });
     // Push pide DB Bench Press con reps "10","20" — "10" no existe en Upper, "20" sí.
-    const [refs] = matchExerciseReferences(logs, flatDays, "DB Bench Press", "Push", ["10", "20"], beforeSeq);
+    const [refs] = matchExerciseReferences(logs, flatDays, program, "DB Bench Press", "Push", ["10", "20"], beforeSeq);
     expect(refs[0].tier).toBe("none"); // "10" no matchea con las "4-6" de Upper (fuera de tolerancia)
     expect(refs[1].set?.weightKg).toBe(35); // "20" matchea exacto, de otra rutina
     expect(refs[1].tier).toBe("other-day");
@@ -105,7 +106,7 @@ describe("matchExerciseReferences — fallback a otra rutina y a aproximado", ()
     const logs = logsWith([session("w1", 1, "Lower", [ex("Hack Squat", [set(0, 80, 7, "1")])])]);
     const week2Lower = findProgramIndex(2, "Lower");
     const beforeSeq = globalSeq({ programIndex: week2Lower, cycle: 0 });
-    const [refs] = matchExerciseReferences(logs, flatDays, "Hack Squat", "Lower", ["4-6"], beforeSeq);
+    const [refs] = matchExerciseReferences(logs, flatDays, program, "Hack Squat", "Lower", ["4-6"], beforeSeq);
     // 7 reps vs rango 4-6: distancia 1, dentro de la tolerancia default (1) -> aproximado
     expect(refs[0].set?.reps).toBe(7);
     expect(refs[0].tier).toBe("approx");
@@ -115,7 +116,7 @@ describe("matchExerciseReferences — fallback a otra rutina y a aproximado", ()
     const logs = logsWith([session("w1", 1, "Lower", [ex("Hack Squat", [set(0, 80, 20, "1")])])]);
     const week2Lower = findProgramIndex(2, "Lower");
     const beforeSeq = globalSeq({ programIndex: week2Lower, cycle: 0 });
-    const [refs] = matchExerciseReferences(logs, flatDays, "Hack Squat", "Lower", ["4-6"], beforeSeq);
+    const [refs] = matchExerciseReferences(logs, flatDays, program, "Hack Squat", "Lower", ["4-6"], beforeSeq);
     expect(refs[0].set).toBeNull();
     expect(refs[0].tier).toBe("none");
   });
@@ -129,7 +130,7 @@ describe("matchExerciseReferences — límite de sesiones (última vs. anterior 
     ]);
     const week3Upper = findProgramIndex(3, "Upper");
     const beforeSeq = globalSeq({ programIndex: week3Upper, cycle: 0 });
-    const [last, prior] = matchExerciseReferences(logs, flatDays, "Machine Chest Press", "Upper", ["4-6", "4-6"], beforeSeq, 2);
+    const [last, prior] = matchExerciseReferences(logs, flatDays, program, "Machine Chest Press", "Upper", ["4-6", "4-6"], beforeSeq, 2);
     expect(last[0].set?.weightKg).toBe(62.5);
     expect(prior[0].set?.weightKg).toBe(60);
     expect(last[0].sessionId).not.toBe(prior[0].sessionId);

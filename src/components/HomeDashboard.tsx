@@ -60,14 +60,17 @@ export function HomeDashboard({
     [logs, program, cycle, currentWeekNumber]
   );
   const weekRows = useMemo(
-    () => getExerciseRows(logs, program, cycle, currentWeekNumber),
-    [logs, program, cycle, currentWeekNumber]
+    () => getExerciseRows(logs, program, flatDays, cycle, currentWeekNumber),
+    [logs, program, flatDays, cycle, currentWeekNumber]
   );
   const weekPerf = useMemo(() => getPerformanceVariation(weekRows), [weekRows]);
 
   const streak = useMemo(() => getCurrentStreak(logs, cycle), [logs, cycle]);
-  const attention = useMemo(() => getAttentionFlags(logs, cycle, program), [logs, cycle, program]);
-  const highlight = useMemo(() => getHighlightExercise(logs, cycle, program), [logs, cycle, program]);
+  const attention = useMemo(() => getAttentionFlags(logs, cycle, program, flatDays), [logs, cycle, program, flatDays]);
+  const highlight = useMemo(
+    () => getHighlightExercise(logs, cycle, program, flatDays),
+    [logs, cycle, program, flatDays]
+  );
   const lastSession = useMemo(() => getLastCompletedSession(logs, cycle), [logs, cycle]);
   const lastSessionPRs = useMemo(
     () => (lastSession ? countPRsInSession(logs, lastSession) : 0),
@@ -259,7 +262,9 @@ export function HomeDashboard({
           <p className="text-sm font-semibold text-ink">Necesita atención</p>
           {attention.map((flag, i) => (
             <div key={i} className="rounded-block border-l-[3px] border-l-warning bg-surface p-3 shadow-elevated-sm">
-              <p className="text-sm font-medium text-ink">{flag.exercise}</p>
+              <p className="text-sm font-medium text-ink">
+                {flag.exercise} <span className="text-xs font-normal text-faint">· {flag.kind === "stalled" ? "estancado" : "a vigilar"}</span>
+              </p>
               <p className="text-xs text-muted">{flag.detail}</p>
             </div>
           ))}

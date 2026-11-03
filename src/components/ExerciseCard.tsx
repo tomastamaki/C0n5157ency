@@ -14,7 +14,7 @@ import { getExerciseProgression } from "../lib/history";
 import { getCurrentNote, noteEntryId } from "../lib/exerciseNotes";
 import { getLiteralWorkingSets } from "../lib/program";
 import { getIncrementKg } from "../lib/increments";
-import { getWeightSuggestion } from "../lib/suggestions";
+import { buildWeightSuggestions, type WeightSuggestion } from "../lib/suggestions";
 import { getPersonalRecord, getE1rmRecord, getPersonalRecordInRepRange } from "../lib/records";
 import { matchExerciseReferences, type SetReference } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
@@ -45,7 +45,7 @@ interface SetBlockProps {
   targetRIR: string;
   logged: LoggedSet;
   reference: SetReference;
-  suggestion: { weightKg: number; reason: string } | null;
+  suggestion: WeightSuggestion | null;
   filled: boolean;
   done: boolean;
   isNewPR: boolean;
@@ -126,13 +126,30 @@ function SetBlock({
       </div>
 
       {suggestion && logged.weightKg === null && (
-        <button
-          type="button"
-          onClick={() => onChangeWeight(suggestion.weightKg)}
-          className="mt-2 font-mono text-xs font-medium text-primary"
-        >
-          Sugerido: {suggestion.weightKg}kg ({suggestion.reason})
-        </button>
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => onChangeWeight(suggestion.weightKg)}
+            className="font-mono text-xs font-medium text-primary"
+          >
+            {suggestion.mode === "raise" && (
+              <>
+                Sugerido: {suggestion.weightKg}kg
+                {suggestion.estimatedReps && ` · ~${suggestion.estimatedReps.min}-${suggestion.estimatedReps.max} reps`}
+              </>
+            )}
+            {suggestion.mode === "hold" && <>Mantener: {suggestion.weightKg}kg</>}
+            {suggestion.mode === "step-down" && <>Bajar a: {suggestion.weightKg}kg</>}
+            {" "}
+            ({suggestion.reason})
+          </button>
+          {suggestion.extendedRange && (
+            <p className="mt-0.5 text-[11px] text-faint">
+              Rango de hoy: {reps} · buscá {suggestion.extendedRange.min}-{suggestion.extendedRange.max} reps con{" "}
+              {suggestion.weightKg}kg
+            </p>
+          )}
+        </div>
       )}
 
       {isNewPR && (
@@ -267,8 +284,12 @@ export function ExerciseCard({
   }, [literalSets, logs, displayName]);
   const referencesBySet = useMemo(
     () =>
-      matchExerciseReferences(logs, flatDays, displayName, session.dayName, literalSets.map((s) => s.reps), beforeGlobalSeq, 2),
-    [logs, flatDays, displayName, session.dayName, literalSets, beforeGlobalSeq]
+      matchExerciseReferences(logs, flatDays, program, displayName, session.dayName, literalSets.map((s) => s.reps), beforeGlobalSeq, 2),
+    [logs, flatDays, program, displayName, session.dayName, literalSets, beforeGlobalSeq]
+  );
+  const suggestions = useMemo(
+    () => buildWeightSuggestions(literalSets, referencesBySet[0].map((r) => r.set), incrementKg),
+    [literalSets, referencesBySet, incrementKg]
   );
   const progression = useMemo(
     () => getExerciseProgression(logs, program, displayName, 0, session.dayName),
@@ -469,8 +490,7 @@ export function ExerciseCard({
 
           return setViews.map(({ set, i, logged, done }) => {
             const reference = referencesBySet[0][i];
-            const priorReference = referencesBySet[1][i];
-            const suggestion = getWeightSuggestion(reference, priorReference, incrementKg);
+            const suggestion = suggestions[i];
             const filled = isSetFilled(logged);
             const isWeightPR = filled && logged.weightKg !== null && (!pr || logged.weightKg > pr.weightKg);
             const isE1rmPR =

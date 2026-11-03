@@ -6,6 +6,7 @@ import { getPersonalRecordEvents } from "./records";
 import { estimatedE1RM, PROGRESSION_CONFIG } from "./e1rm";
 import { isDeloadWeek } from "./recommendation";
 import { getExerciseMuscles } from "./muscleMapping";
+import { getExerciseProgressForWeek, getWeeksWithData, isProgressingOrImproving } from "./progressEngine";
 import { globalSeq } from "./cycle";
 
 /** Los KPIs de "momentum" (racha, atención, destacado, último entrenamiento) solo miran el ciclo actual. */
@@ -55,7 +56,7 @@ export function getPRsInWeek(logs: LogsData, weekNumber: number, cycle: number):
 
 export interface AttentionFlag {
   exercise: string;
-  kind: "e1rm_decline";
+  kind: "e1rm_decline" | "stalled";
   detail: string;
 }
 
@@ -76,8 +77,19 @@ export interface AttentionFlag {
  * nombre puede ser un sustituto en una rutina y el prescripto en otra con
  * una prescripción de reps distinta (ej. "DB Bench Press" en Upper vs.
  * Push), y mezclar esos dos historiales daría una caída/mejora falsa.
+ *
+ * Veto (fase 2): un ejercicio que la semana más reciente clasificó como
+ * Progresa, o Mixto con e1RM al alza (motor único de progresión, ver
+ * `progressEngine.ts`), nunca se marca, aunque el chequeo de e1RM sostenido
+ * lo hubiera disparado.
  */
-export function getAttentionFlags(logs: LogsData, cycle: number, program: Program, limit = 3): AttentionFlag[] {
+export function getAttentionFlags(
+  logs: LogsData,
+  cycle: number,
+  program: Program,
+  flatDays: FlatProgramDay[],
+  limit = 3
+): AttentionFlag[] {
   const byExercise = new Map<string, { exercise: string; points: { e1rm: number; weekNumber: number }[] }>();
   const completed = filterByCycle(logs, cycle)
     .sessions.filter((s) => s.status === "completed" && !isDeloadWeek(program, s.weekNumber))
@@ -96,26 +108,56 @@ export function getAttentionFlags(logs: LogsData, cycle: number, program: Progra
     }
   }
 
+  function isVetoed(dayName: string, exercise: string): boolean {
+    const weeks = getWeeksWithData(logs, program, cycle, dayName, exercise);
+    if (weeks.length < 2) return false;
+    const latest = weeks[weeks.length - 1];
+    const base = weeks[weeks.length - 2];
+    const progress = getExerciseProgressForWeek(logs, flatDays, cycle, dayName, exercise, latest, base, false);
+    return isProgressingOrImproving(progress);
+  }
+
   const flags: AttentionFlag[] = [];
   const declineCount = PROGRESSION_CONFIG.attentionDeclineSessionCount;
   const tolerance = PROGRESSION_CONFIG.attentionTolerancePct / 100;
+  const stalledCount = PROGRESSION_CONFIG.stalledSessionCount;
 
-  for (const { exercise, points } of byExercise.values()) {
-    if (points.length < declineCount + 1) continue;
+  for (const [key, { exercise, points }] of byExercise) {
+    const dayName = key.split("::")[0];
 
-    const recent = points.slice(-declineCount);
-    const baselinePoints = points.slice(0, points.length - declineCount);
-    const baseline = baselinePoints.reduce((sum, p) => sum + p.e1rm, 0) / baselinePoints.length;
-    const threshold = baseline * (1 - tolerance);
+    if (points.length >= declineCount + 1) {
+      const recent = points.slice(-declineCount);
+      const baselinePoints = points.slice(0, points.length - declineCount);
+      const baseline = baselinePoints.reduce((sum, p) => sum + p.e1rm, 0) / baselinePoints.length;
+      const threshold = baseline * (1 - tolerance);
 
-    const sustainedDecline = recent.every((p) => p.e1rm < threshold);
-    if (sustainedDecline) {
-      const last = recent[recent.length - 1];
-      flags.push({
-        exercise,
-        kind: "e1rm_decline",
-        detail: `e1RM bajó de ${Math.round(baseline)} a ${Math.round(last.e1rm)}kg en ${declineCount} sesiones`,
+      const sustainedDecline = recent.every((p) => p.e1rm < threshold);
+      if (sustainedDecline && !isVetoed(dayName, exercise)) {
+        const last = recent[recent.length - 1];
+        flags.push({
+          exercise,
+          kind: "e1rm_decline",
+          detail: `e1RM bajó de ${Math.round(baseline)} a ${Math.round(last.e1rm)}kg en ${declineCount} sesiones`,
+        });
+        continue;
+      }
+    }
+
+    // Estancamiento: las últimas `stalledCount` semanas (cada una contra la inmediatamente anterior) salieron "Estable".
+    if (points.length >= stalledCount + 1) {
+      const weeks = points.slice(-(stalledCount + 1)).map((p) => p.weekNumber);
+      const allStable = weeks.slice(1).every((week, idx) => {
+        const base = weeks[idx];
+        const progress = getExerciseProgressForWeek(logs, flatDays, cycle, dayName, exercise, week, base, false);
+        return progress.status === "stable";
       });
+      if (allStable && !isVetoed(dayName, exercise)) {
+        flags.push({
+          exercise,
+          kind: "stalled",
+          detail: `mismo rendimiento en las últimas ${stalledCount} sesiones (sin avance ni retroceso)`,
+        });
+      }
     }
   }
 
@@ -132,8 +174,14 @@ export interface HighlightExercise {
  * más reciente de ese ciclo). Se mira por ejercicio + tipo de día, para no
  * mezclar el historial de un mismo nombre usado como sustituto en una
  * rutina y prescripto en otra con una prescripción de reps distinta.
+ *
+ * Gate (fase 2): además de tener %-mejora positivo a largo plazo, la semana
+ * más reciente tiene que clasificar como Progresa (o Mixto con e1RM al
+ * alza) contra su propia base — mismo motor único que el resto de la app —
+ * para no destacar un ejercicio que viene mejorando en general pero que
+ * ahora mismo está retrocediendo.
  */
-export function getHighlightExercise(logs: LogsData, cycle: number, program: Program): HighlightExercise | null {
+export function getHighlightExercise(logs: LogsData, cycle: number, program: Program, flatDays: FlatProgramDay[]): HighlightExercise | null {
   const scoped = filterByCycle(logs, cycle);
   const pairs = new Set<string>();
   for (const s of scoped.sessions) {
@@ -145,9 +193,23 @@ export function getHighlightExercise(logs: LogsData, cycle: number, program: Pro
   for (const pair of pairs) {
     const [dayName, name] = pair.split("::");
     const pct = getPctImprovement(getExerciseProgression(scoped, program, name, 0, dayName));
-    if (pct !== null && pct > 0 && (!best || pct > best.pct)) {
-      best = { exercise: name, pct };
-    }
+    if (pct === null || pct <= 0 || (best && pct <= best.pct)) continue;
+
+    const weeks = getWeeksWithData(logs, program, cycle, dayName, name);
+    if (weeks.length < 2) continue;
+    const progress = getExerciseProgressForWeek(
+      logs,
+      flatDays,
+      cycle,
+      dayName,
+      name,
+      weeks[weeks.length - 1],
+      weeks[weeks.length - 2],
+      false
+    );
+    if (!isProgressingOrImproving(progress)) continue;
+
+    best = { exercise: name, pct };
   }
   return best;
 }

@@ -30,15 +30,19 @@ interface Props {
 const STATUS_LABEL: Record<ExerciseRow["status"], string> = {
   progress: "Progresa",
   stable: "Estable",
-  decline: "Baja",
-  "new-variant": "Variante nueva",
+  regression: "Retrocede",
+  mixed: "Mixto",
+  new: "Variante nueva",
+  deload: "Deload",
 };
 
 const STATUS_BORDER: Record<ExerciseRow["status"], string> = {
   progress: "border-l-success",
   stable: "border-l-border",
-  decline: "border-l-warning",
-  "new-variant": "border-l-border",
+  regression: "border-l-warning",
+  mixed: "border-l-warning",
+  new: "border-l-border",
+  deload: "border-l-border",
 };
 
 function ExerciseRowDetail({ row }: { row: ExerciseRow }) {
@@ -53,6 +57,7 @@ function ExerciseRowDetail({ row }: { row: ExerciseRow }) {
         Promedio de esta semana: <span className="font-mono text-ink">{row.avgE1rm ? Math.round(row.avgE1rm) : "—"}kg e1RM</span>{" "}
         · {row.setsCount} serie{row.setsCount !== 1 ? "s" : ""}
       </p>
+      <p className="mb-2 text-xs text-faint">{row.statusDetail}</p>
       <ProgressChart points={points} />
     </div>
   );
@@ -72,7 +77,10 @@ export function PeriodSummaryScreen({ onBack }: Props) {
   const [showAllPRs, setShowAllPRs] = useState(false);
 
   const data = useMemo(() => getPeriodData(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
-  const rows = useMemo(() => getExerciseRows(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
+  const rows = useMemo(
+    () => getExerciseRows(logs, program, flatDays, cycle, weekNumber),
+    [logs, program, flatDays, cycle, weekNumber]
+  );
   const perf = useMemo(() => getPerformanceVariation(rows), [rows]);
   const daySets = useMemo(() => getSetsByDayType(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
   const muscleSets = useMemo(() => getSetsByMuscleGroup(logs, program, cycle, weekNumber), [logs, program, cycle, weekNumber]);
@@ -83,7 +91,7 @@ export function PeriodSummaryScreen({ onBack }: Props) {
     [logs, cycle, weekNumber, previousWeek]
   );
 
-  const attention = useMemo(() => getAttentionFlags(logs, cycle, program), [logs, cycle, program]);
+  const attention = useMemo(() => getAttentionFlags(logs, cycle, program, flatDays), [logs, cycle, program, flatDays]);
   const marginToPush = useMemo(
     () => getMarginToPush(logs, program, flatDays, settings, cycle, weekNumber),
     [logs, program, flatDays, settings, cycle, weekNumber]
@@ -321,7 +329,7 @@ export function PeriodSummaryScreen({ onBack }: Props) {
           <div key={i} className="flex items-start gap-2 rounded-block border border-warning/30 bg-warning/5 p-3">
             <IconFlame className="h-8 w-8 shrink-0 text-warning" />
             <div>
-              <p className="text-xs font-medium text-warning">Ejercicio a vigilar</p>
+              <p className="text-xs font-medium text-warning">{a.kind === "stalled" ? "Ejercicio estancado" : "Ejercicio a vigilar"}</p>
               <p className="text-sm text-ink">{a.exercise}</p>
               <p className="text-xs text-muted">{a.detail}</p>
             </div>

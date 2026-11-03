@@ -13,6 +13,7 @@ import { SUMMARY_CONFIG } from "./summaryConfig";
 import { DAY_ORDER } from "./history";
 import { dailyValues, metricConfigs, type LifestyleMetricKey } from "./lifestyleKpis";
 import { getMuscleContributions, MUSCLE_GROUPS, OTHER_MUSCLE_GROUP } from "./muscleMapping";
+import { getExerciseProgressForWeek, getWeeksWithData, type ExerciseProgressStatus } from "./progressEngine";
 
 export function getTotalWeeks(program: Program): number {
   return program.blocks.reduce((sum, b) => sum + b.weeks.length, 0);
@@ -102,7 +103,8 @@ export interface ComparisonCell {
   isStandardBase: boolean;
 }
 
-export type ExerciseStatus = "progress" | "stable" | "decline" | "new-variant";
+/** Mismo vocabulario que el motor de progresión (progressEngine.ts) — fuente única para "¿este ejercicio progresó?". */
+export type ExerciseStatus = ExerciseProgressStatus;
 
 export interface ExerciseRow {
   dayName: string;
@@ -110,6 +112,8 @@ export interface ExerciseRow {
   avgE1rm: number | null;
   setsCount: number;
   status: ExerciseStatus;
+  /** Motivo concreto de la clasificación (ver progressEngine.ts). */
+  statusDetail: string;
   /** true si la semana actual es el primer registro histórico de este ejercicio (variante) — no hay ninguna base para comparar. */
   isFirstRecordOverall: boolean;
   vsInicio: ComparisonCell;
@@ -149,15 +153,7 @@ function recordedWeeksBefore(
   exercise: string,
   beforeWeek: number
 ): number[] {
-  const weeks = new Set<number>();
-  logs.sessions.forEach((s) => {
-    if (s.status !== "completed" || (s.cycle ?? 0) !== cycle) return;
-    if (s.dayName !== dayName || s.weekNumber >= beforeWeek) return;
-    if (isDeloadWeek(program, s.weekNumber)) return;
-    const ex = s.exercises.find((e) => e.exercise === exercise);
-    if (ex && ex.sets.some(isSetLogged)) weeks.add(s.weekNumber);
-  });
-  return [...weeks].sort((a, b) => a - b);
+  return getWeeksWithData(logs, program, cycle, dayName, exercise).filter((w) => w < beforeWeek);
 }
 
 function buildComparisonCell(
@@ -189,7 +185,14 @@ const EMPTY_CELL: ComparisonCell = { variationPct: null, baseWeekNumber: null, i
  * antes se hacía otra variante) siempre tiene con qué compararse, en vez de
  * quedar en "—" solo porque la semana estándar no lo incluye.
  */
-export function getExerciseRows(logs: LogsData, program: Program, cycle: number, weekNumber: number): ExerciseRow[] {
+
+export function getExerciseRows(
+  logs: LogsData,
+  program: Program,
+  flatDays: FlatProgramDay[],
+  cycle: number,
+  weekNumber: number
+): ExerciseRow[] {
   const pairs = new Set<string>();
   logs.sessions
     .filter((s) => s.status === "completed" && (s.cycle ?? 0) === cycle && s.weekNumber === weekNumber)
@@ -198,6 +201,7 @@ export function getExerciseRows(logs: LogsData, program: Program, cycle: number,
     }));
 
   const standardAnterior = getPreviousNonDeloadWeek(program, weekNumber);
+  const isDeload = isDeloadWeek(program, weekNumber);
 
   const rows: ExerciseRow[] = [];
   for (const pair of pairs) {
@@ -208,25 +212,18 @@ export function getExerciseRows(logs: LogsData, program: Program, cycle: number,
 
     let vsInicio = EMPTY_CELL;
     let vsAnterior = EMPTY_CELL;
+    const anteriorWeek = priorWeeks.length > 0 ? priorWeeks[priorWeeks.length - 1] : null;
     if (!isFirstRecordOverall && avg !== null) {
       const inicioWeek = priorWeeks[0];
-      const anteriorWeek = priorWeeks[priorWeeks.length - 1];
       vsInicio = buildComparisonCell(logs, cycle, dayName, exercise, avg, inicioWeek, 1);
-      vsAnterior = buildComparisonCell(logs, cycle, dayName, exercise, avg, anteriorWeek, standardAnterior);
+      vsAnterior = buildComparisonCell(logs, cycle, dayName, exercise, avg, anteriorWeek as number, standardAnterior);
     }
 
-    let status: ExerciseStatus;
-    if (isFirstRecordOverall || vsAnterior.variationPct === null) {
-      status = "new-variant";
-    } else if (vsAnterior.variationPct > SUMMARY_CONFIG.exerciseStatusStablePct) {
-      status = "progress";
-    } else if (vsAnterior.variationPct < -SUMMARY_CONFIG.exerciseStatusStablePct) {
-      status = "decline";
-    } else {
-      status = "stable";
-    }
+    const { status, detail } = isFirstRecordOverall
+      ? { status: "new" as const, detail: "primer registro de este ejercicio (variante): sin base para comparar" }
+      : getExerciseProgressForWeek(logs, flatDays, cycle, dayName, exercise, weekNumber, anteriorWeek, isDeload);
 
-    rows.push({ dayName, exercise, avgE1rm: avg, setsCount: sets, status, isFirstRecordOverall, vsInicio, vsAnterior });
+    rows.push({ dayName, exercise, avgE1rm: avg, setsCount: sets, status, statusDetail: detail, isFirstRecordOverall, vsInicio, vsAnterior });
   }
 
   return rows.sort((a, b) => {

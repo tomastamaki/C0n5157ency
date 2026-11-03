@@ -1,7 +1,8 @@
 import type { LogsData, LoggedSet, WorkoutSession } from "../types/logs";
 import { isSetLogged } from "../types/logs";
-import type { FlatProgramDay } from "../types/program";
+import type { FlatProgramDay, Program } from "../types/program";
 import { getLiteralWorkingSets } from "./program";
+import { isDeloadWeek } from "./recommendation";
 import { globalSeq } from "./cycle";
 import { parseRepRange, repRangeDistance } from "./repRange";
 import { SUMMARY_CONFIG } from "./summaryConfig";
@@ -96,10 +97,15 @@ function findSessionWithExercise(
  * `limit` sesiones de referencia (de más a menos reciente, todas del mismo
  * tipo de día que la primera encontrada) para poder comparar "última" contra
  * "anterior a la última" (ej. sugerencia de peso).
+ *
+ * Las semanas de deload nunca se usan como referencia: son carga liviana a
+ * propósito, así que no sirven de base para "última vez" ni para decidir si
+ * subir de peso.
  */
 export function matchExerciseReferences(
   logs: LogsData,
   flatDays: FlatProgramDay[],
+  program: Program,
   exerciseName: string,
   currentDayName: string,
   currentLiteralReps: string[],
@@ -108,7 +114,7 @@ export function matchExerciseReferences(
   tolerance: number = SUMMARY_CONFIG.repRangeTolerance
 ): SetReference[][] {
   const sessionsDesc = logs.sessions
-    .filter((s) => s.status === "completed" && globalSeq(s) < beforeGlobalSeq)
+    .filter((s) => s.status === "completed" && globalSeq(s) < beforeGlobalSeq && !isDeloadWeek(program, s.weekNumber))
     .sort((a, b) => globalSeq(b) - globalSeq(a));
 
   const firstSameDay = findSessionWithExercise(sessionsDesc, exerciseName, currentDayName, new Set());
@@ -129,14 +135,21 @@ export function matchExerciseReferences(
   return results;
 }
 
-function matchWithinSession(
+/**
+ * Empareja las series de `currentLiteralReps` contra las de un ejercicio ya
+ * identificado dentro de una sesión conocida (misma lógica de
+ * `matchExerciseReferences`, pero sin tener que buscar la sesión: para
+ * cuando ya se sabe cuál es, ej. el resumen semanal comparando contra una
+ * semana puntual ya elegida como base).
+ */
+export function matchWithinSession(
   flatDays: FlatProgramDay[],
   session: WorkoutSession,
   exerciseIndex: number,
   exerciseName: string,
   currentLiteralReps: string[],
   tier: ReferenceTier,
-  tolerance: number
+  tolerance: number = SUMMARY_CONFIG.repRangeTolerance
 ): SetReference[] {
   const logged = loggedSetsWithPrescription(flatDays, session, exerciseIndex, exerciseName);
 

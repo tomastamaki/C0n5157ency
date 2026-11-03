@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useApp } from "../context/AppContext";
 import { ExerciseCard } from "../components/ExerciseCard";
 import { SyncIndicator } from "../components/SyncIndicator";
 import { SessionTimer } from "../components/SessionTimer";
@@ -6,7 +7,49 @@ import { IconPause } from "../components/icons";
 import { useWorkoutActions } from "../lib/useWorkoutActions";
 import { isSetLogged, type WorkoutSession } from "../types/logs";
 import { formatDuration } from "../lib/time";
+import { getWeeksWithData, getExerciseProgressForWeek, type ExerciseProgressStatus } from "../lib/progressEngine";
 import type { FlatProgramDay } from "../types/program";
+
+const PILL_LABEL: Record<ExerciseProgressStatus, string> = {
+  progress: "Progresa",
+  stable: "Estable",
+  regression: "Retrocede",
+  mixed: "Mixto",
+  new: "Primera vez",
+  deload: "Deload",
+};
+
+const PILL_CLASS: Record<ExerciseProgressStatus, string> = {
+  progress: "bg-success/15 text-success",
+  stable: "bg-surface2 text-faint",
+  regression: "bg-warning/15 text-warning",
+  mixed: "bg-warning/15 text-warning",
+  new: "bg-surface2 text-faint",
+  deload: "bg-surface2 text-faint",
+};
+
+/** Pill de progreso del ejercicio (fase 2): misma clasificación serie a serie que el resto de la app, contra la última semana con registro antes de ésta. */
+function ExerciseProgressPill({ session, exerciseName, dayName }: { session: WorkoutSession; exerciseName: string; dayName: string }) {
+  const { logs, program, flatDays, settings } = useApp();
+  const status = useMemo(() => {
+    const weeks = getWeeksWithData(logs, program, settings.programCycle, dayName, exerciseName);
+    const base = weeks.filter((w) => w < session.weekNumber).slice(-1)[0] ?? null;
+    if (base === null) return null;
+    return getExerciseProgressForWeek(
+      logs,
+      flatDays,
+      settings.programCycle,
+      dayName,
+      exerciseName,
+      session.weekNumber,
+      base,
+      false
+    ).status;
+  }, [logs, program, flatDays, settings.programCycle, dayName, exerciseName, session.weekNumber]);
+
+  if (!status || status === "new") return null;
+  return <span className={`rounded-pill px-2 py-0.5 text-[11px] font-semibold ${PILL_CLASS[status]}`}>{PILL_LABEL[status]}</span>;
+}
 
 function PausedCard({
   draft,
@@ -93,12 +136,15 @@ export function WorkoutSummary({ session, onContinue }: { session: WorkoutSessio
       <div className="space-y-2">
         {session.exercises.map((ex, i) => (
           <div key={i} className="rounded-block border border-border bg-surface p-3 text-sm">
-            <p className="font-medium text-ink">
-              {ex.exercise}
-              {ex.originalExercise && (
-                <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
-              )}
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium text-ink">
+                {ex.exercise}
+                {ex.originalExercise && (
+                  <span className="ml-2 text-xs font-normal text-warning">sustituyó a {ex.originalExercise}</span>
+                )}
+              </p>
+              <ExerciseProgressPill session={session} exerciseName={ex.exercise} dayName={session.dayName} />
+            </div>
             <p className="font-mono text-muted">
               {ex.sets
                 .filter(isSetLogged)

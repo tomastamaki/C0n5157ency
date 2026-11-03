@@ -7,7 +7,7 @@ import { matchExerciseReferences } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
 import { IconChevronLeft } from "../components/icons";
 import type { LogsData } from "../types/logs";
-import type { ExerciseGroup, FlatProgramDay } from "../types/program";
+import type { ExerciseGroup, FlatProgramDay, Program } from "../types/program";
 
 function summarize(group: ExerciseGroup): string {
   const literal = getLiteralWorkingSets(group);
@@ -20,6 +20,7 @@ function PreviewExerciseCard({
   chosen,
   dayName,
   logs,
+  program,
   flatDays,
   beforeGlobalSeq,
   onChoose,
@@ -28,6 +29,7 @@ function PreviewExerciseCard({
   chosen: string;
   dayName: string;
   logs: LogsData;
+  program: Program;
   flatDays: FlatProgramDay[];
   beforeGlobalSeq: number;
   onChoose: (name: string | null) => void;
@@ -42,6 +44,7 @@ function PreviewExerciseCard({
   const references = matchExerciseReferences(
     logs,
     flatDays,
+    program,
     chosen,
     dayName,
     literal.map((s) => s.reps),
@@ -117,7 +120,7 @@ interface Props {
 }
 
 export function WorkoutPreviewScreen({ flatDay, onBack, onStart }: Props) {
-  const { settings, updateSettings, logs, flatDays } = useApp();
+  const { settings, updateSettings, logs, program, flatDays } = useApp();
   const beforeGlobalSeq = globalSeq({ programIndex: flatDay.index, cycle: settings.programCycle });
 
   function choose(originalName: string, name: string | null) {
@@ -156,6 +159,7 @@ export function WorkoutPreviewScreen({ flatDay, onBack, onStart }: Props) {
               chosen={chosen}
               dayName={flatDay.day.name}
               logs={logs}
+              program={program}
               flatDays={flatDays}
               beforeGlobalSeq={beforeGlobalSeq}
               onChoose={(name) => choose(group.exercise, name)}
