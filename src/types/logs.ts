@@ -1,3 +1,5 @@
+import type { Habit, HabitEntry, Metric } from "./habits";
+
 export type RIRValue = "0" | "1" | "2" | "3+";
 
 /**
@@ -143,24 +145,35 @@ export interface ExerciseNoteEntry {
   updatedAt: string;
 }
 
+/**
+ * `version: 1` ya no se guarda nunca (todo lo que se carga pasa por
+ * `normalizeLogs`, que sube a 2), pero se acepta al leer datos viejos
+ * (backups, sync) antes de migrarlos. Ver `lib/habitsMigration.ts`.
+ */
 export interface LogsData {
-  version: 1;
+  version: 2;
   sessions: WorkoutSession[];
   bodyWeightEntries: BodyWeightEntry[];
   sleepEntries: SleepEntry[];
   stepsEntries: StepsEntry[];
   waterEntries: WaterEntry[];
   exerciseNoteEntries: ExerciseNoteEntry[];
+  habits: Habit[];
+  habitEntries: HabitEntry[];
+  metrics: Metric[];
 }
 
 export const EMPTY_LOGS: LogsData = {
-  version: 1,
+  version: 2,
   sessions: [],
   bodyWeightEntries: [],
   sleepEntries: [],
   stepsEntries: [],
   waterEntries: [],
   exerciseNoteEntries: [],
+  habits: [],
+  habitEntries: [],
+  metrics: [],
 };
 
 /** Peso, reps y RIR completos, sin importar si ya se confirmó con el botón ✓. */

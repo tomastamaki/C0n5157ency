@@ -41,7 +41,18 @@ function session(id: string, weekNumber: number, dayName: string, exercises: Log
   };
 }
 function logsWith(sessions: WorkoutSession[]): LogsData {
-  return { version: 1, sessions, bodyWeightEntries: [], sleepEntries: [], stepsEntries: [], waterEntries: [], exerciseNoteEntries: [] };
+  return {
+    version: 2,
+    sessions,
+    bodyWeightEntries: [],
+    sleepEntries: [],
+    stepsEntries: [],
+    waterEntries: [],
+    exerciseNoteEntries: [],
+    habits: [],
+    habitEntries: [],
+    metrics: [],
+  };
 }
 
 describe("matchExerciseReferences — Machine Chest Press (4-6, 4-6, 20)", () => {
