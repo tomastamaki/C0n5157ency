@@ -26,7 +26,7 @@ function diffDays(a: string, b: string): number {
 }
 
 /** 0=lunes..6=domingo (mismo criterio que `TrainingCalendar.tsx`). */
-function dayOfWeek(d: string): number {
+export function dayOfWeek(d: string): number {
   return (parseLocalDate(d).getDay() + 6) % 7;
 }
 

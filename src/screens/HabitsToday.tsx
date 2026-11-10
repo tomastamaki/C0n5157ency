@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { localDateKey } from "../lib/time";
 import { buildHeroMessage, buildHeroRing, buildTodayItems, buildWeekStrip, type TodayItem } from "../lib/habitsToday";
-import { computeGlobalStreak } from "../lib/habitStreaks";
+import { computeGlobalStreak, computeHabitStreak, detectMilestone } from "../lib/habitStreaks";
 import { addQuantity, completeTimeGoal, skipToday, toggleDone, unskip } from "../lib/habitActions";
 import { Ring } from "../components/habits/Ring";
 import { WeekStrip } from "../components/habits/WeekStrip";
@@ -11,10 +11,12 @@ import { HabitCard, type HabitCardProps } from "../components/habits/HabitCard";
 import { HabitTile } from "../components/habits/HabitTile";
 import { SwipeToSkip } from "../components/habits/SwipeToSkip";
 import { UndoToast } from "../components/habits/UndoToast";
+import { MilestoneModal } from "../components/habits/MilestoneModal";
 import { IconButton, Fab } from "../components/habits/IconButton";
 import { EmptyState } from "../components/EmptyState";
 import { IconFlame, IconGrid, IconHabits, IconPlus } from "../components/icons";
 import { HABIT_CATEGORIES } from "../lib/habitTemplates";
+import { HABIT_COLORS } from "../components/habits/habitVisuals";
 import type { Habit, HabitEntry } from "../types/habits";
 
 const GROUPS: Habit["timeOfDay"][] = ["Mañana", "Tarde", "Noche", "Todo el día"];
@@ -24,15 +26,24 @@ interface UndoState {
   restore: () => void;
 }
 
-interface Props {
-  onCreateHabit: () => void;
+interface MilestoneState {
+  habitName: string;
+  milestone: number;
+  color: string;
+  habitId: string;
 }
 
-export function HabitsTodayScreen({ onCreateHabit }: Props) {
+interface Props {
+  onCreateHabit: () => void;
+  onOpenDetail: (habitId: string) => void;
+}
+
+export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
   const { logs, upsertHabitEntry, removeHabitEntry } = useApp();
   const [category, setCategory] = useState<"Todos" | Habit["timeOfDay"] | string>("Todos");
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<UndoState | null>(null);
+  const [milestone, setMilestone] = useState<MilestoneState | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const today = localDateKey(new Date());
@@ -54,31 +65,39 @@ export function HabitsTodayScreen({ onCreateHabit }: Props) {
     undoTimer.current = setTimeout(() => setUndo(null), 5000);
   }
 
-  function applyResult(result: { next: HabitEntry | null; previous: HabitEntry | null }, message: string) {
+  function applyResult(habit: Habit, result: { next: HabitEntry | null; previous: HabitEntry | null }, message: string) {
+    const before = computeHabitStreak(habit, logs.habitEntries, today).streak;
     if (result.next) upsertHabitEntry(result.next);
     else if (result.previous) removeHabitEntry(result.previous.id);
     const entryId = result.next?.id ?? result.previous?.id ?? "";
     showUndo(message, result.previous, entryId);
+
+    if (result.next?.status === "done") {
+      const nextEntries = [...logs.habitEntries.filter((e) => e.id !== result.next!.id), result.next];
+      const after = computeHabitStreak(habit, nextEntries, today).streak;
+      const reached = detectMilestone(before, after);
+      if (reached) setMilestone({ habitName: habit.name, milestone: reached, color: HABIT_COLORS[habit.color], habitId: habit.id });
+    }
   }
 
   function handleToggle(item: TodayItem) {
-    applyResult(toggleDone(item.habit, logs.habitEntries, today), `${item.habit.name} listo. Vamos toro`);
+    applyResult(item.habit, toggleDone(item.habit, logs.habitEntries, today), `${item.habit.name} listo. Vamos toro`);
   }
 
   function handleAdd(item: TodayItem, amount: number) {
-    applyResult(addQuantity(item.habit, logs.habitEntries, today, amount), `+${amount} ${item.habit.unit ?? ""}`.trim());
+    applyResult(item.habit, addQuantity(item.habit, logs.habitEntries, today, amount), `+${amount} ${item.habit.unit ?? ""}`.trim());
   }
 
   function handleStart(item: TodayItem) {
-    applyResult(completeTimeGoal(item.habit, logs.habitEntries, today), `${item.habit.name} listo. Vamos toro`);
+    applyResult(item.habit, completeTimeGoal(item.habit, logs.habitEntries, today), `${item.habit.name} listo. Vamos toro`);
   }
 
   function handleSkip(item: TodayItem) {
-    applyResult(skipToday(item.habit, logs.habitEntries, today), `${item.habit.name} salteado. Tu racha sigue`);
+    applyResult(item.habit, skipToday(item.habit, logs.habitEntries, today), `${item.habit.name} salteado. Tu racha sigue`);
   }
 
   function handleUnskip(item: TodayItem) {
-    applyResult(unskip(item.habit, logs.habitEntries, today), "Deshecho");
+    applyResult(item.habit, unskip(item.habit, logs.habitEntries, today), "Deshecho");
   }
 
   function toCardProps(item: TodayItem): HabitCardProps {
@@ -96,6 +115,7 @@ export function HabitsTodayScreen({ onCreateHabit }: Props) {
       auto: habit.linked !== null,
       recovery: item.recovery.show,
       onUnskip: () => handleUnskip(item),
+      onOpenDetail: () => onOpenDetail(habit.id),
     };
     if (habit.type === "quantity") {
       return {
@@ -252,6 +272,20 @@ export function HabitsTodayScreen({ onCreateHabit }: Props) {
         <div className="fixed inset-x-4 bottom-24 z-30 mx-auto max-w-md md:absolute md:bottom-4">
           <UndoToast message={undo.message} onUndo={undo.restore} />
         </div>
+      )}
+
+      {milestone && (
+        <MilestoneModal
+          habitName={milestone.habitName}
+          milestone={milestone.milestone}
+          color={milestone.color}
+          onContinue={() => setMilestone(null)}
+          onViewDetail={() => {
+            const id = milestone.habitId;
+            setMilestone(null);
+            onOpenDetail(id);
+          }}
+        />
       )}
     </div>
   );

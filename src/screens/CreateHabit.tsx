@@ -68,11 +68,13 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
 interface Props {
   onDone: () => void;
   onCancel: () => void;
+  /** Si se pasa, edita este hábito en vez de crear uno nuevo. */
+  editing?: Habit;
 }
 
-export function CreateHabitScreen({ onDone, onCancel }: Props) {
+export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
   const { upsertHabit } = useApp();
-  const [draft, setDraft] = useState<Draft>(emptyDraft());
+  const [draft, setDraft] = useState<Draft>(() => editing ?? emptyDraft());
 
   function patch(p: Partial<Draft>) {
     setDraft((d) => ({ ...d, ...p }));
@@ -118,7 +120,11 @@ export function CreateHabitScreen({ onDone, onCancel }: Props) {
   }
 
   function submit() {
-    upsertHabit(newHabit({ ...draft, quickSteps: quickStepsFor(draft.unit) }));
+    if (editing) {
+      upsertHabit({ ...editing, ...draft, quickSteps: quickStepsFor(draft.unit), updatedAt: new Date().toISOString() });
+    } else {
+      upsertHabit(newHabit({ ...draft, quickSteps: quickStepsFor(draft.unit) }));
+    }
     onDone();
   }
 
@@ -128,36 +134,38 @@ export function CreateHabitScreen({ onDone, onCancel }: Props) {
         <IconButton aria-label="Volver" onClick={onCancel}>
           <IconArrowLeft className="h-[18px] w-[18px]" />
         </IconButton>
-        <h1 className="text-lg font-bold text-ink">Nuevo hábito</h1>
+        <h1 className="text-lg font-bold text-ink">{editing ? "Editar hábito" : "Nuevo hábito"}</h1>
       </div>
 
       <div className="space-y-5">
-        <FormField label="Empezá con una plantilla" hint="o creá desde cero">
-          <div className="flex gap-2.5 overflow-x-auto pb-1.5 no-scrollbar">
-            {HABIT_TEMPLATES.map((t, i) => {
-              const TplIcon = habitIconFor(t.icon);
-              return (
-                <button
-                  key={t.name}
-                  type="button"
-                  onClick={() => applyTemplate(i)}
-                  className={`flex w-[92px] shrink-0 flex-col gap-2 rounded-block border bg-surface p-2.5 text-left ${
-                    draft.name === t.name ? "border-primary ring-2 ring-primary/30" : "border-border"
-                  }`}
-                >
-                  <div
-                    className="flex h-9 w-9 items-center justify-center rounded-block text-habitink"
-                    style={{ backgroundColor: HABIT_COLORS[t.color] }}
+        {!editing && (
+          <FormField label="Empezá con una plantilla" hint="o creá desde cero">
+            <div className="flex gap-2.5 overflow-x-auto pb-1.5 no-scrollbar">
+              {HABIT_TEMPLATES.map((t, i) => {
+                const TplIcon = habitIconFor(t.icon);
+                return (
+                  <button
+                    key={t.name}
+                    type="button"
+                    onClick={() => applyTemplate(i)}
+                    className={`flex w-[92px] shrink-0 flex-col gap-2 rounded-block border bg-surface p-2.5 text-left ${
+                      draft.name === t.name ? "border-primary ring-2 ring-primary/30" : "border-border"
+                    }`}
                   >
-                    <TplIcon className="h-[18px] w-[18px]" />
-                  </div>
-                  <b className="text-[13px] text-ink">{t.name}</b>
-                  <small className="-mt-1.5 text-[11px] text-muted">{t.caption}</small>
-                </button>
-              );
-            })}
-          </div>
-        </FormField>
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-block text-habitink"
+                      style={{ backgroundColor: HABIT_COLORS[t.color] }}
+                    >
+                      <TplIcon className="h-[18px] w-[18px]" />
+                    </div>
+                    <b className="text-[13px] text-ink">{t.name}</b>
+                    <small className="-mt-1.5 text-[11px] text-muted">{t.caption}</small>
+                  </button>
+                );
+              })}
+            </div>
+          </FormField>
+        )}
 
         <FormField label="Así se va a ver" hint="vista previa">
           <HabitCard {...buildPreviewProps(draft)} />
@@ -263,7 +271,7 @@ export function CreateHabitScreen({ onDone, onCancel }: Props) {
         onClick={submit}
         className="mt-6 w-full rounded-pill bg-primary py-3 text-base font-semibold text-white disabled:opacity-40"
       >
-        Crear hábito
+        {editing ? "Guardar cambios" : "Crear hábito"}
       </button>
     </div>
   );

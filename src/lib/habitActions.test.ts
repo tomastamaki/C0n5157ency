@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addQuantity, completeTimeGoal, skipToday, toggleDone, unskip } from "./habitActions";
+import { addQuantity, archiveHabit, completeTimeGoal, restoreHabit, setEntryStatus, skipToday, toggleDone, unskip } from "./habitActions";
 import type { Habit, HabitEntry } from "../types/habits";
 
 function habit(patch: Partial<Habit> = {}): Habit {
@@ -87,5 +87,33 @@ describe("completeTimeGoal", () => {
     const h = habit({ type: "time", unit: "min", goal: 20 });
     const r = completeTimeGoal(h, [], "2026-01-10");
     expect(r.next).toMatchObject({ status: "done", value: 20 });
+  });
+});
+
+describe("setEntryStatus", () => {
+  it("setea una fecha pasada cualquiera, no solo hoy", () => {
+    const h = habit({ type: "yesno" });
+    const r = setEntryStatus(h, [], "2026-01-05", "done");
+    expect(r.next).toMatchObject({ date: "2026-01-05", status: "done" });
+  });
+
+  it("'none' borra la entrada existente", () => {
+    const h = habit({ type: "yesno" });
+    const entries: HabitEntry[] = [
+      { id: "e1", habitId: "h1", date: "2026-01-05", status: "done", value: null, source: "manual", updatedAt: "x" },
+    ];
+    const r = setEntryStatus(h, entries, "2026-01-05", "none");
+    expect(r.next).toBeNull();
+    expect(r.previous).toMatchObject({ status: "done" });
+  });
+});
+
+describe("archiveHabit / restoreHabit", () => {
+  it("archivar setea archivedAt; restaurar lo vuelve a null", () => {
+    const h = habit();
+    const archived = archiveHabit(h);
+    expect(archived.archivedAt).not.toBeNull();
+    const restored = restoreHabit(archived);
+    expect(restored.archivedAt).toBeNull();
   });
 });

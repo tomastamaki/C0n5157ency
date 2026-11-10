@@ -20,6 +20,8 @@ interface HabitCardCommon {
   /** La última ocurrencia pasada quedó sin registrar: aviso de recuperación. */
   recovery?: boolean;
   onUnskip?: () => void;
+  /** Tocar el nombre/ícono (no el control de acción) abre el detalle del hábito. */
+  onOpenDetail?: () => void;
 }
 
 interface YesNoCard extends HabitCardCommon {
@@ -86,7 +88,7 @@ export function HabitCard(props: HabitCardProps) {
           <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-block bg-habitink/[0.14]">
             <Icon className="h-5 w-5" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1" onClick={props.onOpenDetail} role={props.onOpenDetail ? "button" : undefined}>
             <div className="flex items-center gap-1.5 text-[15px] font-bold">
               {props.name}
               {props.auto && (
@@ -116,7 +118,7 @@ export function HabitCard(props: HabitCardProps) {
           <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-block bg-ghost text-muted">
             <Icon className="h-5 w-5" />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1" onClick={props.onOpenDetail} role={props.onOpenDetail ? "button" : undefined}>
             <div className="flex items-center gap-1.5 text-[15px] font-bold text-ink">
               {props.name}
               <span className="rounded-pill bg-surface2 px-2 py-0.5 text-[11px] font-bold text-muted">salteado</span>
@@ -145,7 +147,7 @@ export function HabitCard(props: HabitCardProps) {
         >
           <Icon className="h-5 w-5" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1" onClick={props.onOpenDetail} role={props.onOpenDetail ? "button" : undefined}>
           <div className="text-[15px] font-bold text-ink">{props.name}</div>
           <div className="mt-0.5 text-xs text-muted">
             {props.recovery ? "Ayer quedó afuera · hoy es el día" : props.subtitle}
