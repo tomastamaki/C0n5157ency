@@ -42,8 +42,8 @@ export interface PREvent {
  * reinició el programa. Se apoya en `getPersonalRecordEvents`, la misma
  * línea de tiempo que usa la vista de "PR actual de todos los ejercicios".
  */
-export function getPRsInWeek(logs: LogsData, weekNumber: number, cycle: number): PREvent[] {
-  return getPersonalRecordEvents(logs)
+export function getPRsInWeek(logs: LogsData, program: Program, weekNumber: number, cycle: number): PREvent[] {
+  return getPersonalRecordEvents(logs, program)
     .filter((e) => e.kind === "weight" && e.weekNumber === weekNumber && e.cycle === cycle)
     .map((e) => ({
       exercise: e.exercise,

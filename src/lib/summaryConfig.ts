@@ -1,5 +1,5 @@
 /**
- * Constantes del resumen semanal/mensual y de la referencia cruzada entre
+ * Constantes del resumen semanal y de la referencia cruzada entre
  * rutinas, todas en un solo lugar para poder ajustarlas sin tocar la lógica.
  */
 export const SUMMARY_CONFIG = {

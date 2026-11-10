@@ -159,7 +159,11 @@ export function HomeDashboard({
           <span className="text-xs text-muted">
             RIR prom. {weekSummary.avgRir !== null ? weekSummary.avgRir.toFixed(1) : "—"}
           </span>
-          <VariationPill pct={weekPerf.vsAnterior} />
+          {weekSummary.isDeload ? (
+            <span className="rounded-pill bg-surface2 px-2 py-0.5 text-xs font-medium text-muted">deload</span>
+          ) : (
+            <VariationPill pct={weekPerf.vsAnterior} />
+          )}
         </div>
         {highlight && (
           <p className="mt-2 text-xs text-success">

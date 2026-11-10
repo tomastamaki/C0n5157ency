@@ -28,7 +28,7 @@ export interface ExerciseMuscles {
 
 /**
  * Mapeo único ejercicio -> músculos (primario + secundarios). Única fuente
- * de verdad: la usan el resumen semanal/mensual, el algoritmo de
+ * de verdad: la usan el resumen semanal, el algoritmo de
  * recuperación y los chips de músculo de la card del día. Un ejercicio
  * nuevo que no esté acá cae en "Otros" (ver `getExerciseMuscles`); Ajustes
  * avisa cuáles faltan completar.

@@ -3,6 +3,7 @@ import { isSetLogged, rirToNumber } from "../types/logs";
 import type { FlatProgramDay, Program } from "../types/program";
 import { getLiteralWorkingSets } from "./program";
 import { estimatedE1RM } from "./e1rm";
+import { DELOAD_MESSAGE } from "./trainingConfig";
 import { globalSeq } from "./cycle";
 import { localDateKey } from "./time";
 import { getExerciseMuscles, getMuscleContributions, OTHER_MUSCLE_GROUP } from "./muscleMapping";
@@ -420,7 +421,7 @@ export function getRecommendation(
     return {
       level: "deload",
       title: "Semana de deload",
-      detail: "Seguí el plan reducido tal cual está programado.",
+      detail: DELOAD_MESSAGE,
       trendNote: null,
       muscleAlerts: [],
       layer2: null,

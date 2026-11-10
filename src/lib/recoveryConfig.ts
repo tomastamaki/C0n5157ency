@@ -7,7 +7,7 @@
 
 // ---- Capa 1: recuperación muscular ----
 // El mapeo de qué músculos entrena cada ejercicio vive en `muscleMapping.ts`
-// (fuente única, también usada por el resumen semanal/mensual y los chips
+// (fuente única, también usada por el resumen semanal y los chips
 // de la card del día); acá solo quedan las horas de recuperación por músculo.
 
 /** Horas de recuperación de referencia por músculo. */

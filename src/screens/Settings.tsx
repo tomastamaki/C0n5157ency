@@ -374,7 +374,7 @@ export function SettingsScreen({ onShowOnboarding }: { onShowOnboarding: () => v
           <h2 className="mb-1 font-semibold text-warning">Mapeo muscular incompleto</h2>
           <p className="mb-2 text-xs text-muted">
             Estos ejercicios no tienen músculo asignado todavía, así que sus series se agrupan en
-            "Otros" en el resumen semanal/mensual y no cuentan para las alertas de recuperación.
+            "Otros" en el resumen semanal y no cuentan para las alertas de recuperación.
             Completalos en <code className="font-mono text-ink">src/lib/muscleMapping.ts</code>.
           </p>
           <ul className="flex flex-wrap gap-1.5">

@@ -30,3 +30,11 @@ export const TRAINING_CONFIG = {
    */
   rirWarningGap: 2,
 };
+
+/**
+ * Mensaje único de deload, reusado en la tarjeta de ejercicio, el banner de
+ * Inicio y el resumen semanal: el deload es de intensidad (RIR objetivo más
+ * alto), no de volumen — mismos ejercicios y series que las semanas
+ * vecinas. Nunca se buscan récords esa semana.
+ */
+export const DELOAD_MESSAGE = "Semana de deload: mismo volumen, menos esfuerzo. Seguí el RIR de cada serie y no busques récords.";

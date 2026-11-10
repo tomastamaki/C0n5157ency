@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildWeightSuggestions } from "./suggestions";
+import { DELOAD_MESSAGE } from "./trainingConfig";
 import type { LoggedSet } from "../types/logs";
 
 function set(weightKg: number, reps: number, rir: "0" | "1" | "2" | "3+"): LoggedSet {
@@ -275,5 +276,38 @@ describe("buildWeightSuggestions — pesos distintos entre series: igualar antes
     expect(s2!.extendedRange).not.toBeNull();
     expect(s3!.mode).toBe("hold");
     expect(s3!.extendedRange).not.toBeNull();
+  });
+});
+
+describe("buildWeightSuggestions — semana de deload (isDeload)", () => {
+  const literalSets = [
+    { reps: "4-6", targetRIR: "1" },
+    { reps: "4-6", targetRIR: "2" },
+  ];
+  // Llegó al tope de reps con buen RIR: en una semana normal esto dispara "raise".
+  const references = [set(62.5, 6, "1"), set(62.5, 6, "1")];
+
+  it("nunca ofrece subir, aunque se haya llegado al tope de reps", () => {
+    const [s1, s2] = buildWeightSuggestions(literalSets, references, 2.5, undefined, true);
+    expect(s1!.mode).toBe("hold");
+    expect(s2!.mode).toBe("hold");
+  });
+
+  it("mantiene el peso de la referencia (la última semana normal) y muestra el aviso de deload", () => {
+    const [s1] = buildWeightSuggestions(literalSets, references, 2.5, undefined, true);
+    expect(s1!.weightKg).toBe(62.5);
+    expect(s1!.reason).toBe(DELOAD_MESSAGE);
+    expect(s1!.warning).toBeNull();
+  });
+
+  it("una serie con RIR 1 en deload no genera aviso de 'sobró margen' (sin mode raise, sin warning)", () => {
+    const [s1] = buildWeightSuggestions(literalSets, references, 2.5, undefined, true);
+    expect(s1!.mode).not.toBe("raise");
+    expect(s1!.warning).toBeNull();
+  });
+
+  it("sin referencia para una serie, no hay sugerencia (null)", () => {
+    const [, s2] = buildWeightSuggestions(literalSets, [null, null], 2.5, undefined, true);
+    expect(s2).toBeNull();
   });
 });

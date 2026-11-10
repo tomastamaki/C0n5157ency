@@ -2,7 +2,7 @@ import { rirToNumber } from "../types/logs";
 import type { LoggedSet } from "../types/logs";
 import { estimatedE1RM, PROGRESSION_CONFIG } from "./e1rm";
 import { parseRepRange } from "./repRange";
-import { TRAINING_CONFIG } from "./trainingConfig";
+import { DELOAD_MESSAGE, TRAINING_CONFIG } from "./trainingConfig";
 
 export function roundToStep(value: number, step: number): number {
   return Math.round(value / step) * step;
@@ -58,13 +58,34 @@ function listSeries(indexes: number[]): string {
  * `references[i]` es el set logueado de la sesión de referencia para la
  * serie `i` (ver `exerciseReference.ts`), alineado por índice; `null` = sin
  * referencia, sin sugerencia para esa serie.
+ *
+ * `isDeload` (semana de deload): nunca sugiere subir, sin importar las reps
+ * logradas — el objetivo esa semana es el RIR más alto de la columna, no
+ * marca. Mantiene el peso de la referencia (ya es la última semana normal:
+ * `exerciseReference.ts` nunca usa una sesión de deload como referencia).
  */
 export function buildWeightSuggestions(
   literalSets: LiteralSetSpec[],
   references: (LoggedSet | null)[],
   incrementKg: number,
-  config = TRAINING_CONFIG
+  config = TRAINING_CONFIG,
+  isDeload = false
 ): (WeightSuggestion | null)[] {
+  if (isDeload) {
+    return references.map((ref) =>
+      ref && ref.weightKg !== null
+        ? {
+            weightKg: ref.weightKg,
+            mode: "hold" as const,
+            estimatedReps: null,
+            extendedRange: null,
+            reason: DELOAD_MESSAGE,
+            warning: null,
+          }
+        : null
+    );
+  }
+
   const ranges = literalSets.map((s) => parseRepRange(s.reps));
   const targetRirs = literalSets.map((s) => targetRirNumber(s.targetRIR));
 

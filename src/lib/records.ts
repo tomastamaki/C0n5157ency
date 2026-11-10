@@ -5,6 +5,7 @@ import { estimatedE1RM } from "./e1rm";
 import { globalSeq } from "./cycle";
 import { buildExerciseDayMap, DAY_ORDER } from "./history";
 import { parseRepRange, isWithinRepTolerance } from "./repRange";
+import { isDeloadWeek } from "./recommendation";
 
 export interface PersonalRecord {
   weightKg: number;
@@ -15,13 +16,15 @@ export interface PersonalRecord {
 /**
  * Peso máximo histórico registrado para un ejercicio (por nombre real logueado,
  * así que un sustituto lleva su propio récord independiente del original).
- * Solo cuenta series de sesiones completadas y confirmadas.
+ * Solo cuenta series de sesiones completadas y confirmadas. Las sesiones de
+ * deload se siguen guardando y se ven en el historial normal, pero no cuentan
+ * como récord: ahí el objetivo es RIR más alto (menos esfuerzo), no marca.
  */
-export function getPersonalRecord(logs: LogsData, exerciseName: string): PersonalRecord | null {
+export function getPersonalRecord(logs: LogsData, program: Program, exerciseName: string): PersonalRecord | null {
   let best: PersonalRecord | null = null;
 
   for (const session of logs.sessions) {
-    if (session.status !== "completed") continue;
+    if (session.status !== "completed" || isDeloadWeek(program, session.weekNumber)) continue;
     for (const ex of session.exercises) {
       if (ex.exercise !== exerciseName) continue;
       for (const set of ex.sets) {
@@ -48,12 +51,16 @@ export interface E1rmRecord {
   date: string;
 }
 
-/** 1RM estimado máximo histórico para un ejercicio: puede ser un PR aunque el peso no haya subido (más reps o más RIR al mismo peso). */
-export function getE1rmRecord(logs: LogsData, exerciseName: string): E1rmRecord | null {
+/**
+ * 1RM estimado máximo histórico para un ejercicio: puede ser un PR aunque el
+ * peso no haya subido (más reps o más RIR al mismo peso). Excluye deload por
+ * el mismo motivo que `getPersonalRecord`.
+ */
+export function getE1rmRecord(logs: LogsData, program: Program, exerciseName: string): E1rmRecord | null {
   let best: E1rmRecord | null = null;
 
   for (const session of logs.sessions) {
-    if (session.status !== "completed") continue;
+    if (session.status !== "completed" || isDeloadWeek(program, session.weekNumber)) continue;
     for (const ex of session.exercises) {
       if (ex.exercise !== exerciseName) continue;
       for (const set of ex.sets) {
@@ -86,10 +93,12 @@ export interface RepRangeRecord {
  * Peso máximo histórico registrado para un ejercicio con reps dentro de un
  * rango dado (por defecto sin tolerancia: el rango literal, ej. "4-6" = 4,5,6),
  * sin importar en qué día/rutina se haya hecho — el "PR 4-6 reps", independiente
- * del PR general de peso. Empate de peso se desempata por mayor e1RM.
+ * del PR general de peso. Empate de peso se desempata por mayor e1RM. Excluye
+ * deload por el mismo motivo que `getPersonalRecord`.
  */
 export function getPersonalRecordInRepRange(
   logs: LogsData,
+  program: Program,
   exerciseName: string,
   targetReps: string,
   tolerance = 0
@@ -98,7 +107,7 @@ export function getPersonalRecordInRepRange(
   let best: RepRangeRecord | null = null;
 
   for (const session of logs.sessions) {
-    if (session.status !== "completed") continue;
+    if (session.status !== "completed" || isDeloadWeek(program, session.weekNumber)) continue;
     for (const ex of session.exercises) {
       if (ex.exercise !== exerciseName) continue;
       for (const set of ex.sets) {
@@ -140,10 +149,13 @@ export interface PREvent {
  * - "e1rm": nuevo 1RM estimado máximo (puede pasar sin PR de peso: más reps
  *   o más RIR —menos esfuerzo— al mismo peso que antes).
  * Sirve de base única para "PRs de la semana" y "PR actual de cada ejercicio".
+ * Las sesiones de deload quedan afuera de este timeline: no generan evento de
+ * PR aunque levanten más peso que antes (el objetivo esa semana es más RIR,
+ * no marca), y tampoco se usan como "mejor previo" para la sesión siguiente.
  */
-export function getPersonalRecordEvents(logs: LogsData): PREvent[] {
+export function getPersonalRecordEvents(logs: LogsData, program: Program): PREvent[] {
   const sessions = [...logs.sessions]
-    .filter((s) => s.status === "completed")
+    .filter((s) => s.status === "completed" && !isDeloadWeek(program, s.weekNumber))
     .sort((a, b) => globalSeq(a) - globalSeq(b));
 
   const bestWeight = new Map<string, number>();
@@ -231,7 +243,7 @@ export function getAllCurrentRecordsByDay(
   cycle: number
 ): { day: string; records: GroupedExerciseRecord[] }[] {
   const currentByExercise = new Map<string, PREvent>();
-  for (const e of getPersonalRecordEvents(logs)) {
+  for (const e of getPersonalRecordEvents(logs, program)) {
     if (e.kind === "weight") currentByExercise.set(e.exercise, e);
   }
 

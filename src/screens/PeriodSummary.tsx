@@ -5,6 +5,7 @@ import { getExerciseProgression, DAY_ORDER } from "../lib/history";
 import { getAttentionFlags } from "../lib/insights";
 import { getPersonalRecordEvents } from "../lib/records";
 import { formatDate, formatDuration } from "../lib/time";
+import { DELOAD_MESSAGE } from "../lib/trainingConfig";
 import {
   getPeriodData,
   getExerciseRows,
@@ -92,8 +93,8 @@ export function PeriodSummaryScreen({ onBack }: Props) {
     [logs, program, flatDays, settings, cycle, weekNumber]
   );
   const periodPRs = useMemo(
-    () => getPersonalRecordEvents(logs).filter((e) => e.kind === "weight" && e.cycle === cycle && e.weekNumber === weekNumber),
-    [logs, cycle, weekNumber]
+    () => getPersonalRecordEvents(logs, program).filter((e) => e.kind === "weight" && e.cycle === cycle && e.weekNumber === weekNumber),
+    [logs, program, cycle, weekNumber]
   );
   const bestImprovement = useMemo(() => {
     const progressing = rows.filter((r) => r.status === "progress" && r.vsAnterior.variationPct !== null);
@@ -186,7 +187,9 @@ export function PeriodSummaryScreen({ onBack }: Props) {
 
       <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
         <p className="mb-2 text-sm font-medium text-ink">Rendimiento (e1RM promedio)</p>
-        {noPerfData ? (
+        {data.isDeload ? (
+          <p className="text-sm text-muted">{DELOAD_MESSAGE}</p>
+        ) : noPerfData ? (
           <p className="text-sm text-muted">Todavía no hay semanas anteriores con registro para comparar.</p>
         ) : (
           <div className="flex items-center gap-4">

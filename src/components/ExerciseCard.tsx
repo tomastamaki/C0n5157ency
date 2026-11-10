@@ -8,7 +8,7 @@ import { NumericInput } from "./NumericInput";
 import { VideoEmbed } from "./VideoEmbed";
 import { RestTimer } from "./RestTimer";
 import { ProgressChart } from "./ProgressChart";
-import { IconNote, IconTrophy } from "./icons";
+import { IconInfo, IconNote, IconTrophy } from "./icons";
 import { useApp } from "../context/AppContext";
 import { getExerciseProgression } from "../lib/history";
 import { getCurrentNote, noteEntryId } from "../lib/exerciseNotes";
@@ -21,6 +21,8 @@ import { emptyDrop, emptyMiniSet, getDropSetWeightSuggestions, matchTechnique } 
 import { TECHNIQUE_CONFIG } from "../lib/techniqueConfig";
 import type { TechniqueCatalogEntry } from "../lib/techniqueConfig";
 import { getPersonalRecord, getE1rmRecord, getPersonalRecordInRepRange } from "../lib/records";
+import { isDeloadWeek } from "../lib/recommendation";
+import { DELOAD_MESSAGE, TRAINING_CONFIG } from "../lib/trainingConfig";
 import { matchExerciseReferences, type SetReference } from "../lib/exerciseReference";
 import { globalSeq } from "../lib/cycle";
 import { unlockAudio, vibrate } from "../lib/feedback";
@@ -51,6 +53,7 @@ interface SetBlockProps {
   logged: LoggedSet;
   reference: SetReference;
   suggestion: WeightSuggestion | null;
+  isDeload: boolean;
   filled: boolean;
   done: boolean;
   isNewPR: boolean;
@@ -72,6 +75,7 @@ function SetBlock({
   logged,
   reference,
   suggestion,
+  isDeload,
   filled,
   done,
   isNewPR,
@@ -152,8 +156,12 @@ function SetBlock({
             )}
             {suggestion.mode === "hold" && <>Conviene repetir el peso: {suggestion.weightKg}kg</>}
             {suggestion.mode === "step-down" && <>Conviene bajar a {suggestion.weightKg}kg</>}
-            {" "}
-            ({suggestion.reason})
+            {!isDeload && (
+              <>
+                {" "}
+                ({suggestion.reason})
+              </>
+            )}
           </button>
           {suggestion.warning && <p className="mt-0.5 text-[11px] font-medium text-warning">{suggestion.warning}</p>}
           {suggestion.extendedRange && (
@@ -518,6 +526,9 @@ export function ExerciseCard({
   const [showSubs, setShowSubs] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
+  const weekNumber = flatDays[programIndex]?.weekNumber ?? null;
+  const isDeload = weekNumber !== null && isDeloadWeek(program, weekNumber);
+
   const literalSets = useMemo(() => getLiteralWorkingSets(group), [group]);
   const warmup = group.sets.find((s) => s.type === "warmup");
   // La técnica de intensidad (columna D) se aplica solo sobre la última serie de trabajo, nunca sobre todo el grupo (fase 6).
@@ -530,23 +541,23 @@ export function ExerciseCard({
   const isSubstituted = Boolean(loggedExercise?.originalExercise);
   const allLogged = loggedExercise?.sets.every(isSetLogged) ?? false;
   const incrementKg = getIncrementKg(settings.exerciseIncrements, displayName);
-  const pr = useMemo(() => getPersonalRecord(logs, displayName), [logs, displayName]);
-  const e1rmRecord = useMemo(() => getE1rmRecord(logs, displayName), [logs, displayName]);
+  const pr = useMemo(() => getPersonalRecord(logs, program, displayName), [logs, program, displayName]);
+  const e1rmRecord = useMemo(() => getE1rmRecord(logs, program, displayName), [logs, program, displayName]);
   // PR por cada rango de reps distinto que pide esta rutina, una vez por ejercicio (no por serie).
   const prsByRepRange = useMemo(() => {
     const uniqueReps = [...new Set(literalSets.map((s) => s.reps))];
     return uniqueReps
-      .map((reps) => ({ reps, pr: getPersonalRecordInRepRange(logs, displayName, reps) }))
+      .map((reps) => ({ reps, pr: getPersonalRecordInRepRange(logs, program, displayName, reps) }))
       .filter((r): r is { reps: string; pr: NonNullable<typeof r.pr> } => r.pr !== null);
-  }, [literalSets, logs, displayName]);
+  }, [literalSets, logs, program, displayName]);
   const referencesBySet = useMemo(
     () =>
       matchExerciseReferences(logs, flatDays, program, displayName, session.dayName, literalSets.map((s) => s.reps), beforeGlobalSeq, 2),
     [logs, flatDays, program, displayName, session.dayName, literalSets, beforeGlobalSeq]
   );
   const suggestions = useMemo(
-    () => buildWeightSuggestions(literalSets, referencesBySet[0].map((r) => r.set), incrementKg),
-    [literalSets, referencesBySet, incrementKg]
+    () => buildWeightSuggestions(literalSets, referencesBySet[0].map((r) => r.set), incrementKg, TRAINING_CONFIG, isDeload),
+    [literalSets, referencesBySet, incrementKg, isDeload]
   );
   // Peso de referencia para el calentamiento: la sugerencia de hoy para la primera serie de trabajo si existe, o si no el peso de la última vez (fase 1).
   const warmupReferenceWeightKg = suggestions[0]?.weightKg ?? referencesBySet[0][0]?.set?.weightKg ?? null;
@@ -712,6 +723,13 @@ export function ExerciseCard({
         {group.rest && <span className="whitespace-nowrap text-xs text-muted">descanso {group.rest}</span>}
       </div>
 
+      {isDeload && (
+        <div className="mb-3 flex items-start gap-2 rounded-block border border-border bg-surface2 p-3 text-xs text-muted">
+          <IconInfo className="h-4 w-4 shrink-0 text-primary" />
+          <span>{DELOAD_MESSAGE}</span>
+        </div>
+      )}
+
       {progression.length > 0 && (
         <div className="mb-3">
           <button type="button" onClick={() => setShowChart((s) => !s)} className="text-sm font-medium text-primary">
@@ -792,6 +810,7 @@ export function ExerciseCard({
                 logged={logged}
                 reference={reference}
                 suggestion={suggestion}
+                isDeload={isDeload}
                 filled={filled}
                 done={done}
                 isNewPR={isNewPR}

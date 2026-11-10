@@ -154,7 +154,7 @@ describe("getPersonalRecordInRepRange — PR por rango de reps con desempate por
       session("w1", 1, "Upper", [ex("Machine Chest Press", [set(0, 60, 4, "0")])]), // e1rm = 60*(1+4/30)=68
       session("w2", 2, "Upper", [ex("Machine Chest Press", [set(0, 60, 6, "2")])]), // e1rm = 60*(1+8/30)=76 (mejor)
     ]);
-    const pr = getPersonalRecordInRepRange(logs, "Machine Chest Press", "4-6");
+    const pr = getPersonalRecordInRepRange(logs, program, "Machine Chest Press", "4-6");
     expect(pr).not.toBeNull();
     expect(pr!.weightKg).toBe(60);
     expect(pr!.reps).toBe(6);
@@ -163,7 +163,21 @@ describe("getPersonalRecordInRepRange — PR por rango de reps con desempate por
 
   it("no cruza rangos: una serie de 20 reps no cuenta como PR del rango 4-6", () => {
     const logs = logsWith([session("w1", 1, "Upper", [ex("Machine Chest Press", [set(0, 100, 20, "1")])])]);
-    const pr = getPersonalRecordInRepRange(logs, "Machine Chest Press", "4-6");
+    const pr = getPersonalRecordInRepRange(logs, program, "Machine Chest Press", "4-6");
     expect(pr).toBeNull();
+  });
+});
+
+describe("matchExerciseReferences — la semana 8 toma como referencia la 6, no la 7 (deload)", () => {
+  it("salta la sesión de deload (semana 7) y usa la semana 6 como 'última vez'", () => {
+    const logs = logsWith([
+      session("w6", 6, "Upper", [ex("Machine Chest Press", [set(0, 65, 5, "0"), set(1, 65, 5, "0")])]),
+      session("w7", 7, "Upper", [ex("Machine Chest Press", [set(0, 65, 5, "2"), set(1, 65, 5, "2")])]),
+    ]);
+    const week8Upper = findProgramIndex(8, "Upper");
+    const beforeSeq = globalSeq({ programIndex: week8Upper, cycle: 0 });
+    const [refs] = matchExerciseReferences(logs, flatDays, program, "Machine Chest Press", "Upper", ["4-6", "4-6"], beforeSeq);
+    expect(refs[0].weekNumber).toBe(6);
+    expect(refs[0].set?.rir).toBe("0");
   });
 });

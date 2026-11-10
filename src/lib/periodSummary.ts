@@ -74,7 +74,7 @@ export function getPeriodData(logs: LogsData, program: Program, cycle: number, w
   const durations = completedSessions.map((s) => s.durationSec).filter((d): d is number => d !== null);
   const avgSessionDurationSec = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null;
 
-  const prCount = getPersonalRecordEvents(logs).filter(
+  const prCount = getPersonalRecordEvents(logs, program).filter(
     (e) => e.kind === "weight" && e.cycle === cycle && e.weekNumber === weekNumber
   ).length;
 
