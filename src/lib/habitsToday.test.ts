@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildHeroRing, buildTodayItems, buildWeekStrip, heatCellsFor, isRelevantToday } from "./habitsToday";
+import { buildHeroMessage, buildHeroRing, buildTodayItems, buildWeekStrip, heatCellsFor, isRelevantToday } from "./habitsToday";
 import type { Habit, HabitEntry } from "../types/habits";
 
 function habit(patch: Partial<Habit> = {}): Habit {
@@ -108,5 +108,34 @@ describe("buildWeekStrip", () => {
     // jueves/viernes/sábado/domingo todavía no pasaron
     expect(days[3]).toMatchObject({ done: 0, total: 0 });
     expect(days[6]).toMatchObject({ done: 0, total: 0 });
+  });
+});
+
+describe("buildHeroMessage", () => {
+  it("sin hábitos todavía", () => {
+    expect(buildHeroMessage([], { done: 0, total: 0 })[0]).toBe("Todavía no tenés hábitos");
+  });
+
+  it("todo lo de hoy quedó salteado (hay ítems, pero el denominador da 0)", () => {
+    const items = buildTodayItems(
+      [habit()],
+      [{ id: "e1", habitId: "h1", date: "2026-01-15", status: "skip", value: null, source: "manual", updatedAt: "x" }],
+      "2026-01-15"
+    );
+    expect(buildHeroMessage(items, buildHeroRing(items))[0]).toBe("Por hoy, ya está");
+  });
+
+  it("día completo", () => {
+    const items = buildTodayItems(
+      [habit()],
+      [{ id: "e1", habitId: "h1", date: "2026-01-15", status: "done", value: null, source: "manual", updatedAt: "x" }],
+      "2026-01-15"
+    );
+    expect(buildHeroMessage(items, buildHeroRing(items))[0]).toBe("¡Día completo!");
+  });
+
+  it("todavía nada hecho", () => {
+    const items = buildTodayItems([habit()], [], "2026-01-15");
+    expect(buildHeroMessage(items, buildHeroRing(items))[0]).toBe("Arrancá con lo fácil");
   });
 });

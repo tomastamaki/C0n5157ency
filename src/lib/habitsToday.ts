@@ -86,6 +86,16 @@ export function buildHeroRing(items: TodayItem[]): HeroRing {
   return { done, total: counted.length };
 }
 
+/** Título + bajada del encabezado de "Hoy", según cuánto queda y si hay hábitos o no. */
+export function buildHeroMessage(items: TodayItem[], hero: HeroRing): [string, string] {
+  const left = hero.total - hero.done;
+  if (items.length === 0) return ["Todavía no tenés hábitos", "Empezá con uno solo. Lo difícil es arrancar."];
+  if (hero.total === 0) return ["Por hoy, ya está", "Lo de hoy quedó salteado. Mañana es otro día."];
+  if (left === 0) return ["¡Día completo!", "Vamos toro. Hoy cerraste todo."];
+  if (hero.done === 0) return ["Arrancá con lo fácil", "Un solo toque y ya estás en marcha."];
+  return ["Vamos toro", `Te faltan ${left} para cerrar el día.`];
+}
+
 const DAY_LETTERS = ["L", "M", "X", "J", "V", "S", "D"];
 
 export interface WeekStripDayData {

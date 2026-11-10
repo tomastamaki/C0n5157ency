@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { localDateKey } from "../lib/time";
-import { buildHeroRing, buildTodayItems, buildWeekStrip, type TodayItem } from "../lib/habitsToday";
+import { buildHeroMessage, buildHeroRing, buildTodayItems, buildWeekStrip, type TodayItem } from "../lib/habitsToday";
 import { computeGlobalStreak } from "../lib/habitStreaks";
 import { addQuantity, completeTimeGoal, skipToday, toggleDone, unskip } from "../lib/habitActions";
 import { Ring } from "../components/habits/Ring";
@@ -129,17 +129,7 @@ export function HabitsTodayScreen({ onCreateHabit }: Props) {
 
   const doneCount = hero.done;
   const total = hero.total;
-  const left = total - doneCount;
-  const heroMsg =
-    items.length === 0
-      ? ["Todavía no tenés hábitos", "Empezá con uno solo. Lo difícil es arrancar."]
-      : total === 0
-        ? ["Por hoy, ya está", "Lo de hoy quedó salteado. Mañana es otro día."]
-        : left === 0
-          ? ["¡Día completo!", "Vamos toro. Hoy cerraste todo."]
-          : doneCount === 0
-            ? ["Arrancá con lo fácil", "Un solo toque y ya estás en marcha."]
-            : ["Vamos toro", `Te faltan ${left} para cerrar el día.`];
+  const heroMsg = buildHeroMessage(items, hero);
 
   if (logs.habits.filter((h) => !h.archivedAt).length === 0) {
     return (

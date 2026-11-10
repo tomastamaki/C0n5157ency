@@ -76,6 +76,7 @@ function AppShell() {
         onNavigateHistory={() => handleTabChange("history")}
         onResumeWorkout={() => setViewingWorkout(true)}
         onNavigateToLifestyle={goToLifestyleMetric}
+        onNavigateToHabits={() => handleTabChange("habits")}
       />
     );
   } else if (tab === "history") {

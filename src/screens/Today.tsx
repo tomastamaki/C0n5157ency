@@ -20,9 +20,16 @@ interface Props {
   onNavigateHistory: () => void;
   onResumeWorkout: () => void;
   onNavigateToLifestyle: (metric: LifestyleMetricKey) => void;
+  onNavigateToHabits: () => void;
 }
 
-export function TodayScreen({ activeDraft, onNavigateHistory, onResumeWorkout, onNavigateToLifestyle }: Props) {
+export function TodayScreen({
+  activeDraft,
+  onNavigateHistory,
+  onResumeWorkout,
+  onNavigateToLifestyle,
+  onNavigateToHabits,
+}: Props) {
   const { flatDays, logs, settings } = useApp();
   const weekDays = getCurrentWeekDays(flatDays, logs, settings.programCycle);
 
@@ -41,6 +48,7 @@ export function TodayScreen({ activeDraft, onNavigateHistory, onResumeWorkout, o
       onNavigateHistory={onNavigateHistory}
       onEnterWorkout={onResumeWorkout}
       onNavigateToLifestyle={onNavigateToLifestyle}
+      onNavigateToHabits={onNavigateToHabits}
     />
   );
 }

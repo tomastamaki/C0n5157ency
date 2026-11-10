@@ -21,6 +21,7 @@ import { IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
 import { LifestyleKpiRow } from "./LifestyleKpiRow";
+import { HabitsTodayCard } from "./habits/HabitsTodayCard";
 import { VariationPill } from "./VariationPill";
 import { WorkoutPreviewScreen } from "../screens/WorkoutPreview";
 import { PeriodSummaryScreen } from "../screens/PeriodSummary";
@@ -34,6 +35,8 @@ interface Props {
   onEnterWorkout: () => void;
   /** Lleva a la pestaña Lifestyle, directo a la vista de Tendencias de esa métrica. */
   onNavigateToLifestyle: (metric: LifestyleMetricKey) => void;
+  /** Lleva a la pestaña Hábitos. */
+  onNavigateToHabits: () => void;
 }
 
 export function HomeDashboard({
@@ -42,6 +45,7 @@ export function HomeDashboard({
   onNavigateHistory,
   onEnterWorkout,
   onNavigateToLifestyle,
+  onNavigateToHabits,
 }: Props) {
   const { logs, program, settings, flatDays } = useApp();
   const { startWorkout, skipDay } = useWorkoutActions();
@@ -123,6 +127,8 @@ export function HomeDashboard({
           </div>
         )}
       </div>
+
+      <HabitsTodayCard logs={logs} onNavigate={onNavigateToHabits} />
 
       <LifestyleKpiRow kpis={lifestyleKpis} onSelect={onNavigateToLifestyle} />
 
