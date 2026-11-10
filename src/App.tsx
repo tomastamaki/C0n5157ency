@@ -8,6 +8,8 @@ import { Watermark } from "./components/Watermark";
 import { TodayScreen } from "./screens/Today";
 import { HistoryScreen } from "./screens/History";
 import { LifestyleScreen } from "./screens/Lifestyle";
+import { HabitsScreen } from "./screens/Habits";
+import { CreateHabitScreen } from "./screens/CreateHabit";
 import { SettingsScreen } from "./screens/Settings";
 import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import { OnboardingScreen } from "./components/Onboarding";
@@ -26,6 +28,7 @@ function AppShell() {
     () => !settings.onboardingSeen && logs.sessions.length === 0
   );
   const [lifestyleTarget, setLifestyleTarget] = useState<LifestyleMetricKey | null>(null);
+  const [creatingHabit, setCreatingHabit] = useState(false);
 
   const activeDraft = findActiveDraft(logs, settings.programCycle);
   const draftFlatDay = activeDraft ? flatDays[activeDraft.programIndex] ?? null : null;
@@ -34,6 +37,7 @@ function AppShell() {
     setTab(next);
     setViewingWorkout(false);
     setCompletedSession(null);
+    setCreatingHabit(false);
   }
 
   function finishOnboarding() {
@@ -49,6 +53,8 @@ function AppShell() {
   let content;
   if (showOnboarding) {
     content = <OnboardingScreen onDone={finishOnboarding} />;
+  } else if (creatingHabit) {
+    content = <CreateHabitScreen onDone={() => setCreatingHabit(false)} onCancel={() => setCreatingHabit(false)} />;
   } else if (completedSession) {
     content = <WorkoutSummary session={completedSession} onContinue={() => setCompletedSession(null)} />;
   } else if (viewingWorkout && activeDraft && draftFlatDay) {
@@ -78,6 +84,8 @@ function AppShell() {
     content = (
       <LifestyleScreen initialMetric={lifestyleTarget} onInitialMetricConsumed={() => setLifestyleTarget(null)} />
     );
+  } else if (tab === "habits") {
+    content = <HabitsScreen onCreateHabit={() => setCreatingHabit(true)} />;
   } else {
     content = <SettingsScreen onShowOnboarding={() => setShowOnboarding(true)} />;
   }

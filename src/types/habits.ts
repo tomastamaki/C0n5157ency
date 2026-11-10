@@ -42,7 +42,13 @@ export interface HabitEntry {
   habitId: string;
   /** YYYY-MM-DD. La ausencia de entrada para una fecha significa "sin registro". */
   date: string;
-  status: "done" | "skip";
+  /**
+   * "partial" es cantidad/tiempo cargado hoy pero todavía por debajo de la
+   * meta: existe para no perder el progreso parcial al recargar, pero para
+   * el motor de rachas (`habitStreaks.ts`) cuenta igual que "sin registro"
+   * (no es ni hecho ni salteado) hasta que llegue a "done".
+   */
+  status: "done" | "skip" | "partial";
   /** Solo para hábitos de cantidad/tiempo; null en sí/no y a evitar. */
   value: number | null;
   source: "auto" | "manual";

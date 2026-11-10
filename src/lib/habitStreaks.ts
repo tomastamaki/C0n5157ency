@@ -30,13 +30,13 @@ function dayOfWeek(d: string): number {
   return (parseLocalDate(d).getDay() + 6) % 7;
 }
 
-function mondayOf(d: string): string {
+export function mondayOf(d: string): string {
   return addDays(d, -dayOfWeek(d));
 }
 
 /* ---------- ocurrencias programadas ---------- */
 
-function isScheduledDate(habit: Habit, date: string): boolean {
+export function isScheduledDate(habit: Habit, date: string): boolean {
   if (date < habit.startDate) return false;
   switch (habit.frequency.kind) {
     case "daily":
@@ -63,7 +63,7 @@ function scheduledDatesUpTo(habit: Habit, asOf: string): string[] {
   return out;
 }
 
-function entryMapFor(habitId: string, allEntries: HabitEntry[]): Map<string, HabitEntry> {
+export function entryMapFor(habitId: string, allEntries: HabitEntry[]): Map<string, HabitEntry> {
   const map = new Map<string, HabitEntry>();
   for (const e of allEntries) {
     if (e.habitId !== habitId) continue;

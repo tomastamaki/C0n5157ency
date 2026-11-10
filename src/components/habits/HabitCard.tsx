@@ -39,8 +39,9 @@ interface QuantityCard extends HabitCardCommon {
 interface TimeCard extends HabitCardCommon {
   kind: "time";
   goalMinutes: number;
-  weeklyDone: number;
-  weeklyTarget: number;
+  /** Ausentes si la frecuencia no es semanal: se muestra solo la meta en minutos, sin tira de puntos. */
+  weeklyDone?: number;
+  weeklyTarget?: number;
   running?: boolean;
   elapsedLabel?: string;
   onStart?: () => void;
@@ -134,7 +135,7 @@ export function HabitCard(props: HabitCardProps) {
 
   return (
     <div
-      className="rounded-card border px-3.5 py-3.5 shadow-elevated"
+      className="rounded-card border bg-surface px-3.5 py-3.5 shadow-elevated"
       style={{ borderColor: `color-mix(in srgb, ${color} 30%, rgb(var(--border)))` }}
     >
       <div className="flex items-center gap-3">
@@ -217,14 +218,14 @@ export function HabitCard(props: HabitCardProps) {
               </div>
               <div className="mt-0.5 text-xs text-muted">de {props.goalMinutes} min · en curso</div>
             </div>
-          ) : (
+          ) : props.weeklyTarget !== undefined ? (
             <div>
               <div className="flex gap-1">
                 {[...Array(props.weeklyTarget)].map((_, i) => (
                   <i
                     key={i}
                     className="block h-1.5 w-[22px] rounded-pill"
-                    style={{ backgroundColor: i < props.weeklyDone ? color : "rgb(var(--surface-2))" }}
+                    style={{ backgroundColor: i < (props.weeklyDone ?? 0) ? color : "rgb(var(--surface-2))" }}
                   />
                 ))}
               </div>
@@ -232,6 +233,8 @@ export function HabitCard(props: HabitCardProps) {
                 {props.weeklyDone}/{props.weeklyTarget} esta semana
               </div>
             </div>
+          ) : (
+            <div className="text-xs text-muted">{props.goalMinutes} min</div>
           )}
           <button
             type="button"

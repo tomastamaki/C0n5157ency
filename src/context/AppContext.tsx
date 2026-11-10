@@ -19,6 +19,7 @@ import type {
   WaterEntry,
   WorkoutSession,
 } from "../types/logs";
+import type { Habit, HabitEntry } from "../types/habits";
 import { EMPTY_LOGS } from "../types/logs";
 import {
   type AppSettings,
@@ -74,6 +75,9 @@ interface AppContextValue {
   upsertWaterEntry: (entry: WaterEntry) => void;
   removeWaterEntry: (id: string) => void;
   upsertExerciseNoteEntry: (entry: ExerciseNoteEntry) => void;
+  upsertHabit: (habit: Habit) => void;
+  upsertHabitEntry: (entry: HabitEntry) => void;
+  removeHabitEntry: (id: string) => void;
   clearAllLogs: () => void;
   syncStatus: SyncStatus;
   syncError: string | null;
@@ -347,6 +351,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutateLogs]
   );
 
+  const upsertHabit = useCallback(
+    (habit: Habit) => {
+      mutateLogs((prev) => {
+        const idx = prev.habits.findIndex((h) => h.id === habit.id);
+        const habits = [...prev.habits];
+        if (idx >= 0) habits[idx] = habit;
+        else habits.push(habit);
+        return { ...prev, habits };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const upsertHabitEntry = useCallback(
+    (entry: HabitEntry) => {
+      mutateLogs((prev) => {
+        const idx = prev.habitEntries.findIndex((e) => e.id === entry.id);
+        const habitEntries = [...prev.habitEntries];
+        if (idx >= 0) habitEntries[idx] = entry;
+        else habitEntries.push(entry);
+        return { ...prev, habitEntries };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const removeHabitEntry = useCallback(
+    (id: string) => {
+      mutateLogs((prev) => ({ ...prev, habitEntries: prev.habitEntries.filter((e) => e.id !== id) }));
+    },
+    [mutateLogs]
+  );
+
   const clearAllLogs = useCallback(() => {
     mutateLogs(() => ({ ...EMPTY_LOGS }));
   }, [mutateLogs]);
@@ -547,6 +584,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     upsertWaterEntry,
     removeWaterEntry,
     upsertExerciseNoteEntry,
+    upsertHabit,
+    upsertHabitEntry,
+    removeHabitEntry,
     clearAllLogs,
     syncStatus,
     syncError,
