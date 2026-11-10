@@ -9,7 +9,10 @@ export default {
         surface: "rgb(var(--surface) / <alpha-value>)",
         surface2: "rgb(var(--surface-2) / <alpha-value>)",
         border: "rgb(var(--border) / <alpha-value>)",
+        ghost: "rgb(var(--ghost) / <alpha-value>)",
         ink: "rgb(var(--text) / <alpha-value>)",
+        /** Tinta fija (no cambia con el tema): texto sobre los 8 colores de hábito, todos suficientemente claros para que el blanco no pase AA. */
+        habitink: "#0d0e13",
         muted: "rgb(var(--text-secondary) / <alpha-value>)",
         faint: "rgb(var(--text-faint) / <alpha-value>)",
         accent: "rgb(var(--accent) / <alpha-value>)",

@@ -8,6 +8,7 @@
   --surface: 255 255 255;
   --surface-2: 240 241 245;
   --border: 226 228 236;
+  --ghost: 228 230 238;
   --text: 20 21 28;
   --text-secondary: 92 95 114;
   --text-faint: 154 157 176;
@@ -22,6 +23,7 @@
   --surface: 22 24 33;
   --surface-2: 30 33 48;
   --border: 42 45 61;
+  --ghost: 38 42 59;
   --text: 245 246 250;
   --text-secondary: 154 157 176;
   --text-faint: 92 95 114;
