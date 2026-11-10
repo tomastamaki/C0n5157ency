@@ -13,7 +13,7 @@ interface Props {
 /** Tarjeta de celebración al cruzar 7/30/100 días de racha. Una sola vez por hito, sin confeti. */
 export function MilestoneModal({ habitName, milestone, color, onContinue, onViewDetail }: Props) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/60 px-6">
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-6" style={{ backgroundColor: "rgba(5,6,9,0.66)" }}>
       <div className="w-full max-w-sm rounded-card border border-border bg-surface px-6 py-6 text-center shadow-elevated">
         <div className="mx-auto w-fit">
           <Ring
