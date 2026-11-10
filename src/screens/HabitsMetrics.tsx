@@ -1,8 +1,26 @@
 import { useApp } from "../context/AppContext";
 import { MiniTrendChart } from "../components/MiniTrendChart";
 import { Pill } from "../components/habits/Pill";
-import { IconDroplet, IconMoon, IconScale, IconWalking } from "../components/icons";
-import type { Metric } from "../types/habits";
+import { IconDroplet, IconLink, IconMoon, IconScale, IconWalking } from "../components/icons";
+import type { Habit, HabitLinkedSource, Metric } from "../types/habits";
+
+function linkedHabitFor(habits: Habit[], source: HabitLinkedSource): Habit | null {
+  return habits.find((h) => !h.archivedAt && h.linked?.source === source) ?? null;
+}
+
+function LinkedRow({ habit, onOpen }: { habit: Habit | null; onOpen?: (id: string) => void }) {
+  if (!habit) return <span className="text-xs text-faint">Sin hábito vinculado</span>;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen?.(habit.id)}
+      className="flex items-center gap-2 rounded-block bg-surface2 px-3 py-2 text-xs text-muted"
+    >
+      <IconLink className="h-3.5 w-3.5 shrink-0" />
+      Hábito vinculado: <b className="text-ink">{habit.name}</b>
+    </button>
+  );
+}
 
 function last7(metrics: Metric[], field: keyof Metric): { date: string; value: number }[] {
   return metrics
@@ -27,6 +45,7 @@ function MetricCard({
   pill,
   points,
   sparkColor,
+  linked,
 }: {
   icon: React.ReactNode;
   name: string;
@@ -35,6 +54,7 @@ function MetricCard({
   pill: React.ReactNode;
   points: { date: string; value: number }[];
   sparkColor: string;
+  linked: React.ReactNode;
 }) {
   return (
     <div className="rounded-card border border-border bg-surface p-4">
@@ -51,13 +71,19 @@ function MetricCard({
       </p>
       <div className="mt-2">{pill}</div>
       <div className="mt-2.5">{points.length >= 2 && <MiniTrendChart points={points} colorClassName={sparkColor} />}</div>
+      <div className="mt-2.5">{linked}</div>
     </div>
   );
 }
 
-export function HabitsMetricsScreen() {
+interface Props {
+  onOpenDetail: (habitId: string) => void;
+}
+
+export function HabitsMetricsScreen({ onOpenDetail }: Props) {
   const { logs, settings } = useApp();
   const metrics = logs.metrics;
+  const habits = logs.habits;
 
   if (metrics.length === 0) {
     return (
@@ -92,10 +118,9 @@ export function HabitsMetricsScreen() {
                 {weightVar >= 0 ? "+" : ""}
                 {weightVar.toFixed(1)}% en {weightPoints.length} días
               </Pill>
-            ) : (
-              <span className="text-xs text-faint">Sin hábito vinculado</span>
-            )
+            ) : null
           }
+          linked={<span className="text-xs text-faint">El peso corporal no se puede vincular a un hábito</span>}
         />
       )}
 
@@ -107,7 +132,8 @@ export function HabitsMetricsScreen() {
           unit="h"
           sparkColor="text-[#9a8cf8]"
           points={sleepPoints}
-          pill={<span className="text-xs text-faint">Sin hábito vinculado</span>}
+          pill={null}
+          linked={<LinkedRow habit={linkedHabitFor(habits, "sleep")} onOpen={onOpenDetail} />}
         />
       )}
 
@@ -125,6 +151,7 @@ export function HabitsMetricsScreen() {
               {Math.round((lastSteps / settings.dailyStepsTarget) * 100)}% de la meta
             </Pill>
           }
+          linked={<LinkedRow habit={linkedHabitFor(habits, "steps")} onOpen={onOpenDetail} />}
         />
       )}
 
@@ -142,6 +169,7 @@ export function HabitsMetricsScreen() {
               {Math.round((lastWaterL / settings.dailyWaterTargetLiters) * 100)}% de la meta
             </Pill>
           }
+          linked={<LinkedRow habit={linkedHabitFor(habits, "water")} onOpen={onOpenDetail} />}
         />
       )}
     </div>

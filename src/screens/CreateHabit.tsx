@@ -13,7 +13,8 @@ import { IconArrowLeft } from "../components/icons";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
 import { HABIT_CATEGORIES, HABIT_TEMPLATES, HABIT_TIMES_OF_DAY, HABIT_TYPE_LABELS, emptyDraft } from "../lib/habitTemplates";
 import { newHabit } from "../lib/habitActions";
-import type { Habit, HabitFrequency, HabitType } from "../types/habits";
+import type { AppSettings } from "../lib/storage";
+import type { Habit, HabitFrequency, HabitLinkedSource, HabitType } from "../types/habits";
 
 type Draft = Omit<Habit, "id" | "createdAt" | "updatedAt" | "archivedAt">;
 
@@ -29,6 +30,29 @@ function quickStepsFor(unit: string | null): number[] {
   return [];
 }
 
+const LINK_LABELS: Record<HabitLinkedSource, string> = {
+  steps: "Pasos",
+  water: "Agua",
+  sleep: "Sueño",
+  workout: "Entrenar",
+};
+
+/** Qué fuentes tiene sentido vincular según el tipo de hábito (cantidad/tiempo/sí-no comparan contra una métrica; "a evitar" no tiene con qué vincularse). */
+function linkOptionsFor(type: HabitType): HabitLinkedSource[] {
+  if (type === "quantity") return ["steps", "water"];
+  if (type === "time") return ["sleep"];
+  if (type === "yesno") return ["workout"];
+  return [];
+}
+
+/** Al vincular, el objetivo pasa a ser el mismo dato que hoy vive en Ajustes (o un valor razonable para sueño). */
+function linkDefaults(source: HabitLinkedSource, settings: AppSettings): { goal: number; unit: string } {
+  if (source === "steps") return { goal: settings.dailyStepsTarget, unit: "pasos" };
+  if (source === "water") return { goal: Math.round(settings.dailyWaterTargetLiters * 1000), unit: "ml" };
+  if (source === "sleep") return { goal: 7, unit: "h" };
+  return { goal: 1, unit: "" };
+}
+
 function buildPreviewProps(draft: Draft): HabitCardProps {
   const common = {
     id: "preview",
@@ -38,6 +62,7 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
     status: "pending" as const,
     streak: 0,
     heat: Array(14).fill("none") as HabitCardProps["heat"],
+    auto: draft.linked !== null,
   };
   if (draft.type === "quantity") {
     return {
@@ -73,7 +98,7 @@ interface Props {
 }
 
 export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
-  const { upsertHabit } = useApp();
+  const { upsertHabit, settings } = useApp();
   const [draft, setDraft] = useState<Draft>(() => editing ?? emptyDraft());
 
   function patch(p: Partial<Draft>) {
@@ -93,15 +118,26 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
       frequency: t.frequency,
       category: t.category,
       timeOfDay: t.timeOfDay,
+      linked: t.linked ? { source: t.linked } : null,
     });
   }
 
   function setType(type: HabitType) {
+    const stillValid = draft.linked && linkOptionsFor(type).includes(draft.linked.source);
     patch({
       type,
       unit: type === "quantity" ? (draft.unit ?? "ml") : type === "time" ? "min" : null,
       goal: type === "yesno" || type === "avoid" ? 1 : draft.goal,
+      linked: stillValid ? draft.linked : null,
     });
+  }
+
+  function setLink(source: HabitLinkedSource | null) {
+    if (source === null) {
+      patch({ linked: null });
+      return;
+    }
+    patch({ linked: { source }, ...linkDefaults(source, settings) });
   }
 
   function setFrequencyKind(kind: HabitFrequency["kind"]) {
@@ -189,14 +225,37 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
               <TextField
                 type="number"
                 value={draft.goal}
+                disabled={draft.linked !== null}
                 onChange={(e) => patch({ goal: Number(e.target.value) || 0 })}
-                className="font-mono font-bold"
+                className="font-mono font-bold disabled:opacity-45"
               />
             </FormField>
             <FormField label="Unidad">
-              <TextField value={draft.unit ?? ""} onChange={(e) => patch({ unit: e.target.value })} placeholder="ml, pasos, min…" />
+              <TextField
+                value={draft.unit ?? ""}
+                disabled={draft.linked !== null}
+                onChange={(e) => patch({ unit: e.target.value })}
+                placeholder="ml, pasos, min…"
+                className="disabled:opacity-45"
+              />
             </FormField>
           </div>
+        )}
+
+        {linkOptionsFor(draft.type).length > 0 && (
+          <FormField label="Vincular a" hint="se completa solo">
+            <div className="flex flex-wrap gap-2">
+              <Chip label="Sin vincular" active={draft.linked === null} onClick={() => setLink(null)} />
+              {linkOptionsFor(draft.type).map((source) => (
+                <Chip
+                  key={source}
+                  label={LINK_LABELS[source]}
+                  active={draft.linked?.source === source}
+                  onClick={() => setLink(source)}
+                />
+              ))}
+            </div>
+          </FormField>
         )}
 
         <FormField label="Frecuencia">

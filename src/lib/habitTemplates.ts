@@ -1,4 +1,4 @@
-import type { Habit, HabitCategory, HabitColor, HabitFrequency, HabitTimeOfDay, HabitType } from "../types/habits";
+import type { Habit, HabitCategory, HabitColor, HabitFrequency, HabitLinkedSource, HabitTimeOfDay, HabitType } from "../types/habits";
 import { localDateKey } from "./time";
 
 export interface HabitTemplate {
@@ -13,9 +13,24 @@ export interface HabitTemplate {
   category: HabitCategory;
   timeOfDay: HabitTimeOfDay;
   caption: string;
+  linked?: HabitLinkedSource;
 }
 
 export const HABIT_TEMPLATES: HabitTemplate[] = [
+  {
+    name: "Pasos",
+    icon: "walk",
+    color: "verde",
+    type: "quantity",
+    unit: "pasos",
+    goal: 8000,
+    quickSteps: [],
+    frequency: { kind: "daily" },
+    category: "Salud",
+    timeOfDay: "Todo el día",
+    caption: "8.000 · Auto",
+    linked: "steps",
+  },
   {
     name: "Tomar agua",
     icon: "drop",
@@ -34,13 +49,14 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     icon: "moon",
     color: "violeta",
     type: "time",
-    unit: "min",
-    goal: 420,
+    unit: "h",
+    goal: 7,
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Salud",
     timeOfDay: "Noche",
-    caption: "7 h",
+    caption: "7 h · Auto",
+    linked: "sleep",
   },
   {
     name: "Entrenar",
@@ -53,7 +69,8 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     frequency: { kind: "weekly", n: 4 },
     category: "Entrenamiento",
     timeOfDay: "Mañana",
-    caption: "4 veces por semana",
+    caption: "4 veces por semana · Auto",
+    linked: "workout",
   },
   {
     name: "Leer",

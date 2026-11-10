@@ -20,6 +20,9 @@ import type {
   WorkoutSession,
 } from "../types/logs";
 import type { Habit, HabitEntry } from "../types/habits";
+import { deriveMetricsFromLegacyLifestyle } from "../lib/habitsMigration";
+import { autoMarkEntriesForMetric, autoMarkWorkoutCompletion } from "../lib/habitAutoLink";
+import { localDateKey } from "../lib/time";
 import { EMPTY_LOGS } from "../types/logs";
 import {
   type AppSettings,
@@ -111,6 +114,14 @@ function downloadJson(filename: string, payload: unknown) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Aplica actualizaciones de auto-marcado (upsert por id) sin tocar las entradas que no cambiaron. */
+function mergeHabitEntryUpdates(entries: HabitEntry[], updates: HabitEntry[]): HabitEntry[] {
+  if (updates.length === 0) return entries;
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  for (const u of updates) byId.set(u.id, u);
+  return Array.from(byId.values());
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -241,7 +252,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (idx >= 0) sessions[idx] = session;
         else sessions.push(session);
         sessions.sort((a, b) => a.programIndex - b.programIndex);
-        return { ...prev, sessions };
+
+        let habitEntries = prev.habitEntries;
+        if (session.status === "completed") {
+          const date = localDateKey(session.completedAt ?? session.startedAt);
+          const updates = autoMarkWorkoutCompletion(prev.habits, prev.habitEntries, date);
+          habitEntries = mergeHabitEntryUpdates(prev.habitEntries, updates);
+        }
+        return { ...prev, sessions, habitEntries };
       });
     },
     [mutateLogs]
@@ -262,7 +280,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (idx >= 0) entries[idx] = entry;
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
-        return { ...prev, bodyWeightEntries: entries };
+        const next = { ...prev, bodyWeightEntries: entries };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
       });
     },
     [mutateLogs]
@@ -270,7 +289,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeBodyWeightEntry = useCallback(
     (id: string) => {
-      mutateLogs((prev) => ({ ...prev, bodyWeightEntries: prev.bodyWeightEntries.filter((e) => e.id !== id) }));
+      mutateLogs((prev) => {
+        const next = { ...prev, bodyWeightEntries: prev.bodyWeightEntries.filter((e) => e.id !== id) };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
+      });
     },
     [mutateLogs]
   );
@@ -283,7 +305,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (idx >= 0) entries[idx] = entry;
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
-        return { ...prev, sleepEntries: entries };
+        const next = { ...prev, sleepEntries: entries };
+        const metrics = deriveMetricsFromLegacyLifestyle(next);
+        const metric = metrics.find((m) => m.date === entry.date);
+        const habitEntries = metric
+          ? mergeHabitEntryUpdates(prev.habitEntries, autoMarkEntriesForMetric(prev.habits, prev.habitEntries, metric))
+          : prev.habitEntries;
+        return { ...next, metrics, habitEntries };
       });
     },
     [mutateLogs]
@@ -291,7 +319,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeSleepEntry = useCallback(
     (id: string) => {
-      mutateLogs((prev) => ({ ...prev, sleepEntries: prev.sleepEntries.filter((e) => e.id !== id) }));
+      mutateLogs((prev) => {
+        const next = { ...prev, sleepEntries: prev.sleepEntries.filter((e) => e.id !== id) };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
+      });
     },
     [mutateLogs]
   );
@@ -304,7 +335,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (idx >= 0) entries[idx] = entry;
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
-        return { ...prev, stepsEntries: entries };
+        const next = { ...prev, stepsEntries: entries };
+        const metrics = deriveMetricsFromLegacyLifestyle(next);
+        const metric = metrics.find((m) => m.date === entry.date);
+        const habitEntries = metric
+          ? mergeHabitEntryUpdates(prev.habitEntries, autoMarkEntriesForMetric(prev.habits, prev.habitEntries, metric))
+          : prev.habitEntries;
+        return { ...next, metrics, habitEntries };
       });
     },
     [mutateLogs]
@@ -312,7 +349,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeStepsEntry = useCallback(
     (id: string) => {
-      mutateLogs((prev) => ({ ...prev, stepsEntries: prev.stepsEntries.filter((e) => e.id !== id) }));
+      mutateLogs((prev) => {
+        const next = { ...prev, stepsEntries: prev.stepsEntries.filter((e) => e.id !== id) };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
+      });
     },
     [mutateLogs]
   );
@@ -325,7 +365,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (idx >= 0) entries[idx] = entry;
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
-        return { ...prev, waterEntries: entries };
+        const next = { ...prev, waterEntries: entries };
+        const metrics = deriveMetricsFromLegacyLifestyle(next);
+        const metric = metrics.find((m) => m.date === entry.date);
+        const habitEntries = metric
+          ? mergeHabitEntryUpdates(prev.habitEntries, autoMarkEntriesForMetric(prev.habits, prev.habitEntries, metric))
+          : prev.habitEntries;
+        return { ...next, metrics, habitEntries };
       });
     },
     [mutateLogs]
@@ -333,7 +379,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const removeWaterEntry = useCallback(
     (id: string) => {
-      mutateLogs((prev) => ({ ...prev, waterEntries: prev.waterEntries.filter((e) => e.id !== id) }));
+      mutateLogs((prev) => {
+        const next = { ...prev, waterEntries: prev.waterEntries.filter((e) => e.id !== id) };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
+      });
     },
     [mutateLogs]
   );
