@@ -12,6 +12,4 @@ export const HABITS_CONFIG = {
   consistencyHalfLifeDays: 14,
   /** Hitos de racha que disparan la tarjeta de celebración (una sola vez cada uno). */
   milestones: [7, 30, 100] as const,
-  /** Umbrales de proporción hecha/programada que separan los niveles 1/2/3 del mapa de calor global. */
-  globalHeatLevelThresholds: [0.4, 0.8] as const,
 };

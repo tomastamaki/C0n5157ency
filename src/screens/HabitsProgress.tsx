@@ -129,7 +129,7 @@ export function HabitsProgressScreen({ onOpenDetail }: Props) {
           <span className="font-bold text-muted">Mapa de calor global</span>
           <span className="text-faint">16 semanas</span>
         </div>
-        <HeatGrid cells={heatCells} monthLabels={monthLabels} color="rgb(var(--primary))" />
+        <HeatGrid cells={heatCells} monthLabels={monthLabels} />
       </div>
 
       <div className="rounded-card border border-border bg-surface p-4">

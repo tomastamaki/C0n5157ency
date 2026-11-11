@@ -13,6 +13,7 @@ import { archiveHabit, setEntryStatus } from "../lib/habitActions";
 import { addLog, editLog, logsForDate, removeLog } from "../lib/habitLogs";
 import { averageOf, buildHabitTrendSeries, changeVsPreviousWeek, movingAverage7, type TrendRange } from "../lib/habitTrend";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
+import { colorForPct } from "../lib/heatScale";
 import { Ring } from "../components/habits/Ring";
 import { HeatGrid } from "../components/habits/HeatGrid";
 import { BarChart } from "../components/habits/BarChart";
@@ -212,7 +213,7 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
 
             <div className="rounded-card border border-border bg-surface p-4">
               <div className="mb-2.5 flex justify-between text-xs font-bold text-muted">Últimas 16 semanas</div>
-              <HeatGrid cells={heatCells} monthLabels={monthLabels} color={color} />
+              <HeatGrid cells={heatCells} monthLabels={monthLabels} />
             </div>
           </>
         )}
@@ -341,8 +342,8 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
                     c.date === selectedDate ? "shadow-[0_0_0_2px_rgb(var(--primary))]" : ""
                   }`}
                   style={
-                    c.status === "done"
-                      ? { backgroundColor: color, color: "#0d0e13" }
+                    c.heat.pct !== null
+                      ? { backgroundColor: colorForPct(c.heat.pct), color: "#0d0e13" }
                       : c.status === "skip"
                         ? { backgroundColor: "rgb(var(--ghost))", color: "rgb(var(--muted))" }
                         : undefined
@@ -355,7 +356,9 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
           </div>
           {selectedDate && (
             <div className="mt-3.5 rounded-block bg-surface2 p-3">
-              <p className="mb-2 text-xs text-muted">Tocá para cambiarlo · {selectedDate}</p>
+              <p className="mb-2 text-xs text-muted">
+                {selectedCell?.heat.label ?? selectedDate} · tocá una opción para cambiarlo
+              </p>
               <SegmentedControl<"done" | "skip" | "none">
                 options={[
                   { value: "done", label: "Hecho" },

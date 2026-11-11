@@ -61,9 +61,3 @@ export const HABIT_ICON_ORDER = Object.keys(HABIT_ICONS);
 export function habitIconFor(name: string): HabitIconComponent {
   return HABIT_ICONS[name] ?? IconDroplet;
 }
-
-/** Celda del mapa de calor de 16 semanas (Detalle, Progreso). */
-export type HeatLevel = 0 | 1 | 2 | 3 | "skip";
-
-/** Celda de la mini fila de 14 días dentro de la tarjeta de hábito. */
-export type HeatCellState = "done" | "skip" | "none" | "pending";

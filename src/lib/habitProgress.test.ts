@@ -38,7 +38,7 @@ function habit(patch: Partial<Habit> = {}): Habit {
 }
 
 describe("buildHabitHeatCells", () => {
-  it("devuelve 16*7 celdas, 'done' donde hay entrada hecha, 'skip' donde se salteó", () => {
+  it("devuelve 16*7 celdas, 100% (verde) donde hay entrada hecha, gris 'skip' donde se salteó", () => {
     const h = habit();
     const entries: HabitEntry[] = [
       { id: "e1", habitId: "h1", date: "2026-01-14", status: "done", value: null, source: "manual", updatedAt: "x" },
@@ -46,15 +46,19 @@ describe("buildHabitHeatCells", () => {
     ];
     const cells = buildHabitHeatCells(h, entries, "2026-01-15", 16);
     expect(cells).toHaveLength(112);
-    expect(cells.filter((c) => c === 3)).toHaveLength(1);
-    expect(cells.filter((c) => c === "skip")).toHaveLength(1);
+    expect(cells.filter((c) => c.pct === 100)).toHaveLength(1);
+    expect(cells.filter((c) => c.reason === "skip")).toHaveLength(1);
   });
 
-  it("los días futuros a 'asOf' quedan en 0, no se inventan", () => {
+  it("los días futuros a 'asOf' quedan grises, no se inventan; los pasados sin registro son 0% rojo (Fase 5)", () => {
     const h = habit();
     const cells = buildHabitHeatCells(h, [], "2026-01-15", 1);
-    // la semana de asOf: lunes 12 a domingo 18; jue-dom (16-18) son futuro
-    expect(cells.every((c) => c === 0)).toBe(true);
+    // la semana de asOf (lunes 12 a domingo 18): jue-dom (16-18) son futuro -> gris.
+    expect(cells.slice(4, 7).every((c) => c.pct === null && c.reason === "future")).toBe(true);
+    // lun-mié (12-14) ya pasaron sin registro -> 0% (rojo), no se inventa un gris complaciente.
+    expect(cells.slice(0, 3).every((c) => c.pct === 0)).toBe(true);
+    // hoy (15, jueves) todavía no termina -> gris, no rojo todavía.
+    expect(cells[3]).toMatchObject({ pct: null, reason: "pending-today" });
   });
 });
 
@@ -68,13 +72,14 @@ describe("buildGlobalHeatCells", () => {
     ];
     const cells = buildGlobalHeatCells([h1, h2], entries, "2026-01-15", 1);
     // 2026-01-14 es la posición 2 (índice de miércoles = 2) de la semana lunes=0
-    expect(cells[2]).toBe(3);
+    expect(cells[2].pct).toBe(100);
   });
 
   it("un hábito semanal no participa del mapa global (no tiene día programado puntual)", () => {
     const weeklyHabit = habit({ frequency: { kind: "weekly", n: 3 } });
     const cells = buildGlobalHeatCells([weeklyHabit], [], "2026-01-15", 1);
-    expect(cells.every((c) => c === 0)).toBe(true);
+    // Sin hábitos no-semanales programados ese día: gris neutro, no 0% rojo.
+    expect(cells.every((c) => c.pct === null)).toBe(true);
   });
 });
 
@@ -150,6 +155,15 @@ describe("buildMonthCalendar", () => {
     const cells = buildMonthCalendar(h, [], 2026, 1, "2026-01-15").filter(Boolean) as { day: number; status: string }[];
     expect(cells.find((c) => c.day === 5)?.status).toBe("future");
     expect(cells.find((c) => c.day === 10)?.status).toBe("none");
+  });
+
+  it("Fase 5: cada celda trae su 'heat' (escala roja→verde) consistente con el status", () => {
+    const h = habit({ startDate: "2026-01-01" });
+    const entries: HabitEntry[] = [{ id: "e1", habitId: "h1", date: "2026-01-05", status: "done", value: null, source: "manual", updatedAt: "x" }];
+    const cells = buildMonthCalendar(h, entries, 2026, 1, "2026-01-15").filter(Boolean) as { day: number; heat: { pct: number | null } }[];
+    expect(cells.find((c) => c.day === 5)?.heat.pct).toBe(100); // hecho -> verde
+    expect(cells.find((c) => c.day === 3)?.heat.pct).toBe(0); // pasado sin registro -> rojo
+    expect(cells.find((c) => c.day === 20)?.heat.pct).toBeNull(); // futuro -> gris
   });
 });
 

@@ -67,23 +67,23 @@ describe("buildTodayItems", () => {
 });
 
 describe("heatCellsFor", () => {
-  it("devuelve 14 celdas calendario, 'pending' para hoy sin registro, 'none' para el resto", () => {
+  it("devuelve 14 celdas calendario, hoy sin registro queda gris 'pending-today', el resto (pasado sin registro) 0% (Fase 5)", () => {
     const h = habit();
     const cells = heatCellsFor(h, [], "2026-01-15");
     expect(cells).toHaveLength(14);
-    expect(cells[13]).toBe("pending");
-    expect(cells[0]).toBe("none");
+    expect(cells[13]).toMatchObject({ pct: null, reason: "pending-today" });
+    expect(cells[0].pct).toBe(0);
   });
 
-  it("marca 'done'/'skip' en las fechas con entrada", () => {
+  it("marca 100%/gris 'skip' en las fechas con entrada", () => {
     const h = habit();
     const entries: HabitEntry[] = [
       { id: "e1", habitId: "h1", date: "2026-01-14", status: "done", value: null, source: "manual", updatedAt: "x" },
       { id: "e2", habitId: "h1", date: "2026-01-13", status: "skip", value: null, source: "manual", updatedAt: "x" },
     ];
     const cells = heatCellsFor(h, entries, "2026-01-15");
-    expect(cells[12]).toBe("done");
-    expect(cells[11]).toBe("skip");
+    expect(cells[12].pct).toBe(100);
+    expect(cells[11]).toMatchObject({ pct: null, reason: "skip" });
   });
 });
 

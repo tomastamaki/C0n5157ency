@@ -65,7 +65,7 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
     color: draft.color,
     status: "pending" as const,
     streak: 0,
-    heat: Array(14).fill("none") as HabitCardProps["heat"],
+    heat: Array(14).fill({ pct: null, label: "" }) as HabitCardProps["heat"],
     auto: draft.linked !== null,
     weekly: draft.frequency.kind === "weekly" ? { done: 0, n: draft.frequency.n, atRisk: false } : undefined,
   };

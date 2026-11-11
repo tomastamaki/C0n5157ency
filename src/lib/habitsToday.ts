@@ -10,7 +10,7 @@ import {
   type RecoveryInfo,
   type WeeklyProgress,
 } from "./habitStreaks";
-import type { HeatCellState } from "../components/habits/habitVisuals";
+import { habitDayHeat, type HabitDayHeat } from "./habitHeat";
 
 export interface TodayItem {
   habit: Habit;
@@ -18,7 +18,7 @@ export interface TodayItem {
   status: "pending" | "done" | "skip";
   streak: number;
   streakUnit?: string;
-  heat: HeatCellState[];
+  heat: HabitDayHeat[];
   recovery: RecoveryInfo;
   weekly: WeeklyProgress | null;
 }
@@ -34,17 +34,10 @@ function statusOf(entry: HabitEntry | null): "pending" | "done" | "skip" {
 }
 
 /** Mini fila de los últimos `days` días calendario (no solo los programados), igual que en habi7-diseno.html. */
-export function heatCellsFor(habit: Habit, allEntries: HabitEntry[], asOf: string, days = 14): HeatCellState[] {
+export function heatCellsFor(habit: Habit, allEntries: HabitEntry[], asOf: string, days = 14): HabitDayHeat[] {
   const entries = entryMapFor(habit.id, allEntries);
-  const out: HeatCellState[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = addDays(asOf, -i);
-    const e = entries.get(d);
-    if (e?.status === "done") out.push("done");
-    else if (e?.status === "skip") out.push("skip");
-    else if (d === asOf) out.push("pending");
-    else out.push("none");
-  }
+  const out: HabitDayHeat[] = [];
+  for (let i = days - 1; i >= 0; i--) out.push(habitDayHeat(habit, entries, addDays(asOf, -i), asOf));
   return out;
 }
 

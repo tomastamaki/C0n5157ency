@@ -1,7 +1,6 @@
 import type { Habit, HabitEntry } from "../types/habits";
-import { HABITS_CONFIG } from "./habitsConfig";
 import { addDays, consistencyScore, dayOfWeek, entryMapFor, isScheduledDate, mondayOf } from "./habitStreaks";
-import type { HeatLevel } from "../components/habits/habitVisuals";
+import { habitDayHeat, type HabitDayHeat } from "./habitHeat";
 
 const DAY_LETTERS = ["L", "M", "X", "J", "V", "S", "D"];
 
@@ -15,49 +14,49 @@ function weeksWindow(asOf: string, weeks: number): string[] {
   return out;
 }
 
-/** Mapa de calor de UN hábito: 16 semanas, lunes arriba, columna por semana. "done"=3, "skip"=skip, resto=0. */
-export function buildHabitHeatCells(habit: Habit, entries: HabitEntry[], asOf: string, weeks = 16): HeatLevel[] {
+/** Mapa de calor de UN hábito: 16 semanas, lunes arriba, columna por semana. Escala roja→verde (ver `habitDayHeat`). */
+export function buildHabitHeatCells(habit: Habit, entries: HabitEntry[], asOf: string, weeks = 16): HabitDayHeat[] {
   const map = entryMapFor(habit.id, entries);
   const mondays = weeksWindow(asOf, weeks);
-  const cells: HeatLevel[] = [];
+  const cells: HabitDayHeat[] = [];
   for (const monday of mondays) {
-    for (let row = 0; row < 7; row++) {
-      const d = addDays(monday, row);
-      if (d > asOf || d < habit.startDate) {
-        cells.push(0);
-        continue;
-      }
-      const e = map.get(d);
-      if (e?.status === "done") cells.push(3);
-      else if (e?.status === "skip") cells.push("skip");
-      else cells.push(0);
-    }
+    for (let row = 0; row < 7; row++) cells.push(habitDayHeat(habit, map, addDays(monday, row), asOf));
   }
   return cells;
 }
 
-/** Mapa de calor global: proporción de hábitos (no semanales, activos) hechos cada día, en 4 niveles. */
-export function buildGlobalHeatCells(habits: Habit[], entries: HabitEntry[], asOf: string, weeks = 16): HeatLevel[] {
+export interface GlobalDayHeat {
+  /** null = gris neutro (sin hábitos programados ese día, o futuro) — nunca rojo por ausencia de datos. */
+  pct: number | null;
+  label: string;
+}
+
+function shortDate(d: string): string {
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+}
+
+/** Mapa de calor global: % de hábitos programados (no semanales, activos) cumplidos cada día. */
+export function buildGlobalHeatCells(habits: Habit[], entries: HabitEntry[], asOf: string, weeks = 16): GlobalDayHeat[] {
   const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly");
   const maps = new Map(active.map((h) => [h.id, entryMapFor(h.id, entries)]));
-  const [lo, hi] = HABITS_CONFIG.globalHeatLevelThresholds;
   const mondays = weeksWindow(asOf, weeks);
-  const cells: HeatLevel[] = [];
+  const cells: GlobalDayHeat[] = [];
   for (const monday of mondays) {
     for (let row = 0; row < 7; row++) {
       const d = addDays(monday, row);
+      const label = shortDate(d);
       if (d > asOf) {
-        cells.push(0);
+        cells.push({ pct: null, label: `${label}: todavía no llega` });
         continue;
       }
       const scheduled = active.filter((h) => h.startDate <= d && isScheduledDate(h, d));
       if (scheduled.length === 0) {
-        cells.push(0);
+        cells.push({ pct: null, label: `${label}: sin hábitos programados` });
         continue;
       }
       const done = scheduled.filter((h) => maps.get(h.id)!.get(d)?.status === "done").length;
-      const ratio = done / scheduled.length;
-      cells.push(ratio === 0 ? 0 : ratio < lo ? 1 : ratio < hi ? 2 : 3);
+      const pct = (done / scheduled.length) * 100;
+      cells.push({ pct, label: `${label}: ${Math.round(pct)} % (${done}/${scheduled.length} hábitos)` });
     }
   }
   return cells;
@@ -136,6 +135,8 @@ export interface CalendarDay {
   day: number;
   date: string;
   status: DayStatus;
+  /** Color/valor en la escala roja→verde (Fase 5), para pintar la celda igual que el resto de los mapas de calor. */
+  heat: HabitDayHeat;
 }
 
 /** Grilla del mes (lunes a domingo, con huecos null antes del día 1), para el calendario editable de Detalle. */
@@ -150,7 +151,7 @@ export function buildMonthCalendar(habit: Habit, entries: HabitEntry[], year: nu
     const e = map.get(date);
     const outOfRange = date > asOf || date < habit.startDate;
     const status: DayStatus = outOfRange ? "future" : e?.status === "done" ? "done" : e?.status === "skip" ? "skip" : "none";
-    cells.push({ day, date, status });
+    cells.push({ day, date, status, heat: habitDayHeat(habit, map, date, asOf) });
   }
   return cells;
 }

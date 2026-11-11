@@ -3,7 +3,8 @@ import type { HabitColor } from "../../types/habits";
 import { IconCheck, IconFlame, IconInfo, IconLink, IconPlay, IconRotateCcw, IconShield } from "../icons";
 import { HeatRow } from "./HeatRow";
 import { Streak } from "./Streak";
-import { habitIconFor, HABIT_COLORS, type HeatCellState } from "./habitVisuals";
+import { habitIconFor, HABIT_COLORS } from "./habitVisuals";
+import type { HeatCellLike } from "./HeatGrid";
 import { CardActionMenu } from "./CardActionMenu";
 import { ExactValueField } from "./ExactValueField";
 import { useLongPress } from "../../lib/useLongPress";
@@ -19,7 +20,7 @@ interface HabitCardCommon {
   streak: number;
   streakUnit?: string;
   subtitle: string;
-  heat: HeatCellState[];
+  heat: HeatCellLike[];
   auto?: boolean;
   /** La última ocurrencia pasada quedó sin registrar: aviso de recuperación. */
   recovery?: boolean;
@@ -172,7 +173,7 @@ export function HabitCard(props: HabitCardProps) {
                   <IconFlame className="h-3.5 w-3.5" />
                   <b className="font-mono">{props.streak}</b> {props.streakUnit ?? "días"}
                 </span>
-                <HeatRow cells={props.heat.slice(0, -1).concat("done")} color="#0d0e13" tone="onColor" />
+                <HeatRow cells={props.heat.slice(0, -1).concat({ pct: 100, label: "hoy: hecho" })} tone="onColor" />
               </div>
             </div>
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-habitink text-success">
@@ -349,7 +350,7 @@ export function HabitCard(props: HabitCardProps) {
       )}
 
       <div className="mt-3 flex items-center justify-between">
-        <HeatRow cells={props.heat} color={color} />
+        <HeatRow cells={props.heat} />
         <Streak streak={props.streak} unit={props.streakUnit} />
       </div>
     </div>

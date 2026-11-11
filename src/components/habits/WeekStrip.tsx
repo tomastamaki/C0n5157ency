@@ -1,4 +1,5 @@
 import { Ring } from "./Ring";
+import { colorForPct } from "../../lib/heatScale";
 
 export interface WeekStripDay {
   letter: string;
@@ -30,8 +31,9 @@ export function WeekStrip({ days, title = "Esta semana" }: WeekStripProps) {
       </div>
       <div className="flex justify-between">
         {days.map((d, i) => {
-          const complete = d.total > 0 && d.done === d.total;
-          const color = complete ? "rgb(var(--success))" : "rgb(var(--primary))";
+          const ratio = d.total > 0 ? d.done / d.total : 0;
+          // Misma escala roja→verde que el resto de los mapas de calor (Fase 5); con pct=0 y sin datos no se dibuja ningún trazo, así que el color es inocuo.
+          const color = colorForPct(ratio * 100);
           return (
             <div
               key={i}
@@ -43,7 +45,7 @@ export function WeekStrip({ days, title = "Esta semana" }: WeekStripProps) {
               <Ring
                 size={34}
                 strokeWidth={3.5}
-                pct={d.total > 0 ? d.done / d.total : 0}
+                pct={ratio}
                 color={color}
                 centerLabel={
                   <span className={`font-mono text-[11px] ${d.isToday ? "font-extrabold" : "font-bold"} text-ink`}>
