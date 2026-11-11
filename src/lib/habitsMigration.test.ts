@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  backfillLegacyAggregation,
   deriveMetricsFromLegacyLifestyle,
   migrateHabitEntriesToLogs,
   upgradeLogsToV2,
@@ -181,6 +182,52 @@ describe("migrateHabitEntriesToLogs", () => {
     const habits = [habit({ id: "h2", type: "yesno", aggregation: null })];
     const habitEntries = [entry({ habitId: "h2", value: 5 })];
     expect(migrateHabitEntriesToLogs({ habits, habitEntries })).toEqual([]);
+  });
+});
+
+describe("backfillLegacyAggregation", () => {
+  /** Simula un hábito tal como quedó guardado antes de que existiera `aggregation` (respaldo real pre-Fase-2): el campo directamente no está. */
+  function legacyQuantityHabit(patch: Partial<Habit> = {}): Habit {
+    const { aggregation: _unused, ...rest } = habit(patch);
+    return rest as unknown as Habit;
+  }
+
+  it("a un hábito de cantidad sin 'aggregation' le asigna 'sum' (el viejo addQuantity siempre acumulaba)", () => {
+    const [h] = backfillLegacyAggregation([legacyQuantityHabit()]);
+    expect(h.aggregation).toBe("sum");
+  });
+
+  it("no toca un 'aggregation' ya elegido a propósito (ni 'sum' ni 'last')", () => {
+    const [h1] = backfillLegacyAggregation([habit({ aggregation: "last" })]);
+    expect(h1.aggregation).toBe("last");
+    const [h2] = backfillLegacyAggregation([habit({ aggregation: "sum" })]);
+    expect(h2.aggregation).toBe("sum");
+  });
+
+  it("no le agrega aggregation a hábitos de otro tipo (sí/no, tiempo, a evitar)", () => {
+    const h = legacyQuantityHabit({ type: "yesno" });
+    const [result] = backfillLegacyAggregation([h]);
+    expect(result.aggregation).toBeUndefined();
+  });
+});
+
+describe("upgradeLogsToV3 con datos reales pre-Fase-2 (hábito de cantidad sin 'aggregation')", () => {
+  function legacyQuantityHabit(patch: Partial<Habit> = {}): Habit {
+    const { aggregation: _unused, ...rest } = habit(patch);
+    return rest as unknown as Habit;
+  }
+
+  it("migra el HabitEntry existente a un HabitLog con el mismo valor (antes solo se perdía: 0 logs)", () => {
+    const habits = [legacyQuantityHabit()];
+    const habitEntries: HabitEntry[] = [{ id: "e1", habitId: "h1", date: "2026-11-11", status: "partial", value: 1250, source: "manual", updatedAt: "x" }];
+    const logs = logsV1({ habits, habitEntries, version: 2 });
+    const v3 = upgradeLogsToV3(logs);
+
+    expect(v3.habits[0].aggregation).toBe("sum");
+    expect(v3.habitLogs).toHaveLength(1);
+    expect(v3.habitLogs[0]).toMatchObject({ habitId: "h1", date: "2026-11-11", value: 1250 });
+    // El valor diario (HabitEntry) no cambia, solo se agrega el log derivado.
+    expect(v3.habitEntries).toEqual(habitEntries);
   });
 });
 

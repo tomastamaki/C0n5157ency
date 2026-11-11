@@ -11,3 +11,8 @@ public/sw.js
 # El PDF y el Excel de origen son grandes y no hace falta versionarlos;
 # el program.json generado sí se versiona.
 Min-Max_Phase_2_Peak_Physique_4X.pdf
+
+# Carpeta de trabajo descartable para scripts de verificación puntuales
+# (nunca debe contener datos reales del usuario ni quedar commiteada).
+/scratch
+*.respaldo.json

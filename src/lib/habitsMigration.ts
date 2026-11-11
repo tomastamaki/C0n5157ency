@@ -89,6 +89,20 @@ export function deriveMetricsFromLegacyLifestyle(logs: MigratingLogs): Metric[] 
 }
 
 /**
+ * Hábitos de cantidad creados antes de que existiera `aggregation` (versión
+ * del esquema previa a HABI7 v2 Fase 2) no tienen ese campo. El modelo viejo
+ * (`addQuantity`, ver historial de `habitActions.ts`) siempre ACUMULABA el
+ * valor del día (`previous.value + amount`): el equivalente exacto de "sum".
+ * Backfillea solo eso — nunca pisa un `aggregation` ya seteado (ni "sum" ni
+ * "last" elegidos a propósito al crear/editar un hábito con la UI nueva), y
+ * nunca toca hábitos de otro tipo (tracking es un tipo nuevo, no pudo existir
+ * sin este campo).
+ */
+export function backfillLegacyAggregation(habits: Habit[]): Habit[] {
+  return habits.map((h) => (h.type === "quantity" && !h.aggregation ? { ...h, aggregation: "sum" as const } : h));
+}
+
+/**
  * Sube un `LogsData` de la versión 1 a la 2: agrega `habits`/`habitEntries`
  * (vacíos, no existían antes) y `metrics` (derivado de Lifestyle). Nunca
  * borra los arrays viejos.
@@ -109,11 +123,10 @@ export function upgradeLogsToV2(logs: MigratingLogs): MigratingLogs {
     logs.stepsEntries.length > 0 ||
     logs.waterEntries.length > 0;
   const needsMetricsDerivation = logs.metrics.length === 0 && hasLegacyData;
-  if (logs.version >= 2 && !needsMetricsDerivation) return logs;
   return {
     ...logs,
     version: Math.max(logs.version, 2),
-    habits: logs.habits ?? [],
+    habits: backfillLegacyAggregation(logs.habits ?? []),
     habitEntries: logs.habitEntries ?? [],
     metrics: needsMetricsDerivation ? deriveMetricsFromLegacyLifestyle(logs) : logs.metrics,
   };
