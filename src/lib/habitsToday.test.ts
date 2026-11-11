@@ -100,6 +100,25 @@ describe("buildHeroRing", () => {
     const ring = buildHeroRing(items);
     expect(ring).toEqual({ done: 1, total: 2 });
   });
+
+  it("Fase 4: un hábito de meta semanal sin hacer hoy no entra al denominador (no tiene día asignado, no penaliza)", () => {
+    const items = buildTodayItems(
+      [habit({ id: "a" }), habit({ id: "w", frequency: { kind: "weekly", n: 3 } })],
+      [{ id: "e1", habitId: "a", date: "2026-01-15", status: "done", value: null, source: "manual", updatedAt: "x" }],
+      "2026-01-15"
+    );
+    // El diario "a" cuenta 1/1; el semanal "w" (sin hacer hoy) no suma ni resta.
+    expect(buildHeroRing(items)).toEqual({ done: 1, total: 1 });
+  });
+
+  it("Fase 4: un hábito de meta semanal SÍ hecho hoy suma al anillo del día", () => {
+    const items = buildTodayItems(
+      [habit({ id: "w", frequency: { kind: "weekly", n: 3 } })],
+      [{ id: "e1", habitId: "w", date: "2026-01-15", status: "done", value: null, source: "manual", updatedAt: "x" }],
+      "2026-01-15"
+    );
+    expect(buildHeroRing(items)).toEqual({ done: 1, total: 1 });
+  });
 });
 
 describe("buildWeekStrip", () => {
@@ -143,5 +162,12 @@ describe("buildHeroMessage", () => {
   it("todavía nada hecho", () => {
     const items = buildTodayItems([habit()], [], "2026-01-15");
     expect(buildHeroMessage(items, buildHeroRing(items))[0]).toBe("Arrancá con lo fácil");
+  });
+
+  it("Fase 4: un hábito de meta semanal sin hacer hoy da anillo 0/0, pero NO es 'quedó salteado' (sigue pendiente)", () => {
+    const items = buildTodayItems([habit({ frequency: { kind: "weekly", n: 3 } })], [], "2026-01-15");
+    const ring = buildHeroRing(items);
+    expect(ring).toEqual({ done: 0, total: 0 });
+    expect(buildHeroMessage(items, ring)[0]).toBe("Arrancá con lo fácil");
   });
 });

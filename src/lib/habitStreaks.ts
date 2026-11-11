@@ -193,17 +193,25 @@ export function computeRecovery(habit: Habit, allEntries: HabitEntry[], asOf: st
   return { show: true, lastMissedDate: last, streakIfRecovered: streak };
 }
 
+export interface WeeklyProgress {
+  done: number;
+  n: number;
+  weekStart: string;
+  /** Quedan menos días (incluido hoy) que los que hacen falta para llegar a `n`: ya no alcanza con el ritmo actual. */
+  atRisk: boolean;
+}
+
 /** Progreso de la semana en curso para un hábito de meta semanal, o null si no aplica. */
-export function weeklyProgress(
-  habit: Habit,
-  allEntries: HabitEntry[],
-  asOf: string
-): { done: number; n: number; weekStart: string } | null {
+export function weeklyProgress(habit: Habit, allEntries: HabitEntry[], asOf: string): WeeklyProgress | null {
   if (habit.frequency.kind !== "weekly") return null;
   const entries = entryMapFor(habit.id, allEntries);
   const monday = mondayOf(asOf);
   const sunday = addDays(monday, 6);
-  return { done: countDoneInWeek(monday, sunday, entries), n: habit.frequency.n, weekStart: monday };
+  const done = countDoneInWeek(monday, sunday, entries);
+  const n = habit.frequency.n;
+  const daysLeft = 7 - dayOfWeek(asOf); // incluye hoy: hoy mismo todavía se puede actuar
+  const stillNeeded = Math.max(0, n - done);
+  return { done, n, weekStart: monday, atRisk: stillNeeded > daysLeft };
 }
 
 /**

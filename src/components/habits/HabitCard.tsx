@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HabitColor } from "../../types/habits";
-import { IconCheck, IconFlame, IconLink, IconPlay, IconRotateCcw, IconShield } from "../icons";
+import { IconCheck, IconFlame, IconInfo, IconLink, IconPlay, IconRotateCcw, IconShield } from "../icons";
 import { HeatRow } from "./HeatRow";
 import { Streak } from "./Streak";
 import { habitIconFor, HABIT_COLORS, type HeatCellState } from "./habitVisuals";
@@ -28,6 +28,8 @@ interface HabitCardCommon {
   onOpenDetail?: () => void;
   /** Mantener presionado abre el menú rápido (editar, cantidad exacta, ver detalle). */
   onEdit?: () => void;
+  /** Progreso de la semana en curso, para hábitos de meta semanal (sin día asignado). */
+  weekly?: { done: number; n: number; atRisk: boolean };
 }
 
 interface YesNoCard extends HabitCardCommon {
@@ -52,9 +54,6 @@ interface QuantityCard extends HabitCardCommon {
 interface TimeCard extends HabitCardCommon {
   kind: "time";
   goalMinutes: number;
-  /** Ausentes si la frecuencia no es semanal: se muestra solo la meta en minutos, sin tira de puntos. */
-  weeklyDone?: number;
-  weeklyTarget?: number;
   running?: boolean;
   elapsedLabel?: string;
   onStart?: () => void;
@@ -72,6 +71,52 @@ function formatQuantity(current: number, goal: number, unit: string): string {
   if (unit === "ml") return `${(current / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} / ${(goal / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} L`;
   const u = unit === "pasos" ? "" : ` ${unit}`;
   return `${current.toLocaleString("es-AR")} / ${goal.toLocaleString("es-AR")}${u}`.trim();
+}
+
+/**
+ * Progreso de la semana en curso para hábitos de meta semanal: segmentos +
+ * "N/M esta semana", y aviso ámbar si ya no alcanzan los días que quedan.
+ * `tone="onColor"` para la tarjeta "hecho" (ya rellena del color del hábito,
+ * donde un segmento del mismo color quedaría invisible — mismo criterio que `HeatRow`).
+ */
+function WeeklyBadge({
+  weekly,
+  color,
+  tone = "default",
+}: {
+  weekly: NonNullable<HabitCardCommon["weekly"]>;
+  color: string;
+  tone?: "default" | "onColor";
+}) {
+  const onColor = tone === "onColor";
+  return (
+    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1">
+          {[...Array(weekly.n)].map((_, i) => (
+            <i
+              key={i}
+              className="block h-1.5 w-[22px] rounded-pill"
+              style={{ backgroundColor: i < weekly.done ? color : onColor ? "rgba(13,14,19,0.16)" : "rgb(var(--surface-2))" }}
+            />
+          ))}
+        </div>
+        <span className={`text-xs ${onColor ? "text-habitink/80" : "text-muted"}`}>
+          {weekly.done}/{weekly.n} esta semana
+        </span>
+      </div>
+      {weekly.atRisk && (
+        <span
+          className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-bold ${
+            onColor ? "bg-habitink/[0.16] text-habitink" : "bg-warning/15 text-warning"
+          }`}
+        >
+          <IconInfo className="h-3 w-3" />
+          En riesgo
+        </span>
+      )}
+    </div>
+  );
 }
 
 function RecoveryBanner({ streak }: { streak: number }) {
@@ -134,6 +179,7 @@ export function HabitCard(props: HabitCardProps) {
               <IconCheck className="h-4 w-4" strokeWidth={3} />
             </span>
           </div>
+          {props.weekly && <WeeklyBadge weekly={props.weekly} color="#0d0e13" tone="onColor" />}
         </div>
         {menu}
       </>
@@ -200,6 +246,7 @@ export function HabitCard(props: HabitCardProps) {
       </div>
 
       {props.recovery && <RecoveryBanner streak={props.streak} />}
+      {props.weekly && <WeeklyBadge weekly={props.weekly} color={color} />}
 
       {props.kind === "quantity" && (
         <div className="mt-3">
@@ -261,21 +308,6 @@ export function HabitCard(props: HabitCardProps) {
                 {props.elapsedLabel ?? "00:00"}
               </div>
               <div className="mt-0.5 text-xs text-muted">de {props.goalMinutes} min · en curso</div>
-            </div>
-          ) : props.weeklyTarget !== undefined ? (
-            <div>
-              <div className="flex gap-1">
-                {[...Array(props.weeklyTarget)].map((_, i) => (
-                  <i
-                    key={i}
-                    className="block h-1.5 w-[22px] rounded-pill"
-                    style={{ backgroundColor: i < (props.weeklyDone ?? 0) ? color : "rgb(var(--surface-2))" }}
-                  />
-                ))}
-              </div>
-              <div className="mt-1.5 text-xs text-muted">
-                {props.weeklyDone}/{props.weeklyTarget} esta semana
-              </div>
             </div>
           ) : (
             <div className="text-xs text-muted">{props.goalMinutes} min</div>

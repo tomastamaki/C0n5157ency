@@ -67,6 +67,7 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
     streak: 0,
     heat: Array(14).fill("none") as HabitCardProps["heat"],
     auto: draft.linked !== null,
+    weekly: draft.frequency.kind === "weekly" ? { done: 0, n: draft.frequency.n, atRisk: false } : undefined,
   };
   if (draft.type === "quantity" || draft.type === "tracking") {
     const goal = draft.goal ?? 0;
@@ -86,7 +87,6 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
       kind: "time",
       subtitle: "",
       goalMinutes: draft.goal ?? 0,
-      ...(draft.frequency.kind === "weekly" ? { weeklyDone: 0, weeklyTarget: draft.frequency.n } : {}),
     };
   }
   if (draft.type === "avoid") {

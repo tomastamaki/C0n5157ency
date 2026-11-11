@@ -327,12 +327,56 @@ describe("weeklyProgress", () => {
   it("devuelve el progreso de la semana en curso para un hábito de meta semanal", () => {
     const h = habit({ frequency: { kind: "weekly", n: 3 }, startDate: "2026-01-05" });
     const entries = [entry(h.id, "2026-01-05", "done"), entry(h.id, "2026-01-06", "done")];
-    expect(weeklyProgress(h, entries, "2026-01-07")).toEqual({ done: 2, n: 3, weekStart: "2026-01-05" });
+    // 2026-01-07 es miércoles: quedan 5 días (mié-dom) y solo falta 1 -> no está en riesgo.
+    expect(weeklyProgress(h, entries, "2026-01-07")).toEqual({ done: 2, n: 3, weekStart: "2026-01-05", atRisk: false });
   });
 
   it("null para hábitos que no son de meta semanal", () => {
     const h = habit({ frequency: { kind: "daily" } });
     expect(weeklyProgress(h, [], "2026-01-07")).toBeNull();
+  });
+});
+
+describe("Fase 4 — regla semanal: sin días asignados, se evalúa solo al cerrar la semana", () => {
+  it("semana cerrada por debajo de N: cuenta como fallada (corta la racha si se repite)", () => {
+    const h = habit({ frequency: { kind: "weekly", n: 3 }, startDate: "2026-01-05" });
+    const entries = [
+      entry(h.id, "2026-01-05", "done"),
+      entry(h.id, "2026-01-06", "done"),
+      entry(h.id, "2026-01-07", "done"), // semana 1 (05-11 ene): 3 hechos -> cumple
+      entry(h.id, "2026-01-12", "done"), // semana 2 (12-18 ene): 1 hecho -> YA CERRADA y por debajo de N -> falla
+      entry(h.id, "2026-01-19", "done"), // semana 3: otra vez por debajo -> dos fallas seguidas cortan la racha
+    ];
+    // asOf en la semana 4: las semanas 2 y 3 ya cerraron (domingo pasado).
+    const result = computeHabitStreak(h, entries, "2026-01-28");
+    expect(result.streak).toBe(0); // dos semanas cerradas seguidas por debajo de N cortan la racha
+    expect(result.best).toBe(1);
+  });
+
+  it("semana en curso: nunca cuenta como fallada, aunque vaya muy por debajo de N", () => {
+    const h = habit({ frequency: { kind: "weekly", n: 3 }, startDate: "2026-01-05" });
+    const entries = [entry(h.id, "2026-01-05", "done"), entry(h.id, "2026-01-06", "done"), entry(h.id, "2026-01-07", "done")];
+    // Semana 2 en curso (empezó el 12), todavía sin ningún "hecho" — no debe cortar ni descontar la racha de la semana 1.
+    expect(computeHabitStreak(h, entries, "2026-01-13").streak).toBe(1);
+    expect(computeHabitStreak(h, entries, "2026-01-18").streak).toBe(1); // último día de la semana en curso: sigue sin fallar
+  });
+
+  it("weeklyProgress.atRisk: true cuando quedan menos días que los necesarios para llegar a N", () => {
+    const h = habit({ frequency: { kind: "weekly", n: 4 }, startDate: "2026-01-05" });
+    // 2026-01-10 es sábado: quedan 2 días (sáb y dom) y todavía faltan 4 -> imposible llegar -> en riesgo.
+    expect(weeklyProgress(h, [], "2026-01-10")?.atRisk).toBe(true);
+  });
+
+  it("weeklyProgress.atRisk: false cuando todavía alcanzan los días que quedan", () => {
+    const h = habit({ frequency: { kind: "weekly", n: 3 }, startDate: "2026-01-05" });
+    // 2026-01-06 es martes: quedan 6 días y faltan 3 -> alcanza de sobra.
+    expect(weeklyProgress(h, [], "2026-01-06")?.atRisk).toBe(false);
+  });
+
+  it("weeklyProgress.atRisk: false una vez que ya se llegó a N (nada más que hacer)", () => {
+    const h = habit({ frequency: { kind: "weekly", n: 2 }, startDate: "2026-01-05" });
+    const entries = [entry(h.id, "2026-01-05", "done"), entry(h.id, "2026-01-06", "done")];
+    expect(weeklyProgress(h, entries, "2026-01-10")?.atRisk).toBe(false);
   });
 });
 

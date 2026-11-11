@@ -170,10 +170,11 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail, onEdit }: Props
       status: item.status,
       streak: item.streak,
       streakUnit: item.streakUnit,
-      subtitle: habit.frequency.kind === "weekly" ? `${habit.goal ?? 0} ${habit.unit ?? ""} · meta semanal`.trim() : "",
+      subtitle: "",
       heat: item.heat,
       auto: habit.linked !== null,
       recovery: item.recovery.show,
+      weekly: item.weekly ?? undefined,
       onUnskip: () => handleUnskip(item),
       onOpenDetail: () => onOpenDetail(habit.id),
       onEdit: () => onEdit(habit.id),
@@ -190,7 +191,7 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail, onEdit }: Props
         onAddExact: (n) => handleAdd(item, n),
         onUndoLast: () => handleUndoLast(item),
         hasLogsToday: lastLogForDate(habit, logs.habitLogs, today) !== null,
-        subtitle: common.subtitle || `Meta: ${habit.goal ?? 0} ${habit.unit ?? ""}`.trim(),
+        subtitle: `Meta: ${habit.goal ?? 0} ${habit.unit ?? ""}`.trim(),
       };
     }
     if (habit.type === "time") {
@@ -198,12 +199,11 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail, onEdit }: Props
         ...common,
         kind: "time",
         goalMinutes: habit.goal ?? 0,
-        ...(item.weekly ? { weeklyDone: item.weekly.done, weeklyTarget: item.weekly.n } : {}),
         onStart: () => handleStart(item),
       };
     }
     if (habit.type === "avoid") {
-      return { ...common, kind: "avoid", onToggle: () => handleToggle(item), subtitle: common.subtitle || "A evitar · todos los días" };
+      return { ...common, kind: "avoid", onToggle: () => handleToggle(item), subtitle: "A evitar · todos los días" };
     }
     return { ...common, kind: "yesno", onToggle: () => handleToggle(item) };
   }

@@ -8,6 +8,7 @@ import {
   mondayOf,
   weeklyProgress,
   type RecoveryInfo,
+  type WeeklyProgress,
 } from "./habitStreaks";
 import type { HeatCellState } from "../components/habits/habitVisuals";
 
@@ -19,7 +20,7 @@ export interface TodayItem {
   streakUnit?: string;
   heat: HeatCellState[];
   recovery: RecoveryInfo;
-  weekly: { done: number; n: number } | null;
+  weekly: WeeklyProgress | null;
 }
 
 function latestEntryFor(habit: Habit, allEntries: HabitEntry[], date: string): HabitEntry | null {
@@ -81,9 +82,18 @@ export interface HeroRing {
   total: number;
 }
 
-/** Anillo del día: de los hábitos relevantes hoy que no están salteados, cuántos ya están hechos. */
+/**
+ * Anillo del día: de los hábitos relevantes hoy que no están salteados,
+ * cuántos ya están hechos. Los de meta semanal no tienen día asignado —
+ * solo suman cuando ya se hicieron hoy; si no, no entran ni al numerador ni
+ * al denominador (un día sin hacerlos no resta ni se ve como "incompleto").
+ */
 export function buildHeroRing(items: TodayItem[]): HeroRing {
-  const counted = items.filter((i) => i.status !== "skip");
+  const counted = items.filter((i) => {
+    if (i.status === "skip") return false;
+    if (i.habit.frequency.kind === "weekly") return i.status === "done";
+    return true;
+  });
   const done = counted.filter((i) => i.status === "done").length;
   return { done, total: counted.length };
 }
@@ -92,7 +102,14 @@ export function buildHeroRing(items: TodayItem[]): HeroRing {
 export function buildHeroMessage(items: TodayItem[], hero: HeroRing): [string, string] {
   const left = hero.total - hero.done;
   if (items.length === 0) return ["Todavía no tenés hábitos", "Empezá con uno solo. Lo difícil es arrancar."];
-  if (hero.total === 0) return ["Por hoy, ya está", "Lo de hoy quedó salteado. Mañana es otro día."];
+  if (hero.total === 0) {
+    // total=0 puede ser porque todo quedó salteado, o porque lo único de hoy es
+    // un hábito de meta semanal sin hacer todavía (no cuenta en el anillo, pero
+    // sigue pendiente y visible en la lista — no es lo mismo que "salteado").
+    const hasPendingWeekly = items.some((i) => i.habit.frequency.kind === "weekly" && i.status === "pending");
+    if (hasPendingWeekly) return ["Arrancá con lo fácil", "Un solo toque y ya estás en marcha."];
+    return ["Por hoy, ya está", "Lo de hoy quedó salteado. Mañana es otro día."];
+  }
   if (left === 0) return ["¡Día completo!", "Vamos toro. Hoy cerraste todo."];
   if (hero.done === 0) return ["Arrancá con lo fácil", "Un solo toque y ya estás en marcha."];
   return ["Vamos toro", `Te faltan ${left} para cerrar el día.`];
