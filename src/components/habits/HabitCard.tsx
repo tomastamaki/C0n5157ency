@@ -1,5 +1,6 @@
+import { useState } from "react";
 import type { HabitColor } from "../../types/habits";
-import { IconCheck, IconFlame, IconLink, IconPlay, IconShield } from "../icons";
+import { IconCheck, IconFlame, IconLink, IconPlay, IconRotateCcw, IconShield } from "../icons";
 import { HeatRow } from "./HeatRow";
 import { Streak } from "./Streak";
 import { habitIconFor, HABIT_COLORS, type HeatCellState } from "./habitVisuals";
@@ -36,6 +37,11 @@ interface QuantityCard extends HabitCardCommon {
   unit: string;
   quickAmounts?: number[];
   onAdd?: (amount: number) => void;
+  /** Campo de valor exacto, siempre disponible además de los botones rápidos. */
+  onAddExact?: (amount: number) => void;
+  /** "Deshacer el último registro" — solo se muestra si hay al menos uno hoy. */
+  onUndoLast?: () => void;
+  hasLogsToday?: boolean;
 }
 
 interface TimeCard extends HabitCardCommon {
@@ -61,6 +67,41 @@ function formatQuantity(current: number, goal: number, unit: string): string {
   if (unit === "ml") return `${(current / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} / ${(goal / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} L`;
   const u = unit === "pasos" ? "" : ` ${unit}`;
   return `${current.toLocaleString("es-AR")} / ${goal.toLocaleString("es-AR")}${u}`.trim();
+}
+
+/** Campo de valor exacto para hábitos de cantidad: siempre disponible, además de los botones rápidos. */
+function ExactValueInput({ unit, color, onAdd }: { unit: string; color: string; onAdd: (value: number) => void }) {
+  const [text, setText] = useState("");
+
+  function submit() {
+    const value = Number(text.replace(",", "."));
+    if (!text || Number.isNaN(value) || value <= 0) return;
+    onAdd(value);
+    setText("");
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && submit()}
+        placeholder={`valor en ${unit}`}
+        className="h-9 w-24 rounded-pill border border-border bg-surface px-2.5 font-mono text-[13px] text-ink outline-none"
+      />
+      <button
+        type="button"
+        aria-label="Agregar valor exacto"
+        onClick={submit}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-habitink"
+        style={{ backgroundColor: color }}
+      >
+        <IconCheck className="h-4 w-4" strokeWidth={2.6} />
+      </button>
+    </div>
+  );
 }
 
 function RecoveryBanner({ streak }: { streak: number }) {
@@ -183,30 +224,39 @@ export function HabitCard(props: HabitCardProps) {
                 {Math.round((props.current / props.goal) * 100)}%
               </small>
             </span>
-            {props.auto ? (
+            {props.auto && (
               <span className="inline-flex items-center gap-1 rounded-pill bg-primary/15 px-2.5 py-1 text-[11px] font-bold text-primary">
                 <IconLink className="h-3 w-3" />
                 Se completa solo
               </span>
-            ) : (
-              <div className="flex gap-2">
-                {(props.quickAmounts ?? []).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => props.onAdd?.(n)}
-                    className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
-                    style={{
-                      backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
-                      borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
-                    }}
-                  >
-                    +{n} {props.unit}
-                  </button>
-                ))}
-              </div>
             )}
           </div>
+
+          {!props.auto && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {(props.quickAmounts ?? []).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => props.onAdd?.(n)}
+                  className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
+                    borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
+                  }}
+                >
+                  +{n} {props.unit}
+                </button>
+              ))}
+              {props.onAddExact && <ExactValueInput unit={props.unit} color={color} onAdd={props.onAddExact} />}
+              {props.hasLogsToday && props.onUndoLast && (
+                <button type="button" onClick={props.onUndoLast} className="ml-auto flex items-center gap-1 text-xs font-bold text-primary">
+                  <IconRotateCcw className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  Deshacer último
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 

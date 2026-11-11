@@ -3,7 +3,8 @@ import { useApp } from "../context/AppContext";
 import { localDateKey } from "../lib/time";
 import { buildHeroMessage, buildHeroRing, buildTodayItems, buildWeekStrip, type TodayItem } from "../lib/habitsToday";
 import { computeGlobalStreak, computeHabitStreak, detectMilestone } from "../lib/habitStreaks";
-import { addQuantity, completeTimeGoal, skipToday, toggleDone, unskip } from "../lib/habitActions";
+import { completeTimeGoal, skipToday, toggleDone, unskip } from "../lib/habitActions";
+import { addLog, lastLogForDate, removeLog } from "../lib/habitLogs";
 import { Ring } from "../components/habits/Ring";
 import { WeekStrip } from "../components/habits/WeekStrip";
 import { Chip } from "../components/habits/Chip";
@@ -39,7 +40,7 @@ interface Props {
 }
 
 export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
-  const { logs, upsertHabitEntry, removeHabitEntry } = useApp();
+  const { logs, upsertHabitEntry, removeHabitEntry, upsertHabitLog, removeHabitLog } = useApp();
   const [category, setCategory] = useState<"Todos" | Habit["timeOfDay"] | string>("Todos");
   const [grid, setGrid] = useState(false);
   const [undo, setUndo] = useState<UndoState | null>(null);
@@ -85,7 +86,47 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
   }
 
   function handleAdd(item: TodayItem, amount: number) {
-    applyResult(item.habit, addQuantity(item.habit, logs.habitEntries, today, amount), `+${amount} ${item.habit.unit ?? ""}`.trim());
+    const { habit } = item;
+    const before = computeHabitStreak(habit, logs.habitEntries, today).streak;
+    const result = addLog(habit, logs.habitLogs, logs.habitEntries, today, amount);
+    upsertHabitLog(result.log);
+    if (result.entry) upsertHabitEntry(result.entry);
+    else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
+
+    const message = `+${amount} ${habit.unit ?? ""}`.trim();
+    const logId = result.log.id;
+    const previousEntry = result.previousEntry;
+    const previousEntryId = result.entry?.id ?? previousEntry?.id ?? "";
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({
+      message,
+      restore: () => {
+        removeHabitLog(logId);
+        if (previousEntry) upsertHabitEntry(previousEntry);
+        else if (previousEntryId) removeHabitEntry(previousEntryId);
+        setUndo(null);
+      },
+    });
+    undoTimer.current = setTimeout(() => setUndo(null), 5000);
+
+    if (result.entry?.status === "done") {
+      const nextEntries = [...logs.habitEntries.filter((e) => e.id !== result.entry!.id), result.entry];
+      const after = computeHabitStreak(habit, nextEntries, today).streak;
+      const reached = detectMilestone(before, after);
+      if (reached) setMilestone({ habitName: habit.name, milestone: reached, color: HABIT_COLORS[habit.color], habitId: habit.id });
+    }
+  }
+
+  /** "Deshacer el último registro": saca el log más reciente de hoy y recalcula el entry del día. */
+  function handleUndoLast(item: TodayItem) {
+    const { habit } = item;
+    const last = lastLogForDate(habit, logs.habitLogs, today);
+    if (!last) return;
+    const result = removeLog(habit, logs.habitLogs, logs.habitEntries, last.id);
+    if (!result) return;
+    removeHabitLog(last.id);
+    if (result.entry) upsertHabitEntry(result.entry);
+    else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
   }
 
   function handleStart(item: TodayItem) {
@@ -110,7 +151,7 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
       status: item.status,
       streak: item.streak,
       streakUnit: item.streakUnit,
-      subtitle: habit.frequency.kind === "weekly" ? `${habit.goal} ${habit.unit ?? ""} · meta semanal`.trim() : "",
+      subtitle: habit.frequency.kind === "weekly" ? `${habit.goal ?? 0} ${habit.unit ?? ""} · meta semanal`.trim() : "",
       heat: item.heat,
       auto: habit.linked !== null,
       recovery: item.recovery.show,
@@ -122,18 +163,21 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
         ...common,
         kind: "quantity",
         current: item.entry?.value ?? 0,
-        goal: habit.goal,
+        goal: habit.goal ?? 0,
         unit: habit.unit ?? "",
         quickAmounts: habit.quickSteps,
         onAdd: (n) => handleAdd(item, n),
-        subtitle: common.subtitle || `Meta: ${habit.goal} ${habit.unit ?? ""}`.trim(),
+        onAddExact: (n) => handleAdd(item, n),
+        onUndoLast: () => handleUndoLast(item),
+        hasLogsToday: lastLogForDate(habit, logs.habitLogs, today) !== null,
+        subtitle: common.subtitle || `Meta: ${habit.goal ?? 0} ${habit.unit ?? ""}`.trim(),
       };
     }
     if (habit.type === "time") {
       return {
         ...common,
         kind: "time",
-        goalMinutes: habit.goal,
+        goalMinutes: habit.goal ?? 0,
         ...(item.weekly ? { weeklyDone: item.weekly.done, weeklyTarget: item.weekly.n } : {}),
         onStart: () => handleStart(item),
       };
@@ -208,8 +252,8 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
         <div className="grid grid-cols-2 gap-2.5">
           {filtered.map((item) => {
             const { habit } = item;
-            const quantityCaption =
-              habit.type === "quantity" ? `${item.entry?.value ?? 0} / ${habit.goal} ${habit.unit ?? ""}`.trim() : null;
+            const goal = habit.goal ?? 0;
+            const quantityCaption = habit.type === "quantity" ? `${item.entry?.value ?? 0} / ${goal} ${habit.unit ?? ""}`.trim() : null;
             const weeklyCaption = item.weekly ? `${item.weekly.done}/${item.weekly.n} esta semana` : null;
             const caption =
               item.status === "skip"
@@ -218,7 +262,7 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
                   ? "Listo"
                   : (quantityCaption ?? weeklyCaption ?? "Pendiente");
             function tap() {
-              if (habit.type === "quantity") handleAdd(item, habit.quickSteps[0] ?? habit.goal);
+              if (habit.type === "quantity") handleAdd(item, habit.quickSteps[0] ?? goal);
               else if (habit.type === "time") handleStart(item);
               else handleToggle(item);
             }
@@ -232,7 +276,7 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
                 streak={item.streak}
                 streakUnit={item.streakUnit}
                 caption={caption}
-                progressPct={habit.type === "quantity" ? ((item.entry?.value ?? 0) / habit.goal) * 100 : undefined}
+                progressPct={habit.type === "quantity" && goal > 0 ? ((item.entry?.value ?? 0) / goal) * 100 : undefined}
                 onClick={tap}
             />
             );

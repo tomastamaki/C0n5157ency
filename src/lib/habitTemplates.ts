@@ -7,7 +7,8 @@ export interface HabitTemplate {
   color: HabitColor;
   type: HabitType;
   unit: string | null;
-  goal: number;
+  goal: number | null;
+  aggregation: "sum" | "last" | null;
   quickSteps: number[];
   frequency: HabitFrequency;
   category: HabitCategory;
@@ -24,6 +25,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "quantity",
     unit: "pasos",
     goal: 8000,
+    aggregation: "last",
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Salud",
@@ -38,6 +40,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "quantity",
     unit: "ml",
     goal: 2500,
+    aggregation: "sum",
     quickSteps: [250, 500],
     frequency: { kind: "daily" },
     category: "Salud",
@@ -51,6 +54,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "time",
     unit: "h",
     goal: 7,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Salud",
@@ -65,6 +69,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "yesno",
     unit: null,
     goal: 1,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "weekly", n: 4 },
     category: "Entrenamiento",
@@ -79,6 +84,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "time",
     unit: "min",
     goal: 20,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "weekly", n: 4 },
     category: "Mente",
@@ -92,6 +98,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "yesno",
     unit: null,
     goal: 1,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Mente",
@@ -105,6 +112,7 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     type: "yesno",
     unit: null,
     goal: 1,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Entrenamiento",
@@ -120,6 +128,7 @@ export const HABIT_TYPE_LABELS: Record<HabitType, string> = {
   quantity: "Cantidad",
   time: "Tiempo",
   avoid: "A evitar",
+  tracking: "Seguimiento",
 };
 
 export function emptyDraft(): Omit<Habit, "id" | "createdAt" | "updatedAt" | "archivedAt"> {
@@ -131,6 +140,7 @@ export function emptyDraft(): Omit<Habit, "id" | "createdAt" | "updatedAt" | "ar
     type: t.type,
     unit: t.unit,
     goal: t.goal,
+    aggregation: t.aggregation,
     quickSteps: t.quickSteps,
     frequency: t.frequency,
     category: t.category,

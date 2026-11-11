@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addQuantity, archiveHabit, completeTimeGoal, restoreHabit, setEntryStatus, skipToday, toggleDone, unskip } from "./habitActions";
+import { archiveHabit, completeTimeGoal, restoreHabit, setEntryStatus, skipToday, toggleDone, unskip } from "./habitActions";
 import type { Habit, HabitEntry } from "../types/habits";
 
 function habit(patch: Partial<Habit> = {}): Habit {
@@ -11,6 +11,7 @@ function habit(patch: Partial<Habit> = {}): Habit {
     type: "quantity",
     unit: "ml",
     goal: 2500,
+    aggregation: "sum",
     quickSteps: [250, 500],
     frequency: { kind: "daily" },
     category: "Salud",
@@ -24,35 +25,6 @@ function habit(patch: Partial<Habit> = {}): Habit {
     ...patch,
   };
 }
-
-describe("addQuantity", () => {
-  it("queda en partial mientras no llega a la meta", () => {
-    const h = habit();
-    const r1 = addQuantity(h, [], "2026-01-10", 1000);
-    expect(r1.next).toMatchObject({ status: "partial", value: 1000 });
-    const r2 = addQuantity(h, [r1.next!], "2026-01-10", 500);
-    expect(r2.next).toMatchObject({ status: "partial", value: 1500 });
-  });
-
-  it("pasa a done al llegar o superar la meta, acumulando sobre lo ya cargado hoy", () => {
-    const h = habit({ goal: 2000 });
-    const entries: HabitEntry[] = [
-      { id: "e1", habitId: "h1", date: "2026-01-10", status: "partial", value: 1500, source: "manual", updatedAt: "2026-01-10T08:00:00.000Z" },
-    ];
-    const r = addQuantity(h, entries, "2026-01-10", 600);
-    expect(r.next).toMatchObject({ status: "done", value: 2100 });
-    expect(r.previous).toMatchObject({ value: 1500 });
-  });
-
-  it("no acumula sobre una entrada de otro día", () => {
-    const h = habit();
-    const entries: HabitEntry[] = [
-      { id: "e1", habitId: "h1", date: "2026-01-09", status: "done", value: 3000, source: "manual", updatedAt: "2026-01-09T20:00:00.000Z" },
-    ];
-    const r = addQuantity(h, entries, "2026-01-10", 250);
-    expect(r.next).toMatchObject({ date: "2026-01-10", value: 250 });
-  });
-});
 
 describe("toggleDone", () => {
   it("sin entrada: completa", () => {

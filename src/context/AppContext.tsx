@@ -19,7 +19,7 @@ import type {
   WaterEntry,
   WorkoutSession,
 } from "../types/logs";
-import type { Habit, HabitEntry } from "../types/habits";
+import type { Habit, HabitEntry, HabitLog } from "../types/habits";
 import { deriveMetricsFromLegacyLifestyle } from "../lib/habitsMigration";
 import { autoMarkEntriesForMetric, autoMarkWorkoutCompletion } from "../lib/habitAutoLink";
 import { localDateKey } from "../lib/time";
@@ -81,6 +81,8 @@ interface AppContextValue {
   upsertHabit: (habit: Habit) => void;
   upsertHabitEntry: (entry: HabitEntry) => void;
   removeHabitEntry: (id: string) => void;
+  upsertHabitLog: (log: HabitLog) => void;
+  removeHabitLog: (id: string) => void;
   clearAllLogs: () => void;
   syncStatus: SyncStatus;
   syncError: string | null;
@@ -433,6 +435,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [mutateLogs]
   );
 
+  const upsertHabitLog = useCallback(
+    (log: HabitLog) => {
+      mutateLogs((prev) => {
+        const idx = prev.habitLogs.findIndex((l) => l.id === log.id);
+        const habitLogs = [...prev.habitLogs];
+        if (idx >= 0) habitLogs[idx] = log;
+        else habitLogs.push(log);
+        return { ...prev, habitLogs };
+      });
+    },
+    [mutateLogs]
+  );
+
+  const removeHabitLog = useCallback(
+    (id: string) => {
+      mutateLogs((prev) => ({ ...prev, habitLogs: prev.habitLogs.filter((l) => l.id !== id) }));
+    },
+    [mutateLogs]
+  );
+
   const clearAllLogs = useCallback(() => {
     mutateLogs(() => ({ ...EMPTY_LOGS }));
   }, [mutateLogs]);
@@ -636,6 +658,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     upsertHabit,
     upsertHabitEntry,
     removeHabitEntry,
+    upsertHabitLog,
+    removeHabitLog,
     clearAllLogs,
     syncStatus,
     syncError,

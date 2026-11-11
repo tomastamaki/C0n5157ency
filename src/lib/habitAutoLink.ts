@@ -20,7 +20,7 @@ export function autoMarkEntriesForMetric(habits: Habit[], entries: HabitEntry[],
 
     const existing = entryMapFor(habit.id, entries).get(metric.date);
     if (!canAutoMark(existing)) continue;
-    const status = value >= habit.goal ? "done" : "partial";
+    const status = habit.goal !== null && value >= habit.goal ? "done" : "partial";
     if (existing && existing.status === status && existing.value === value) continue;
 
     updates.push({

@@ -85,14 +85,6 @@ export function HabitsMetricsScreen({ onOpenDetail }: Props) {
   const metrics = logs.metrics;
   const habits = logs.habits;
 
-  if (metrics.length === 0) {
-    return (
-      <p className="pt-10 text-center text-sm text-faint">
-        Todavía no hay métricas cargadas. Se completan desde Lifestyle por ahora.
-      </p>
-    );
-  }
-
   const weightPoints = last7(metrics, "weightKg");
   const sleepPoints = last7(metrics, "sleepH");
   const stepsPoints = last7(metrics, "steps");
@@ -100,6 +92,19 @@ export function HabitsMetricsScreen({ onOpenDetail }: Props) {
 
   const weightVar = variationPct(weightPoints);
   const lastSteps = stepsPoints[stepsPoints.length - 1]?.value ?? null;
+  const hasAnyCard = weightPoints.length > 0 || sleepPoints.length > 0 || lastSteps !== null || waterPoints.length > 0;
+
+  if (!hasAnyCard) {
+    return (
+      <div className="flex flex-col items-center gap-2 pt-10 text-center">
+        <p className="text-sm font-medium text-ink">Todavía no hay métricas con datos</p>
+        <p className="max-w-xs text-xs text-muted">
+          Cargá peso, sueño, pasos o agua desde Lifestyle, o creá un hábito de cantidad (como "Agua" o "Pasos") y
+          empezá a registrar — acá vas a ver su valor, cambio y tendencia de 7 días.
+        </p>
+      </div>
+    );
+  }
   const lastWaterL = waterPoints[waterPoints.length - 1] ? waterPoints[waterPoints.length - 1].value / 1000 : null;
 
   return (

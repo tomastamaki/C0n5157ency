@@ -11,6 +11,7 @@ function habit(patch: Partial<Habit> = {}): Habit {
     type: "quantity",
     unit: "pasos",
     goal: 8000,
+    aggregation: "last",
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Salud",

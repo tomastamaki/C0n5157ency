@@ -8,6 +8,7 @@ import { DayOfWeekPicker } from "../components/habits/DayOfWeekPicker";
 import { Stepper } from "../components/habits/Stepper";
 import { SegmentedControl } from "../components/habits/SegmentedControl";
 import { FormField, TextAreaField, TextField } from "../components/habits/FormField";
+import { QuickStepsEditor } from "../components/habits/QuickStepsEditor";
 import { IconButton } from "../components/habits/IconButton";
 import { IconArrowLeft } from "../components/icons";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
@@ -25,8 +26,11 @@ const FREQ_LABELS: { kind: HabitFrequency["kind"]; label: string }[] = [
   { kind: "every", label: "Cada N días" },
 ];
 
-function quickStepsFor(unit: string | null): number[] {
+/** Sugeridos por unidad, para prellenar al elegirla (el usuario los puede editar/borrar/agregar después). */
+function suggestedStepsFor(unit: string | null): number[] {
+  if (unit === "g") return [10, 25, 30, 50];
   if (unit === "ml") return [250, 500];
+  if (unit === "L" || unit === "l") return [0.25, 0.5];
   return [];
 }
 
@@ -64,15 +68,16 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
     heat: Array(14).fill("none") as HabitCardProps["heat"],
     auto: draft.linked !== null,
   };
-  if (draft.type === "quantity") {
+  if (draft.type === "quantity" || draft.type === "tracking") {
+    const goal = draft.goal ?? 0;
     return {
       ...common,
       kind: "quantity",
-      subtitle: `Meta: ${draft.goal} ${draft.unit ?? ""}`.trim(),
+      subtitle: draft.type === "tracking" ? "Seguimiento, sin racha" : `Meta: ${goal} ${draft.unit ?? ""}`.trim(),
       current: 0,
-      goal: draft.goal,
+      goal: goal || 1,
       unit: draft.unit ?? "",
-      quickAmounts: quickStepsFor(draft.unit),
+      quickAmounts: draft.quickSteps,
     };
   }
   if (draft.type === "time") {
@@ -80,7 +85,7 @@ function buildPreviewProps(draft: Draft): HabitCardProps {
       ...common,
       kind: "time",
       subtitle: "",
-      goalMinutes: draft.goal,
+      goalMinutes: draft.goal ?? 0,
       ...(draft.frequency.kind === "weekly" ? { weeklyDone: 0, weeklyTarget: draft.frequency.n } : {}),
     };
   }
@@ -114,6 +119,7 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
       type: t.type,
       unit: t.unit,
       goal: t.goal,
+      aggregation: t.aggregation,
       quickSteps: t.quickSteps,
       frequency: t.frequency,
       category: t.category,
@@ -124,12 +130,19 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
 
   function setType(type: HabitType) {
     const stillValid = draft.linked && linkOptionsFor(type).includes(draft.linked.source);
+    const unit = type === "quantity" || type === "tracking" ? (draft.unit ?? "ml") : type === "time" ? "min" : null;
     patch({
       type,
-      unit: type === "quantity" ? (draft.unit ?? "ml") : type === "time" ? "min" : null,
-      goal: type === "yesno" || type === "avoid" ? 1 : draft.goal,
+      unit,
+      goal: type === "yesno" || type === "avoid" ? 1 : type === "tracking" ? null : draft.goal,
+      aggregation: type === "quantity" ? "sum" : type === "tracking" ? "last" : null,
+      quickSteps: type === "quantity" ? suggestedStepsFor(unit) : [],
       linked: stillValid ? draft.linked : null,
     });
+  }
+
+  function setUnit(unit: string) {
+    patch({ unit, quickSteps: draft.type === "quantity" ? suggestedStepsFor(unit) : draft.quickSteps });
   }
 
   function setLink(source: HabitLinkedSource | null) {
@@ -157,9 +170,9 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
 
   function submit() {
     if (editing) {
-      upsertHabit({ ...editing, ...draft, quickSteps: quickStepsFor(draft.unit), updatedAt: new Date().toISOString() });
+      upsertHabit({ ...editing, ...draft, updatedAt: new Date().toISOString() });
     } else {
-      upsertHabit(newHabit({ ...draft, quickSteps: quickStepsFor(draft.unit) }));
+      upsertHabit(newHabit(draft));
     }
     onDone();
   }
@@ -219,14 +232,15 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
           />
         </FormField>
 
-        {(draft.type === "quantity" || draft.type === "time") && (
+        {(draft.type === "quantity" || draft.type === "time" || draft.type === "tracking") && (
           <div className="grid grid-cols-2 gap-2.5">
-            <FormField label="Objetivo del día">
+            <FormField label="Objetivo del día" hint={draft.type === "tracking" ? "opcional" : undefined}>
               <TextField
                 type="number"
-                value={draft.goal}
+                value={draft.goal ?? ""}
                 disabled={draft.linked !== null}
-                onChange={(e) => patch({ goal: Number(e.target.value) || 0 })}
+                onChange={(e) => patch({ goal: e.target.value === "" ? null : Number(e.target.value) || 0 })}
+                placeholder={draft.type === "tracking" ? "Sin objetivo" : undefined}
                 className="font-mono font-bold disabled:opacity-45"
               />
             </FormField>
@@ -234,12 +248,36 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
               <TextField
                 value={draft.unit ?? ""}
                 disabled={draft.linked !== null}
-                onChange={(e) => patch({ unit: e.target.value })}
+                onChange={(e) => setUnit(e.target.value)}
                 placeholder="ml, pasos, min…"
                 className="disabled:opacity-45"
               />
             </FormField>
           </div>
+        )}
+
+        {(draft.type === "quantity" || draft.type === "tracking") && (
+          <FormField label="Cómo se combinan los registros del día" hint={draft.aggregation === "sum" ? "se suman" : "vale el último"}>
+            <SegmentedControl<"sum" | "last">
+              options={[
+                { value: "sum", label: "Acumular" },
+                { value: "last", label: "Último valor" },
+              ]}
+              value={draft.aggregation === "last" ? "last" : "sum"}
+              onChange={(aggregation) => patch({ aggregation })}
+            />
+          </FormField>
+        )}
+
+        {draft.type === "quantity" && draft.linked === null && (
+          <FormField label="Botones rápidos" hint="hasta 4">
+            <QuickStepsEditor
+              steps={draft.quickSteps}
+              unit={draft.unit ?? ""}
+              suggested={suggestedStepsFor(draft.unit)}
+              onChange={(quickSteps) => patch({ quickSteps })}
+            />
+          </FormField>
         )}
 
         {linkOptionsFor(draft.type).length > 0 && (

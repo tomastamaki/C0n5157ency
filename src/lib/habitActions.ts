@@ -7,7 +7,7 @@ export interface ActionResult {
   previous: HabitEntry | null;
 }
 
-function entryForDate(habit: Habit, allEntries: HabitEntry[], date: string): HabitEntry | null {
+export function entryForDate(habit: Habit, allEntries: HabitEntry[], date: string): HabitEntry | null {
   let found: HabitEntry | null = null;
   for (const e of allEntries) {
     if (e.habitId !== habit.id || e.date !== date) continue;
@@ -34,14 +34,6 @@ export function toggleDone(habit: Habit, allEntries: HabitEntry[], date: string)
   const previous = entryForDate(habit, allEntries, date);
   if (previous?.status === "done") return { next: null, previous };
   return { next: makeEntry(habit, date, { status: "done" }, previous), previous };
-}
-
-/** Cantidad: suma al valor de hoy; pasa a "done" al llegar a la meta, "partial" antes de llegar. */
-export function addQuantity(habit: Habit, allEntries: HabitEntry[], date: string, amount: number): ActionResult {
-  const previous = entryForDate(habit, allEntries, date);
-  const value = (previous?.status === "partial" || previous?.status === "done" ? (previous.value ?? 0) : 0) + amount;
-  const status = value >= habit.goal ? "done" : "partial";
-  return { next: makeEntry(habit, date, { status, value }, previous), previous };
 }
 
 /** Tiempo: "Iniciar" marca la sesión de hoy como completada directamente (sin cronómetro en vivo por ahora). */

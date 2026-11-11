@@ -23,6 +23,7 @@ function habit(overrides: Partial<Habit> = {}): Habit {
     type: "yesno",
     unit: null,
     goal: 1,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Salud",

@@ -1,9 +1,43 @@
 import { describe, it, expect } from "vitest";
-import { deriveMetricsFromLegacyLifestyle, upgradeLogsToV2, verifyMigrationCounts } from "./habitsMigration";
-import { EMPTY_LOGS, type LogsData } from "../types/logs";
+import {
+  deriveMetricsFromLegacyLifestyle,
+  migrateHabitEntriesToLogs,
+  upgradeLogsToV2,
+  upgradeLogsToV3,
+  verifyHabitLogMigration,
+  verifyMigrationCounts,
+  type MigratingLogs,
+} from "./habitsMigration";
+import { EMPTY_LOGS } from "../types/logs";
+import type { Habit, HabitEntry } from "../types/habits";
 
-function logsV1(patch: Partial<LogsData>): LogsData {
-  return { ...EMPTY_LOGS, version: 1 as unknown as 2, ...patch };
+function logsV1(patch: Partial<MigratingLogs>): MigratingLogs {
+  const { habitLogs: _unused, ...rest } = EMPTY_LOGS;
+  return { ...rest, version: 1, ...patch };
+}
+
+function habit(patch: Partial<Habit> = {}): Habit {
+  return {
+    id: "h1",
+    name: "Tomar agua",
+    icon: "drop",
+    color: "azul",
+    type: "quantity",
+    unit: "ml",
+    goal: 2500,
+    aggregation: "sum",
+    quickSteps: [250, 500],
+    frequency: { kind: "daily" },
+    category: "Salud",
+    timeOfDay: "Todo el día",
+    startDate: "2026-01-01",
+    why: null,
+    archivedAt: null,
+    linked: null,
+    createdAt: "x",
+    updatedAt: "x",
+    ...patch,
+  };
 }
 
 describe("deriveMetricsFromLegacyLifestyle", () => {
@@ -121,5 +155,64 @@ describe("verifyMigrationCounts", () => {
     expect(result.ok).toBe(false);
     expect(result.weightBefore).toBe(1);
     expect(result.weightAfter).toBe(0);
+  });
+});
+
+describe("migrateHabitEntriesToLogs", () => {
+  function entry(patch: Partial<HabitEntry> = {}): HabitEntry {
+    return { id: "e1", habitId: "h1", date: "2026-01-01", status: "done", value: null, source: "manual", updatedAt: "2026-01-01T08:00:00.000Z", ...patch };
+  }
+
+  it("genera un HabitLog por cada HabitEntry de cantidad con value, mismo día y valor", () => {
+    const habits = [habit()];
+    const habitEntries = [entry({ value: 750 })];
+    const result = migrateHabitEntriesToLogs({ habits, habitEntries });
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ habitId: "h1", date: "2026-01-01", value: 750, source: "manual" });
+  });
+
+  it("no genera HabitLog para entradas sin value (sí/no, a evitar, o cantidad sin cargar)", () => {
+    const habits = [habit()];
+    const habitEntries = [entry({ value: null })];
+    expect(migrateHabitEntriesToLogs({ habits, habitEntries })).toEqual([]);
+  });
+
+  it("no genera HabitLog para hábitos sin aggregation (sí/no, tiempo, a evitar)", () => {
+    const habits = [habit({ id: "h2", type: "yesno", aggregation: null })];
+    const habitEntries = [entry({ habitId: "h2", value: 5 })];
+    expect(migrateHabitEntriesToLogs({ habits, habitEntries })).toEqual([]);
+  });
+});
+
+describe("verifyHabitLogMigration / upgradeLogsToV3", () => {
+  it("ok=true cuando la cantidad de logs y la suma de valores coincide con las entradas elegibles", () => {
+    const habits = [habit()];
+    const habitEntries: HabitEntry[] = [
+      { id: "e1", habitId: "h1", date: "2026-01-01", status: "done", value: 2500, source: "manual", updatedAt: "x" },
+      { id: "e2", habitId: "h1", date: "2026-01-02", status: "partial", value: 1000, source: "manual", updatedAt: "x" },
+    ];
+    const migrated = migrateHabitEntriesToLogs({ habits, habitEntries });
+    const result = verifyHabitLogMigration({ habits, habitEntries }, migrated);
+    expect(result.ok).toBe(true);
+    expect(result.entriesWithValueBefore).toBe(2);
+    expect(result.logsAfter).toBe(2);
+    expect(result.valueSumBefore).toBe(3500);
+    expect(result.valueSumAfter).toBe(3500);
+  });
+
+  it("upgradeLogsToV3 migra una sola vez (idempotente) y nunca borra habitEntries", () => {
+    const habits = [habit()];
+    const habitEntries: HabitEntry[] = [{ id: "e1", habitId: "h1", date: "2026-01-01", status: "done", value: 2500, source: "manual", updatedAt: "x" }];
+    const logs = logsV1({ habits, habitEntries, version: 2 });
+    const v3 = upgradeLogsToV3(logs);
+    expect(v3.version).toBe(3);
+    expect(v3.habitLogs).toHaveLength(1);
+    expect(v3.habitEntries).toHaveLength(1); // intacto
+
+    // Si el usuario borra manualmente todos sus HabitLog, no se vuelven a regenerar de la nada en la próxima carga
+    // (serían duplicados si además ya cargó nuevos a mano) — pero mientras existan entries migrables y habitLogs
+    // esté vacío, sí se re-derivan, mismo espíritu que `metrics`.
+    const v3Again = upgradeLogsToV3(v3);
+    expect(v3Again.habitLogs).toHaveLength(1);
   });
 });

@@ -1,6 +1,6 @@
 import { EMPTY_LOGS, type LogsData } from "../types/logs";
 import { migrateLegacySessionNotes } from "./exerciseNotes";
-import { upgradeLogsToV2 } from "./habitsMigration";
+import { upgradeLogsToV3 } from "./habitsMigration";
 import { idbDelete, idbGet, idbSet } from "./db";
 import { DEFAULT_LOGS_PATH } from "./github";
 
@@ -115,7 +115,7 @@ function migrateFromLocalStorageIfNeeded(): Promise<void> {
 export function normalizeLogs(parsed: unknown): LogsData | null {
   if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as LogsData).sessions)) return null;
   const p = parsed as Partial<LogsData>;
-  const base: LogsData = {
+  const base = {
     version: 2,
     sessions: p.sessions ?? [],
     bodyWeightEntries: Array.isArray(p.bodyWeightEntries) ? p.bodyWeightEntries : [],
@@ -125,9 +125,10 @@ export function normalizeLogs(parsed: unknown): LogsData | null {
     exerciseNoteEntries: Array.isArray(p.exerciseNoteEntries) ? p.exerciseNoteEntries : [],
     habits: Array.isArray(p.habits) ? p.habits : [],
     habitEntries: Array.isArray(p.habitEntries) ? p.habitEntries : [],
+    habitLogs: Array.isArray(p.habitLogs) ? p.habitLogs : [],
     metrics: Array.isArray(p.metrics) ? p.metrics : [],
   };
-  return upgradeLogsToV2(migrateLegacySessionNotes(base));
+  return migrateLegacySessionNotes(upgradeLogsToV3(base));
 }
 
 export async function loadSettings(): Promise<AppSettings> {

@@ -42,7 +42,7 @@ function session(id: string, weekNumber: number, dayName: string, exercises: Log
 }
 function logsWith(sessions: WorkoutSession[]): LogsData {
   return {
-    version: 2,
+    version: 3,
     sessions,
     bodyWeightEntries: [],
     sleepEntries: [],
@@ -51,6 +51,7 @@ function logsWith(sessions: WorkoutSession[]): LogsData {
     exerciseNoteEntries: [],
     habits: [],
     habitEntries: [],
+    habitLogs: [],
     metrics: [],
   };
 }

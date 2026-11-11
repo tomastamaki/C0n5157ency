@@ -1,4 +1,4 @@
-import type { Habit, HabitEntry, Metric } from "./habits";
+import type { Habit, HabitEntry, HabitLog, Metric } from "./habits";
 
 export type RIRValue = "0" | "1" | "2" | "3+";
 
@@ -146,12 +146,12 @@ export interface ExerciseNoteEntry {
 }
 
 /**
- * `version: 1` ya no se guarda nunca (todo lo que se carga pasa por
- * `normalizeLogs`, que sube a 2), pero se acepta al leer datos viejos
+ * `version: 1` y `2` ya no se guardan nunca (todo lo que se carga pasa por
+ * `normalizeLogs`, que sube hasta 3), pero se aceptan al leer datos viejos
  * (backups, sync) antes de migrarlos. Ver `lib/habitsMigration.ts`.
  */
 export interface LogsData {
-  version: 2;
+  version: 3;
   sessions: WorkoutSession[];
   bodyWeightEntries: BodyWeightEntry[];
   sleepEntries: SleepEntry[];
@@ -160,11 +160,13 @@ export interface LogsData {
   exerciseNoteEntries: ExerciseNoteEntry[];
   habits: Habit[];
   habitEntries: HabitEntry[];
+  /** Registros individuales de hábitos de cantidad/tracking (varios por día posibles). Ver `HabitLog`. */
+  habitLogs: HabitLog[];
   metrics: Metric[];
 }
 
 export const EMPTY_LOGS: LogsData = {
-  version: 2,
+  version: 3,
   sessions: [],
   bodyWeightEntries: [],
   sleepEntries: [],
@@ -173,6 +175,7 @@ export const EMPTY_LOGS: LogsData = {
   exerciseNoteEntries: [],
   habits: [],
   habitEntries: [],
+  habitLogs: [],
   metrics: [],
 };
 

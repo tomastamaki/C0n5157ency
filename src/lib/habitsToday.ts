@@ -50,6 +50,8 @@ export function heatCellsFor(habit: Habit, allEntries: HabitEntry[], asOf: strin
 /** Hábitos relevantes hoy: programados hoy, o de meta semanal (siempre visibles hasta cumplir la semana). */
 export function isRelevantToday(habit: Habit, asOf: string): boolean {
   if (habit.archivedAt) return false;
+  // "tracking" es solo registro y tendencia: sin racha ni cumplimiento, nunca aparece en Hoy.
+  if (habit.type === "tracking") return false;
   if (habit.frequency.kind === "weekly") return habit.startDate <= asOf;
   return isScheduledDate(habit, asOf);
 }

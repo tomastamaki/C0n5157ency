@@ -1,5 +1,14 @@
 import type { LogsData } from "../types/logs";
-import type { Metric } from "../types/habits";
+import type { Habit, HabitLog, Metric } from "../types/habits";
+
+/**
+ * Forma de los datos durante la migración: igual a `LogsData` pero con una
+ * versión numérica libre (no necesariamente la actual) y `habitLogs`
+ * opcional, para poder representar estados intermedios (v1, v2) sin pelear
+ * con el tipo literal de `LogsData.version`. Solo `upgradeLogsToV3` devuelve
+ * un `LogsData` ya completo.
+ */
+export type MigratingLogs = Omit<LogsData, "version" | "habitLogs"> & { version: number; habitLogs?: HabitLog[] };
 
 /**
  * Deriva `metrics[]` (un registro por fecha) a partir de las 4 colecciones
@@ -18,7 +27,7 @@ import type { Metric } from "../types/habits";
  * - `sleepH` (horas dormidas) es un campo nuevo: no hay de dónde migrarlo,
  *   queda `null` para todo el historial. Se completa hacia adelante.
  */
-export function deriveMetricsFromLegacyLifestyle(logs: LogsData): Metric[] {
+export function deriveMetricsFromLegacyLifestyle(logs: MigratingLogs): Metric[] {
   const byDate = new Map<string, Metric>();
   const get = (date: string): Metric => {
     let m = byDate.get(date);
@@ -93,7 +102,7 @@ export function deriveMetricsFromLegacyLifestyle(logs: LogsData): Metric[] {
  * carga los volvería a derivar — mismo espíritu que "nunca borrar los datos
  * originales hasta que se confirme".
  */
-export function upgradeLogsToV2(logs: LogsData): LogsData {
+export function upgradeLogsToV2(logs: MigratingLogs): MigratingLogs {
   const hasLegacyData =
     logs.bodyWeightEntries.length > 0 ||
     logs.sleepEntries.length > 0 ||
@@ -103,10 +112,53 @@ export function upgradeLogsToV2(logs: LogsData): LogsData {
   if (logs.version >= 2 && !needsMetricsDerivation) return logs;
   return {
     ...logs,
-    version: 2,
+    version: Math.max(logs.version, 2),
     habits: logs.habits ?? [],
     habitEntries: logs.habitEntries ?? [],
     metrics: needsMetricsDerivation ? deriveMetricsFromLegacyLifestyle(logs) : logs.metrics,
+  };
+}
+
+/**
+ * Migra cada `HabitEntry` de cantidad/tracking con `value` a un `HabitLog`
+ * inicial (un registro por día, fecha y valor iguales a los que ya tenía la
+ * entrada). Pura aditiva: no modifica ni borra `habitEntries`. Hábitos sin
+ * `aggregation` (sí/no, tiempo, a evitar) no generan `HabitLog` — nunca
+ * tuvieron el concepto de "varios registros por día".
+ */
+export function migrateHabitEntriesToLogs(logs: Pick<LogsData, "habits" | "habitEntries">): HabitLog[] {
+  const aggregationById = new Map<string, Habit["aggregation"]>(logs.habits.map((h) => [h.id, h.aggregation]));
+  const out: HabitLog[] = [];
+  for (const entry of logs.habitEntries) {
+    if (entry.value === null) continue;
+    if (!aggregationById.get(entry.habitId)) continue;
+    out.push({
+      id: `migrated-${entry.id}`,
+      habitId: entry.habitId,
+      date: entry.date,
+      value: entry.value,
+      source: "manual",
+      createdAt: entry.updatedAt,
+      updatedAt: entry.updatedAt,
+    });
+  }
+  return out;
+}
+
+/**
+ * Sube a la versión 3: agrega `habitLogs`, derivado una sola vez de los
+ * `HabitEntry` de cantidad/tracking existentes (ver `migrateHabitEntriesToLogs`).
+ * Igual que con `metrics`, es idempotente — solo migra si `habitLogs` está
+ * vacío y hay algo para migrar — y nunca toca `habitEntries`.
+ */
+export function upgradeLogsToV3(logs: MigratingLogs): LogsData {
+  const v2 = upgradeLogsToV2(logs);
+  const existingHabitLogs = v2.habitLogs ?? [];
+  const needsLogMigration = existingHabitLogs.length === 0 && v2.habitEntries.some((e) => e.value !== null);
+  return {
+    ...v2,
+    version: 3,
+    habitLogs: needsLogMigration ? migrateHabitEntriesToLogs(v2) : existingHabitLogs,
   };
 }
 
@@ -124,7 +176,7 @@ export interface MigrationCounts {
 }
 
 /** Verifica que la migración no perdió historial: cuenta registros (peso/sueño/pasos) y litros totales (agua) antes vs. después. */
-export function verifyMigrationCounts(before: LogsData, after: LogsData): MigrationCounts {
+export function verifyMigrationCounts(before: MigratingLogs, after: MigratingLogs): MigrationCounts {
   const weightBefore = before.bodyWeightEntries.length;
   const weightAfter = after.metrics.filter((m) => m.weightKg !== null).length;
   const sleepBefore = before.sleepEntries.length;
@@ -141,4 +193,29 @@ export function verifyMigrationCounts(before: LogsData, after: LogsData): Migrat
     Math.abs(waterLitersBefore - waterLitersAfter) < 1e-6;
 
   return { weightBefore, weightAfter, sleepBefore, sleepAfter, stepsBefore, stepsAfter, waterLitersBefore, waterLitersAfter, ok };
+}
+
+export interface HabitLogMigrationCounts {
+  entriesWithValueBefore: number;
+  logsAfter: number;
+  /** Suma de los `value` de las entradas migradas vs. la suma de los `HabitLog` resultantes: tienen que ser iguales. */
+  valueSumBefore: number;
+  valueSumAfter: number;
+  ok: boolean;
+}
+
+/** Verifica que migrar HabitEntry → HabitLog no cambió ningún valor diario. */
+export function verifyHabitLogMigration(logs: Pick<LogsData, "habits" | "habitEntries">, migratedLogs: HabitLog[]): HabitLogMigrationCounts {
+  const aggregationById = new Map<string, Habit["aggregation"]>(logs.habits.map((h) => [h.id, h.aggregation]));
+  const eligible = logs.habitEntries.filter((e) => e.value !== null && aggregationById.get(e.habitId));
+  const entriesWithValueBefore = eligible.length;
+  const valueSumBefore = eligible.reduce((sum, e) => sum + (e.value ?? 0), 0);
+  const valueSumAfter = migratedLogs.reduce((sum, l) => sum + l.value, 0);
+  return {
+    entriesWithValueBefore,
+    logsAfter: migratedLogs.length,
+    valueSumBefore,
+    valueSumAfter,
+    ok: entriesWithValueBefore === migratedLogs.length && Math.abs(valueSumBefore - valueSumAfter) < 1e-9,
+  };
 }

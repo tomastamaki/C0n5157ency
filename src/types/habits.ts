@@ -1,4 +1,4 @@
-export type HabitType = "yesno" | "quantity" | "time" | "avoid";
+export type HabitType = "yesno" | "quantity" | "time" | "avoid" | "tracking";
 export type HabitCategory = "Salud" | "Entrenamiento" | "Mente" | "Productividad" | "Otros";
 export type HabitTimeOfDay = "Mañana" | "Tarde" | "Noche" | "Todo el día";
 export type HabitColor = "azul" | "naranja" | "verde" | "ambar" | "violeta" | "turquesa" | "rosa" | "pizarra";
@@ -22,8 +22,16 @@ export interface Habit {
   color: HabitColor;
   type: HabitType;
   unit: string | null;
-  goal: number;
+  /** null = sin objetivo (habitual en "tracking"; un objetivo opcional sigue siendo válido ahí, ej. meta de peso). */
+  goal: number | null;
   quickSteps: number[];
+  /**
+   * Cómo se combinan los registros (`HabitLog`) de un mismo día en el valor
+   * del día para hábitos de cantidad/tracking: "sum" = se suman (agua),
+   * "last" = vale el más reciente (peso, sueño, pasos). `null` para
+   * sí/no, tiempo y a evitar, que no tienen `HabitLog`.
+   */
+  aggregation: "sum" | "last" | null;
   frequency: HabitFrequency;
   category: HabitCategory;
   timeOfDay: HabitTimeOfDay;
@@ -52,6 +60,25 @@ export interface HabitEntry {
   /** Solo para hábitos de cantidad/tiempo; null en sí/no y a evitar. */
   value: number | null;
   source: "auto" | "manual";
+  updatedAt: string;
+}
+
+/**
+ * Un registro individual de un hábito de cantidad/tracking (ej. "+250 ml" o
+ * una carga de peso), con hora propia. Puede haber varios por día: el valor
+ * del día se recalcula a partir de todos los `HabitLog` de esa fecha según
+ * `Habit.aggregation` ("sum" o "last"), y ESE agregado es el que termina en
+ * el `HabitEntry` del día (que no cambia de forma). Editable y borrable
+ * individualmente, a diferencia del `HabitEntry`.
+ */
+export interface HabitLog {
+  id: string;
+  habitId: string;
+  /** YYYY-MM-DD local. */
+  date: string;
+  value: number;
+  source: "auto" | "manual";
+  createdAt: string;
   updatedAt: string;
 }
 

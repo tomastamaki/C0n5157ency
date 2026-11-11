@@ -11,6 +11,7 @@ function habit(patch: Partial<Habit> = {}): Habit {
     type: "yesno",
     unit: null,
     goal: 1,
+    aggregation: null,
     quickSteps: [],
     frequency: { kind: "daily" },
     category: "Mente",
@@ -43,6 +44,11 @@ describe("isRelevantToday", () => {
     // 2026-01-14 es miércoles (día 2, lunes=0)
     const h = habit({ frequency: { kind: "days", days: [0, 2, 4] } });
     expect(isRelevantToday(h, "2026-01-14")).toBe(true);
+    expect(isRelevantToday(h, "2026-01-15")).toBe(false);
+  });
+
+  it("un hábito de 'seguimiento' nunca es relevante hoy: sin racha ni cumplimiento", () => {
+    const h = habit({ type: "tracking", goal: null, aggregation: "last" });
     expect(isRelevantToday(h, "2026-01-15")).toBe(false);
   });
 });
