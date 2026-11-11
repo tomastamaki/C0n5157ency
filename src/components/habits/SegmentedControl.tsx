@@ -1,11 +1,11 @@
-interface SegmentedControlProps<T extends string> {
+interface SegmentedControlProps<T extends string | number> {
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
 }
 
-/** Selector segmentado (tipo de hábito, momento del día, semanal/mensual...). */
-export function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
+/** Selector segmentado (tipo de hábito, momento del día, semanal/mensual, rango de días...). */
+export function SegmentedControl<T extends string | number>({ options, value, onChange }: SegmentedControlProps<T>) {
   return (
     <div className="flex gap-[3px] rounded-block border border-border bg-surface p-[3px]">
       {options.map((o) => (

@@ -4,6 +4,9 @@ import { IconCheck, IconFlame, IconLink, IconPlay, IconRotateCcw, IconShield } f
 import { HeatRow } from "./HeatRow";
 import { Streak } from "./Streak";
 import { habitIconFor, HABIT_COLORS, type HeatCellState } from "./habitVisuals";
+import { CardActionMenu } from "./CardActionMenu";
+import { ExactValueField } from "./ExactValueField";
+import { useLongPress } from "../../lib/useLongPress";
 
 export type HabitCardStatus = "pending" | "done" | "skip";
 
@@ -23,6 +26,8 @@ interface HabitCardCommon {
   onUnskip?: () => void;
   /** Tocar el nombre/ícono (no el control de acción) abre el detalle del hábito. */
   onOpenDetail?: () => void;
+  /** Mantener presionado abre el menú rápido (editar, cantidad exacta, ver detalle). */
+  onEdit?: () => void;
 }
 
 interface YesNoCard extends HabitCardCommon {
@@ -69,41 +74,6 @@ function formatQuantity(current: number, goal: number, unit: string): string {
   return `${current.toLocaleString("es-AR")} / ${goal.toLocaleString("es-AR")}${u}`.trim();
 }
 
-/** Campo de valor exacto para hábitos de cantidad: siempre disponible, además de los botones rápidos. */
-function ExactValueInput({ unit, color, onAdd }: { unit: string; color: string; onAdd: (value: number) => void }) {
-  const [text, setText] = useState("");
-
-  function submit() {
-    const value = Number(text.replace(",", "."));
-    if (!text || Number.isNaN(value) || value <= 0) return;
-    onAdd(value);
-    setText("");
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <input
-        type="text"
-        inputMode="decimal"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-        placeholder={`valor en ${unit}`}
-        className="h-9 w-24 rounded-pill border border-border bg-surface px-2.5 font-mono text-[13px] text-ink outline-none"
-      />
-      <button
-        type="button"
-        aria-label="Agregar valor exacto"
-        onClick={submit}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-habitink"
-        style={{ backgroundColor: color }}
-      >
-        <IconCheck className="h-4 w-4" strokeWidth={2.6} />
-      </button>
-    </div>
-  );
-}
-
 function RecoveryBanner({ streak }: { streak: number }) {
   return (
     <div className="mt-3 flex items-center gap-2 rounded-block bg-warning/15 px-2.5 py-2 text-xs leading-snug text-warning">
@@ -119,64 +89,86 @@ export function HabitCard(props: HabitCardProps) {
   const color = HABIT_COLORS[props.color];
   const Icon = habitIconFor(props.icon);
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const canOpenMenu = Boolean(props.onEdit) || Boolean(props.onOpenDetail) || (props.kind === "quantity" && Boolean(props.onAddExact));
+  const press = useLongPress(props.onOpenDetail, canOpenMenu ? () => setMenuOpen(true) : undefined);
+  const menu = menuOpen && canOpenMenu && (
+    <CardActionMenu
+      title={props.name}
+      color={color}
+      unit={props.kind === "quantity" ? props.unit : undefined}
+      onClose={() => setMenuOpen(false)}
+      onEdit={props.onEdit}
+      onAddExact={props.kind === "quantity" ? props.onAddExact : undefined}
+      onOpenDetail={props.onOpenDetail}
+    />
+  );
+
   if (props.status === "done") {
     return (
-      <div
-        className="rounded-card px-3.5 py-3 text-habitink shadow-elevated"
-        style={{ backgroundColor: color }}
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-block bg-habitink/[0.14]">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1" onClick={props.onOpenDetail} role={props.onOpenDetail ? "button" : undefined}>
-            <div className="flex items-center gap-1.5 text-[15px] font-bold">
-              {props.name}
-              {props.auto && (
-                <span className="rounded-pill bg-habitink/[0.16] px-2 py-0.5 text-[11px] font-bold">Auto</span>
-              )}
+      <>
+        <div
+          className="rounded-card px-3.5 py-3 text-habitink shadow-elevated"
+          style={{ backgroundColor: color }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-block bg-habitink/[0.14]">
+              <Icon className="h-5 w-5" />
             </div>
-            <div className="mt-1 flex items-center gap-2.5 text-habitink/80">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold">
-                <IconFlame className="h-3.5 w-3.5" />
-                <b className="font-mono">{props.streak}</b> {props.streakUnit ?? "días"}
-              </span>
-              <HeatRow cells={props.heat.slice(0, -1).concat("done")} color="#0d0e13" tone="onColor" />
+            <div className="min-w-0 flex-1" role={props.onOpenDetail ? "button" : undefined} {...press}>
+              <div className="flex items-center gap-1.5 text-[15px] font-bold">
+                {props.name}
+                {props.auto && (
+                  <span className="rounded-pill bg-habitink/[0.16] px-2 py-0.5 text-[11px] font-bold">Auto</span>
+                )}
+              </div>
+              <div className="mt-1 flex items-center gap-2.5 text-habitink/80">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                  <IconFlame className="h-3.5 w-3.5" />
+                  <b className="font-mono">{props.streak}</b> {props.streakUnit ?? "días"}
+                </span>
+                <HeatRow cells={props.heat.slice(0, -1).concat("done")} color="#0d0e13" tone="onColor" />
+              </div>
             </div>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-habitink text-success">
+              <IconCheck className="h-4 w-4" strokeWidth={3} />
+            </span>
           </div>
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-habitink text-success">
-            <IconCheck className="h-4 w-4" strokeWidth={3} />
-          </span>
         </div>
-      </div>
+        {menu}
+      </>
     );
   }
 
   if (props.status === "skip") {
     return (
-      <div className="rounded-card border border-dashed border-border px-3.5 py-3 opacity-[0.62]">
-        <div className="flex items-center gap-3">
-          <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-block bg-ghost text-muted">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1" onClick={props.onOpenDetail} role={props.onOpenDetail ? "button" : undefined}>
-            <div className="flex items-center gap-1.5 text-[15px] font-bold text-ink">
-              {props.name}
-              <span className="rounded-pill bg-surface2 px-2 py-0.5 text-[11px] font-bold text-muted">salteado</span>
+      <>
+        <div className="rounded-card border border-dashed border-border px-3.5 py-3 opacity-[0.62]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-block bg-ghost text-muted">
+              <Icon className="h-5 w-5" />
             </div>
-            <div className="mt-0.5 text-xs text-muted">
-              Sin drama: tu racha de {props.streak} {props.streakUnit ?? "días"} sigue en pie
+            <div className="min-w-0 flex-1" role={props.onOpenDetail ? "button" : undefined} {...press}>
+              <div className="flex items-center gap-1.5 text-[15px] font-bold text-ink">
+                {props.name}
+                <span className="rounded-pill bg-surface2 px-2 py-0.5 text-[11px] font-bold text-muted">salteado</span>
+              </div>
+              <div className="mt-0.5 text-xs text-muted">
+                Sin drama: tu racha de {props.streak} {props.streakUnit ?? "días"} sigue en pie
+              </div>
             </div>
+            <button type="button" onClick={props.onUnskip} className="shrink-0 text-xs font-bold text-primary">
+              Deshacer
+            </button>
           </div>
-          <button type="button" onClick={props.onUnskip} className="shrink-0 text-xs font-bold text-primary">
-            Deshacer
-          </button>
         </div>
-      </div>
+        {menu}
+      </>
     );
   }
 
   return (
+    <>
     <div
       className="rounded-card border bg-surface px-3.5 py-3.5 shadow-elevated"
       style={{ borderColor: `color-mix(in srgb, ${color} 30%, rgb(var(--border)))` }}
@@ -188,7 +180,7 @@ export function HabitCard(props: HabitCardProps) {
         >
           <Icon className="h-5 w-5" />
         </div>
-        <div className="min-w-0 flex-1" onClick={props.onOpenDetail} role={props.onOpenDetail ? "button" : undefined}>
+        <div className="min-w-0 flex-1" role={props.onOpenDetail ? "button" : undefined} {...press}>
           <div className="text-[15px] font-bold text-ink">{props.name}</div>
           <div className="mt-0.5 text-xs text-muted">
             {props.recovery ? "Ayer quedó afuera · hoy es el día" : props.subtitle}
@@ -248,7 +240,7 @@ export function HabitCard(props: HabitCardProps) {
                   +{n} {props.unit}
                 </button>
               ))}
-              {props.onAddExact && <ExactValueInput unit={props.unit} color={color} onAdd={props.onAddExact} />}
+              {props.onAddExact && <ExactValueField unit={props.unit} color={color} onAdd={props.onAddExact} />}
               {props.hasLogsToday && props.onUndoLast && (
                 <button type="button" onClick={props.onUndoLast} className="ml-auto flex items-center gap-1 text-xs font-bold text-primary">
                   <IconRotateCcw className="h-3.5 w-3.5" strokeWidth={2.4} />
@@ -329,5 +321,7 @@ export function HabitCard(props: HabitCardProps) {
         <Streak streak={props.streak} unit={props.streakUnit} />
       </div>
     </div>
+    {menu}
+    </>
   );
 }

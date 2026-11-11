@@ -37,9 +37,10 @@ interface MilestoneState {
 interface Props {
   onCreateHabit: () => void;
   onOpenDetail: (habitId: string) => void;
+  onEdit: (habitId: string) => void;
 }
 
-export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
+export function HabitsTodayScreen({ onCreateHabit, onOpenDetail, onEdit }: Props) {
   const { logs, upsertHabitEntry, removeHabitEntry, upsertHabitLog, removeHabitLog } = useApp();
   const [category, setCategory] = useState<"Todos" | Habit["timeOfDay"] | string>("Todos");
   const [grid, setGrid] = useState(false);
@@ -117,7 +118,12 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
     }
   }
 
-  /** "Deshacer el último registro": saca el log más reciente de hoy y recalcula el entry del día. */
+  /**
+   * "Deshacer el último registro": saca el log más reciente de hoy y
+   * recalcula el entry del día. Es una acción en sí misma, así que reemplaza
+   * el aviso flotante (si había uno de un registro anterior, ya no aplica) y
+   * ofrece su propio "Deshacer" para volver a agregar ese mismo registro.
+   */
   function handleUndoLast(item: TodayItem) {
     const { habit } = item;
     const last = lastLogForDate(habit, logs.habitLogs, today);
@@ -127,6 +133,19 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
     removeHabitLog(last.id);
     if (result.entry) upsertHabitEntry(result.entry);
     else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
+
+    const message = `Último registro deshecho (+${last.value} ${habit.unit ?? ""})`.trim();
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({
+      message,
+      restore: () => {
+        upsertHabitLog(last);
+        if (result.previousEntry) upsertHabitEntry(result.previousEntry);
+        else if (result.entry) removeHabitEntry(result.entry.id);
+        setUndo(null);
+      },
+    });
+    undoTimer.current = setTimeout(() => setUndo(null), 5000);
   }
 
   function handleStart(item: TodayItem) {
@@ -157,6 +176,7 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail }: Props) {
       recovery: item.recovery.show,
       onUnskip: () => handleUnskip(item),
       onOpenDetail: () => onOpenDetail(habit.id),
+      onEdit: () => onEdit(habit.id),
     };
     if (habit.type === "quantity") {
       return {

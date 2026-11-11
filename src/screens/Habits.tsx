@@ -76,7 +76,7 @@ export function HabitsScreen({ onCreateHabit }: Props) {
         </IconButton>
       </div>
 
-      {sub === "hoy" && <HabitsTodayScreen onCreateHabit={onCreateHabit} onOpenDetail={setDetailId} />}
+      {sub === "hoy" && <HabitsTodayScreen onCreateHabit={onCreateHabit} onOpenDetail={setDetailId} onEdit={setEditingId} />}
       {sub === "progreso" && <HabitsProgressScreen onOpenDetail={setDetailId} />}
       {sub === "metricas" && <HabitsMetricsScreen onOpenDetail={setDetailId} />}
     </div>

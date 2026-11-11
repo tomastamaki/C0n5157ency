@@ -10,13 +10,18 @@ import {
   weeklyDoneSeries,
 } from "../lib/habitProgress";
 import { archiveHabit, setEntryStatus } from "../lib/habitActions";
+import { addLog, editLog, logsForDate, removeLog } from "../lib/habitLogs";
+import { averageOf, buildHabitTrendSeries, changeVsPreviousWeek, movingAverage7, type TrendRange } from "../lib/habitTrend";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
 import { Ring } from "../components/habits/Ring";
 import { HeatGrid } from "../components/habits/HeatGrid";
 import { BarChart } from "../components/habits/BarChart";
+import { LogTrendChart } from "../components/habits/LogTrendChart";
+import { TodayLogsList } from "../components/habits/TodayLogsList";
+import { ExactValueField } from "../components/habits/ExactValueField";
 import { SegmentedControl } from "../components/habits/SegmentedControl";
 import { IconButton } from "../components/habits/IconButton";
-import { IconArchive, IconArrowLeft, IconChevronLeft, IconChevronRight, IconFlame, IconPencil } from "../components/icons";
+import { IconArchive, IconArrowDown, IconArrowLeft, IconArrowUp, IconChevronLeft, IconChevronRight, IconFlame, IconPencil } from "../components/icons";
 import type { Habit } from "../types/habits";
 
 const MESES_LARGO = [
@@ -35,15 +40,19 @@ function pct(v: number | null): string {
 }
 
 export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
-  const { logs, upsertHabitEntry, removeHabitEntry, upsertHabit } = useApp();
+  const { logs, upsertHabitEntry, removeHabitEntry, upsertHabit, upsertHabitLog, removeHabitLog } = useApp();
   const today = localDateKey(new Date());
   const [evoMode, setEvoMode] = useState<"sem" | "mes">("sem");
+  const [range, setRange] = useState<TrendRange>(7);
   const [cal, setCal] = useState(() => ({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) }));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const color = HABIT_COLORS[habit.color];
   const Icon = habitIconFor(habit.icon);
   const entries = logs.habitEntries;
+
+  const isTracking = habit.type === "tracking";
+  const isLoggable = habit.type === "quantity" || isTracking;
 
   const { streak, best } = computeHabitStreak(habit, entries, today);
   const consistency = consistencyScore(habit, entries, today);
@@ -59,6 +68,36 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
 
   const monthName = `${MESES_LARGO[cal.month - 1]} ${cal.year}`;
   const calendarCells = buildMonthCalendar(habit, entries, cal.year, cal.month, today);
+
+  const todayLogs = isLoggable ? logsForDate(habit, logs.habitLogs, today) : [];
+  const trendPoints = isLoggable ? buildHabitTrendSeries(habit, logs.habitLogs, today, range) : [];
+  const trendAvg = isLoggable ? averageOf(trendPoints) : null;
+  const isWeightLike = isLoggable && habit.unit === "kg" && habit.aggregation === "last";
+  const movingAvg = isWeightLike ? movingAverage7(trendPoints) : undefined;
+  const weekChange = isWeightLike ? changeVsPreviousWeek(habit, logs.habitLogs, today) : null;
+
+  function handleAddLog(value: number) {
+    const result = addLog(habit, logs.habitLogs, entries, today, value);
+    upsertHabitLog(result.log);
+    if (result.entry) upsertHabitEntry(result.entry);
+    else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
+  }
+
+  function handleEditLog(logId: string, value: number) {
+    const result = editLog(habit, logs.habitLogs, entries, logId, value);
+    if (!result) return;
+    upsertHabitLog(result.log);
+    if (result.entry) upsertHabitEntry(result.entry);
+    else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
+  }
+
+  function handleRemoveLog(logId: string) {
+    const result = removeLog(habit, logs.habitLogs, entries, logId);
+    if (!result) return;
+    removeHabitLog(logId);
+    if (result.entry) upsertHabitEntry(result.entry);
+    else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
+  }
 
   function shiftMonth(delta: number) {
     setSelectedDate(null);
@@ -126,75 +165,151 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
       </div>
 
       <div className="space-y-3.5 px-4 pt-4 md:px-0">
-        <div className="grid grid-cols-3 gap-2.5">
-          <div className="rounded-block border border-border bg-surface p-3">
-            <div className="flex items-center gap-1 font-mono text-xl font-extrabold text-ink">
-              <IconFlame className="h-4 w-4 text-warning" />
-              {streak}
-            </div>
-            <p className="mt-0.5 text-[11px] text-muted">Racha actual</p>
-          </div>
-          <div className="rounded-block border border-border bg-surface p-3">
-            <p className="font-mono text-xl font-extrabold text-ink">{best}</p>
-            <p className="mt-0.5 text-[11px] text-muted">Mejor racha</p>
-          </div>
-          <div className="rounded-block border border-border bg-surface p-3">
-            <p className="font-mono text-xl font-extrabold text-ink">{consistency}</p>
-            <p className="mt-0.5 text-[11px] text-muted">Constancia</p>
-          </div>
-        </div>
-
-        <div className="rounded-card border border-border bg-surface p-4">
-          <div className="mb-3 flex justify-between text-xs">
-            <span className="font-bold text-muted">Cumplimiento</span>
-            <span className="text-faint">un día salteado no cuenta en contra</span>
-          </div>
-          <div className="flex justify-around">
-            {[
-              ["7 días", c7],
-              ["30 días", c30],
-              ["90 días", c90],
-            ].map(([label, value]) => (
-              <div key={label as string} className="flex flex-col items-center gap-1.5 text-[11.5px] text-muted">
-                <Ring
-                  size={70}
-                  strokeWidth={7}
-                  pct={(value as number | null) ?? 0}
-                  color={color}
-                  centerLabel={<span className="font-mono text-[15px] font-extrabold text-ink">{pct(value as number | null)}</span>}
-                />
-                {label}
+        {!isTracking && (
+          <>
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="rounded-block border border-border bg-surface p-3">
+                <div className="flex items-center gap-1 font-mono text-xl font-extrabold text-ink">
+                  <IconFlame className="h-4 w-4 text-warning" />
+                  {streak}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted">Racha actual</p>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="rounded-block border border-border bg-surface p-3">
+                <p className="font-mono text-xl font-extrabold text-ink">{best}</p>
+                <p className="mt-0.5 text-[11px] text-muted">Mejor racha</p>
+              </div>
+              <div className="rounded-block border border-border bg-surface p-3">
+                <p className="font-mono text-xl font-extrabold text-ink">{consistency}</p>
+                <p className="mt-0.5 text-[11px] text-muted">Constancia</p>
+              </div>
+            </div>
 
-        <div className="rounded-card border border-border bg-surface p-4">
-          <div className="mb-2.5 flex justify-between text-xs font-bold text-muted">Últimas 16 semanas</div>
-          <HeatGrid cells={heatCells} monthLabels={monthLabels} color={color} />
-        </div>
+            <div className="rounded-card border border-border bg-surface p-4">
+              <div className="mb-3 flex justify-between text-xs">
+                <span className="font-bold text-muted">Cumplimiento</span>
+                <span className="text-faint">un día salteado no cuenta en contra</span>
+              </div>
+              <div className="flex justify-around">
+                {[
+                  ["7 días", c7],
+                  ["30 días", c30],
+                  ["90 días", c90],
+                ].map(([label, value]) => (
+                  <div key={label as string} className="flex flex-col items-center gap-1.5 text-[11.5px] text-muted">
+                    <Ring
+                      size={70}
+                      strokeWidth={7}
+                      pct={(value as number | null) ?? 0}
+                      color={color}
+                      centerLabel={<span className="font-mono text-[15px] font-extrabold text-ink">{pct(value as number | null)}</span>}
+                    />
+                    {label}
+                  </div>
+                ))}
+              </div>
+            </div>
 
-        <div className="rounded-card border border-border bg-surface p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <b className="text-sm text-ink">Evolución</b>
-            <div className="w-[150px]">
-              <SegmentedControl<"sem" | "mes">
-                options={[
-                  { value: "sem", label: "Semanal" },
-                  ...(habit.frequency.kind !== "weekly" ? [{ value: "mes" as const, label: "Mensual" }] : []),
-                ]}
-                value={evoMode}
-                onChange={setEvoMode}
+            <div className="rounded-card border border-border bg-surface p-4">
+              <div className="mb-2.5 flex justify-between text-xs font-bold text-muted">Últimas 16 semanas</div>
+              <HeatGrid cells={heatCells} monthLabels={monthLabels} color={color} />
+            </div>
+          </>
+        )}
+
+        {isLoggable && (
+          <>
+            <div className="rounded-card border border-border bg-surface p-4">
+              <b className="text-sm text-ink">Hoy</b>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                {habit.quickSteps.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => handleAddLog(n)}
+                    className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
+                    style={{
+                      backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
+                      borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
+                    }}
+                  >
+                    +{n} {habit.unit ?? ""}
+                  </button>
+                ))}
+                <ExactValueField unit={habit.unit ?? ""} color={color} onAdd={handleAddLog} />
+              </div>
+              <div className="mt-3">
+                <TodayLogsList logs={todayLogs} unit={habit.unit ?? ""} color={color} onEdit={handleEditLog} onRemove={handleRemoveLog} />
+              </div>
+            </div>
+
+            <div className="rounded-card border border-border bg-surface p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <b className="text-sm text-ink">Variación</b>
+                <div className="w-[170px]">
+                  <SegmentedControl<TrendRange>
+                    options={[
+                      { value: 7, label: "7d" },
+                      { value: 30, label: "30d" },
+                      { value: 90, label: "90d" },
+                    ]}
+                    value={range}
+                    onChange={setRange}
+                  />
+                </div>
+              </div>
+              {isWeightLike && weekChange && (
+                <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+                  {weekChange.deltaAbs >= 0 ? (
+                    <IconArrowUp className="h-3.5 w-3.5 text-muted" />
+                  ) : (
+                    <IconArrowDown className="h-3.5 w-3.5 text-success" />
+                  )}
+                  <span className="text-muted">
+                    {weekChange.deltaAbs >= 0 ? "+" : ""}
+                    {weekChange.deltaAbs.toFixed(1)} kg ({weekChange.deltaPct >= 0 ? "+" : ""}
+                    {weekChange.deltaPct.toFixed(1)}%) vs. semana anterior
+                  </span>
+                </div>
+              )}
+              <LogTrendChart
+                points={trendPoints}
+                mode={habit.aggregation === "sum" ? "bar" : "line"}
+                unit={habit.unit ?? ""}
+                color={color}
+                goal={habit.goal}
+                average={trendAvg}
+                movingAverage={movingAvg}
+                ariaLabel={`Variación de ${habit.name} en los últimos ${range} días`}
               />
             </div>
-          </div>
-          {evoMode === "sem" ? (
-            <BarChart bars={weekBars} ariaLabel="Días cumplidos por semana" />
-          ) : (
-            <BarChart bars={monthBars} valueSuffix="%" maxValue={100} ariaLabel="Cumplimiento por mes" />
-          )}
-        </div>
+          </>
+        )}
 
+        {!isLoggable && (
+          <div className="rounded-card border border-border bg-surface p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <b className="text-sm text-ink">Evolución</b>
+              <div className="w-[150px]">
+                <SegmentedControl<"sem" | "mes">
+                  options={[
+                    { value: "sem", label: "Semanal" },
+                    ...(habit.frequency.kind !== "weekly" ? [{ value: "mes" as const, label: "Mensual" }] : []),
+                  ]}
+                  value={evoMode}
+                  onChange={setEvoMode}
+                />
+              </div>
+            </div>
+            {evoMode === "sem" ? (
+              <BarChart bars={weekBars} ariaLabel="Días cumplidos por semana" />
+            ) : (
+              <BarChart bars={monthBars} valueSuffix="%" maxValue={100} ariaLabel="Cumplimiento por mes" />
+            )}
+          </div>
+        )}
+
+        {!isTracking && (
         <div className="rounded-card border border-border bg-surface p-4">
           <div className="mb-3 flex items-center justify-between">
             <IconButton aria-label="Mes anterior" onClick={() => shiftMonth(-1)}>
@@ -253,6 +368,7 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
             </div>
           )}
         </div>
+        )}
 
         {habit.why && (
           <div className="rounded-card border border-border bg-surface p-4">
