@@ -21,7 +21,7 @@ import type { HabitMetricKind } from "../types/habits";
 import { IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
-import { LifestyleKpiRow } from "./LifestyleKpiRow";
+import { MetricKpiRow } from "./MetricKpiRow";
 import { HabitsTodayCard } from "./habits/HabitsTodayCard";
 import { VariationPill } from "./VariationPill";
 import { WorkoutPreviewScreen } from "../screens/WorkoutPreview";
@@ -131,7 +131,7 @@ export function HomeDashboard({
 
       <HabitsTodayCard logs={logs} onNavigate={onNavigateToHabits} />
 
-      <LifestyleKpiRow kpis={metricKpis} onSelect={onNavigateToMetric} />
+      <MetricKpiRow kpis={metricKpis} onSelect={onNavigateToMetric} />
 
       <button
         type="button"

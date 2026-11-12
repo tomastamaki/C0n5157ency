@@ -2,14 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   backfillHabitMetricFields,
   backfillLegacyAggregation,
-  deriveMetricsFromLegacyLifestyle,
   migrateHabitEntriesToLogs,
   seedNativeMetricHabits,
   upgradeLogsToV2,
   upgradeLogsToV3,
   upgradeLogsToV4,
+  upgradeLogsToV5,
   verifyHabitLogMigration,
-  verifyMigrationCounts,
   type MigratingLogs,
 } from "./habitsMigration";
 import { EMPTY_LOGS } from "../types/logs";
@@ -46,121 +45,21 @@ function habit(patch: Partial<Habit> = {}): Habit {
   };
 }
 
-describe("deriveMetricsFromLegacyLifestyle", () => {
-  it("un registro de cada tipo en la misma fecha se junta en un solo Metric", () => {
-    const logs = logsV1({
-      bodyWeightEntries: [
-        { id: "w1", date: "2026-01-01", weightKg: 82, bodyFatPct: 18, muscleMassKg: 40, createdAt: "2026-01-01T08:00:00.000Z", updatedAt: "2026-01-01T08:00:00.000Z" },
-      ],
-      sleepEntries: [
-        { id: "s1", date: "2026-01-01", score: 80, deepSleepMinutes: 90, awakeMinutes: 10, createdAt: "2026-01-01T08:00:00.000Z", updatedAt: "2026-01-01T08:00:00.000Z" },
-      ],
-      stepsEntries: [{ id: "st1", date: "2026-01-01", steps: 6000, createdAt: "2026-01-01T08:00:00.000Z", updatedAt: "2026-01-01T08:00:00.000Z" }],
-      waterEntries: [{ id: "a1", date: "2026-01-01", liters: 1, createdAt: "2026-01-01T08:00:00.000Z", updatedAt: "2026-01-01T08:00:00.000Z" }],
-    });
-    const metrics = deriveMetricsFromLegacyLifestyle(logs);
-    expect(metrics).toHaveLength(1);
-    expect(metrics[0]).toMatchObject({ date: "2026-01-01", weightKg: 82, sleepScore: 80, sleepH: null, steps: 6000, waterMl: 1000 });
-  });
-
-  it("varios registros de agua el mismo día se suman en waterMl (el total se preserva, no la cantidad de filas)", () => {
-    const logs = logsV1({
-      waterEntries: [
-        { id: "a1", date: "2026-01-01", liters: 0.5, createdAt: "2026-01-01T08:00:00.000Z", updatedAt: "2026-01-01T08:00:00.000Z" },
-        { id: "a2", date: "2026-01-01", liters: 0.75, createdAt: "2026-01-01T13:00:00.000Z", updatedAt: "2026-01-01T13:00:00.000Z" },
-        { id: "a3", date: "2026-01-01", liters: 0.25, createdAt: "2026-01-01T20:00:00.000Z", updatedAt: "2026-01-01T20:00:00.000Z" },
-      ],
-    });
-    const metrics = deriveMetricsFromLegacyLifestyle(logs);
-    expect(metrics).toHaveLength(1);
-    expect(metrics[0].waterMl).toBe(1500);
-  });
-
-  it("fechas distintas generan registros de Metric distintos", () => {
-    const logs = logsV1({
-      stepsEntries: [
-        { id: "st1", date: "2026-01-01", steps: 5000, createdAt: "x", updatedAt: "2026-01-01T08:00:00.000Z" },
-        { id: "st2", date: "2026-01-02", steps: 7000, createdAt: "x", updatedAt: "2026-01-02T08:00:00.000Z" },
-      ],
-    });
-    const metrics = deriveMetricsFromLegacyLifestyle(logs);
-    expect(metrics.map((m) => m.date)).toEqual(["2026-01-01", "2026-01-02"]);
-  });
-});
-
 describe("upgradeLogsToV2", () => {
-  it("sube la versión y deriva metrics cuando hay datos viejos de Lifestyle", () => {
-    const logs = logsV1({
-      bodyWeightEntries: [{ id: "w1", date: "2026-01-01", weightKg: 80, bodyFatPct: null, muscleMassKg: null, createdAt: "x", updatedAt: "x" }],
-    });
+  it("sube la versión, agrega habits/habitEntries vacíos si no existían y backfillea aggregation", () => {
+    const logs = logsV1({ habits: [{ ...habit(), aggregation: null }] });
     const upgraded = upgradeLogsToV2(logs);
     expect(upgraded.version).toBe(2);
-    expect(upgraded.metrics).toHaveLength(1);
-    expect(upgraded.habits).toEqual([]);
+    expect(upgraded.habits[0].aggregation).toBe("sum");
     expect(upgraded.habitEntries).toEqual([]);
-    // Nunca borra los arrays viejos.
-    expect(upgraded.bodyWeightEntries).toHaveLength(1);
   });
 
-  it("es idempotente: si ya hay metrics, no los recalcula (no pisa ediciones posteriores)", () => {
-    const logs = logsV1({
-      bodyWeightEntries: [{ id: "w1", date: "2026-01-01", weightKg: 80, bodyFatPct: null, muscleMassKg: null, createdAt: "x", updatedAt: "x" }],
-      metrics: [
-        {
-          id: "2026-01-01",
-          date: "2026-01-01",
-          weightKg: 99, // valor editado a mano después de migrar, distinto del derivado (80)
-          bodyFatPct: null,
-          muscleMassKg: null,
-          sleepH: null,
-          sleepScore: null,
-          deepSleepMinutes: null,
-          awakeMinutes: null,
-          steps: null,
-          waterMl: null,
-          updatedAt: "x",
-        },
-      ],
-      version: 2,
-    });
-    const upgraded = upgradeLogsToV2(logs);
-    expect(upgraded.metrics[0].weightKg).toBe(99);
-  });
-
-  it("sin datos viejos de Lifestyle, no genera metrics de la nada", () => {
+  it('un respaldo viejo con las 4 colecciones legacy de Lifestyle (HABI7 v2 Fase 6B) no rompe nada: ya no son parte del tipo, se descartan antes de llegar acá', () => {
+    // `normalizeLogs` (lib/storage.ts) es quien arma este objeto leyendo campo por campo del JSON
+    // crudo — acá simplemente no hay dónde ponerlas. Ver el describe "respaldo viejo" más abajo
+    // para la prueba end-to-end con un JSON real que sí las trae.
     const upgraded = upgradeLogsToV2(logsV1({}));
     expect(upgraded.version).toBe(2);
-    expect(upgraded.metrics).toEqual([]);
-  });
-});
-
-describe("verifyMigrationCounts", () => {
-  it("ok=true cuando los conteos de peso/sueño/pasos y los litros totales de agua se preservan", () => {
-    const before = logsV1({
-      bodyWeightEntries: [{ id: "w1", date: "2026-01-01", weightKg: 80, bodyFatPct: null, muscleMassKg: null, createdAt: "x", updatedAt: "x" }],
-      sleepEntries: [{ id: "s1", date: "2026-01-01", score: 70, deepSleepMinutes: null, awakeMinutes: null, createdAt: "x", updatedAt: "x" }],
-      stepsEntries: [{ id: "st1", date: "2026-01-01", steps: 5000, createdAt: "x", updatedAt: "x" }],
-      waterEntries: [
-        { id: "a1", date: "2026-01-01", liters: 0.5, createdAt: "x", updatedAt: "x" },
-        { id: "a2", date: "2026-01-01", liters: 0.5, createdAt: "x", updatedAt: "2026-01-01T09:00:00.000Z" },
-      ],
-    });
-    const after = upgradeLogsToV2(before);
-    const result = verifyMigrationCounts(before, after);
-    expect(result.ok).toBe(true);
-    expect(result.waterLitersBefore).toBe(1);
-    expect(result.waterLitersAfter).toBe(1);
-  });
-
-  it("ok=false si se pierde algún registro de peso/sueño/pasos", () => {
-    const before = logsV1({
-      bodyWeightEntries: [{ id: "w1", date: "2026-01-01", weightKg: 80, bodyFatPct: null, muscleMassKg: null, createdAt: "x", updatedAt: "x" }],
-    });
-    const after = { ...upgradeLogsToV2(before), metrics: [] }; // simula una migración que perdió el dato
-    const result = verifyMigrationCounts(before, after);
-    expect(result.ok).toBe(false);
-    expect(result.weightBefore).toBe(1);
-    expect(result.weightAfter).toBe(0);
   });
 });
 
@@ -263,7 +162,7 @@ describe("verifyHabitLogMigration / upgradeLogsToV3", () => {
 
     // Si el usuario borra manualmente todos sus HabitLog, no se vuelven a regenerar de la nada en la próxima carga
     // (serían duplicados si además ya cargó nuevos a mano) — pero mientras existan entries migrables y habitLogs
-    // esté vacío, sí se re-derivan, mismo espíritu que `metrics`.
+    // esté vacío, sí se re-derivan, mismo espíritu que en Fase 6A.
     const v3Again = upgradeLogsToV3(v3);
     expect(v3Again.habitLogs).toHaveLength(1);
   });
@@ -355,4 +254,20 @@ describe("upgradeLogsToV4", () => {
     const v4Again = upgradeLogsToV4(v4, "2026-11-12");
     expect(v4Again.habits.filter((h) => h.metricKind !== null)).toHaveLength(4);
   });
+});
+
+describe("upgradeLogsToV5 (HABI7 v2 Fase 6B: borrado de Lifestyle legacy)", () => {
+  it("sube a la versión 5 sin tocar sesiones, hábitos, entradas ni logs", () => {
+    const sessionsIn = [{ id: "s1" }] as never[];
+    const logs = logsV1({ version: 4, sessions: sessionsIn, habits: [habit()] });
+    const v5 = upgradeLogsToV5(logs, "2026-11-12");
+    expect(v5.version).toBe(5);
+    expect(v5.sessions).toEqual(sessionsIn);
+    expect(v5.habits.some((h) => h.id === "h1")).toBe(true);
+  });
+
+  // El descarte real de las colecciones legacy de un respaldo viejo pasa por `normalizeLogs`
+  // (lib/storage.ts), que arma el objeto a migrar leyendo campo por campo del JSON crudo — ahí es
+  // donde de verdad no se copian. Ver `storage.test.ts` para esa prueba end-to-end con un JSON
+  // viejo simulado.
 });

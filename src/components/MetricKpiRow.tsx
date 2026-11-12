@@ -22,7 +22,7 @@ interface Props {
 }
 
 /** Fila con los últimos valores de los hábitos nativos de Métricas (Peso/Sueño/Pasos/Agua). Cada tile se omite si no hay ningún dato cargado todavía. */
-export function LifestyleKpiRow({ kpis, onSelect }: Props) {
+export function MetricKpiRow({ kpis, onSelect }: Props) {
   if (kpis.length === 0) return null;
 
   return (

@@ -106,21 +106,3 @@ export interface HabitLog {
   createdAt: string;
   updatedAt: string;
 }
-
-/** Un registro por día (id = date). Reemplaza a bodyWeightEntries/sleepEntries/stepsEntries/waterEntries como fuente de verdad hacia adelante. */
-export interface Metric {
-  id: string;
-  date: string;
-  weightKg: number | null;
-  bodyFatPct: number | null;
-  muscleMassKg: number | null;
-  /** Horas de sueño. Campo nuevo: el historial migrado desde SleepEntry no lo tiene (queda null). */
-  sleepH: number | null;
-  /** Puntaje de calidad de sueño 1-100 (el dato histórico, se conserva como secundario). */
-  sleepScore: number | null;
-  deepSleepMinutes: number | null;
-  awakeMinutes: number | null;
-  steps: number | null;
-  waterMl: number | null;
-  updatedAt: string;
-}

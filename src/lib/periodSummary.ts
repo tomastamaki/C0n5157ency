@@ -244,10 +244,10 @@ export function getPerformanceVariation(rows: ExerciseRow[]): { vsAnterior: numb
 }
 
 // ---------------------------------------------------------------------------
-// Lifestyle de la semana
+// Métricas de la semana (Peso/Sueño/Pasos/Agua, ver habits.metricKind)
 // ---------------------------------------------------------------------------
 
-export interface LifestylePeriodRow {
+export interface MetricsPeriodRow {
   metricKind: HabitMetricKind;
   label: string;
   unit: string | null;
@@ -270,17 +270,17 @@ function averageInRange(daily: Map<string, number>, range: { start: string; end:
   return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
 }
 
-export function getLifestylePeriod(
+export function getMetricsPeriod(
   logs: LogsData,
   cycle: number,
   weekNumber: number,
   previousWeekNumber: number | null
-): LifestylePeriodRow[] {
+): MetricsPeriodRow[] {
   const range = getWeekDateRange(logs, cycle, weekNumber);
   const prevRange = getWeekDateRange(logs, cycle, previousWeekNumber);
   if (!range) return [];
 
-  const rows: LifestylePeriodRow[] = [];
+  const rows: MetricsPeriodRow[] = [];
   for (const habit of logs.habits) {
     if (!habit.metricKind || habit.archivedAt) continue;
     const daily = allDailyValues(habit, logs.habitLogs);

@@ -10,17 +10,8 @@ import {
 } from "react";
 import programJson from "../data/program.json";
 import type { Program } from "../types/program";
-import type {
-  BodyWeightEntry,
-  ExerciseNoteEntry,
-  LogsData,
-  SleepEntry,
-  StepsEntry,
-  WaterEntry,
-  WorkoutSession,
-} from "../types/logs";
+import type { ExerciseNoteEntry, LogsData, WorkoutSession } from "../types/logs";
 import type { Habit, HabitEntry, HabitLog } from "../types/habits";
-import { deriveMetricsFromLegacyLifestyle } from "../lib/habitsMigration";
 import { autoMarkWorkoutCompletion } from "../lib/habitAutoLink";
 import { localDateKey } from "../lib/time";
 import { EMPTY_LOGS } from "../types/logs";
@@ -69,14 +60,6 @@ interface AppContextValue {
   logs: LogsData;
   upsertSession: (session: WorkoutSession) => void;
   removeSession: (id: string) => void;
-  upsertBodyWeightEntry: (entry: BodyWeightEntry) => void;
-  removeBodyWeightEntry: (id: string) => void;
-  upsertSleepEntry: (entry: SleepEntry) => void;
-  removeSleepEntry: (id: string) => void;
-  upsertStepsEntry: (entry: StepsEntry) => void;
-  removeStepsEntry: (id: string) => void;
-  upsertWaterEntry: (entry: WaterEntry) => void;
-  removeWaterEntry: (id: string) => void;
   upsertExerciseNoteEntry: (entry: ExerciseNoteEntry) => void;
   upsertHabit: (habit: Habit) => void;
   upsertHabitEntry: (entry: HabitEntry) => void;
@@ -270,106 +253,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const removeSession = useCallback(
     (id: string) => {
       mutateLogs((prev) => ({ ...prev, sessions: prev.sessions.filter((s) => s.id !== id) }));
-    },
-    [mutateLogs]
-  );
-
-  const upsertBodyWeightEntry = useCallback(
-    (entry: BodyWeightEntry) => {
-      mutateLogs((prev) => {
-        const idx = prev.bodyWeightEntries.findIndex((e) => e.id === entry.id);
-        const entries = [...prev.bodyWeightEntries];
-        if (idx >= 0) entries[idx] = entry;
-        else entries.push(entry);
-        entries.sort((a, b) => a.date.localeCompare(b.date));
-        const next = { ...prev, bodyWeightEntries: entries };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const removeBodyWeightEntry = useCallback(
-    (id: string) => {
-      mutateLogs((prev) => {
-        const next = { ...prev, bodyWeightEntries: prev.bodyWeightEntries.filter((e) => e.id !== id) };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const upsertSleepEntry = useCallback(
-    (entry: SleepEntry) => {
-      mutateLogs((prev) => {
-        const idx = prev.sleepEntries.findIndex((e) => e.id === entry.id);
-        const entries = [...prev.sleepEntries];
-        if (idx >= 0) entries[idx] = entry;
-        else entries.push(entry);
-        entries.sort((a, b) => a.date.localeCompare(b.date));
-        const next = { ...prev, sleepEntries: entries };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const removeSleepEntry = useCallback(
-    (id: string) => {
-      mutateLogs((prev) => {
-        const next = { ...prev, sleepEntries: prev.sleepEntries.filter((e) => e.id !== id) };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const upsertStepsEntry = useCallback(
-    (entry: StepsEntry) => {
-      mutateLogs((prev) => {
-        const idx = prev.stepsEntries.findIndex((e) => e.id === entry.id);
-        const entries = [...prev.stepsEntries];
-        if (idx >= 0) entries[idx] = entry;
-        else entries.push(entry);
-        entries.sort((a, b) => a.date.localeCompare(b.date));
-        const next = { ...prev, stepsEntries: entries };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const removeStepsEntry = useCallback(
-    (id: string) => {
-      mutateLogs((prev) => {
-        const next = { ...prev, stepsEntries: prev.stepsEntries.filter((e) => e.id !== id) };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const upsertWaterEntry = useCallback(
-    (entry: WaterEntry) => {
-      mutateLogs((prev) => {
-        const idx = prev.waterEntries.findIndex((e) => e.id === entry.id);
-        const entries = [...prev.waterEntries];
-        if (idx >= 0) entries[idx] = entry;
-        else entries.push(entry);
-        entries.sort((a, b) => a.date.localeCompare(b.date));
-        const next = { ...prev, waterEntries: entries };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
-    },
-    [mutateLogs]
-  );
-
-  const removeWaterEntry = useCallback(
-    (id: string) => {
-      mutateLogs((prev) => {
-        const next = { ...prev, waterEntries: prev.waterEntries.filter((e) => e.id !== id) };
-        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
-      });
     },
     [mutateLogs]
   );
@@ -631,14 +514,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     logs,
     upsertSession,
     removeSession,
-    upsertBodyWeightEntry,
-    removeBodyWeightEntry,
-    upsertSleepEntry,
-    removeSleepEntry,
-    upsertStepsEntry,
-    removeStepsEntry,
-    upsertWaterEntry,
-    removeWaterEntry,
     upsertExerciseNoteEntry,
     upsertHabit,
     upsertHabitEntry,

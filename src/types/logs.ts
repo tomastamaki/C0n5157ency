@@ -1,4 +1,4 @@
-import type { Habit, HabitEntry, HabitLog, Metric } from "./habits";
+import type { Habit, HabitEntry, HabitLog } from "./habits";
 
 export type RIRValue = "0" | "1" | "2" | "3+";
 
@@ -82,48 +82,6 @@ export interface WorkoutSession {
   feeling: number | null;
 }
 
-/** Registro de peso corporal (pestaña Lifestyle). Independiente de las sesiones de entrenamiento. */
-export interface BodyWeightEntry {
-  id: string;
-  /** Fecha del registro (YYYY-MM-DD), editable — no necesariamente "hoy". */
-  date: string;
-  weightKg: number;
-  bodyFatPct: number | null;
-  muscleMassKg: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Registro de calidad de sueño (pestaña Lifestyle). Asociado a la noche anterior a `date`. Todas las duraciones en minutos. */
-export interface SleepEntry {
-  id: string;
-  date: string;
-  /** Score de sueño 1-100 (mismo concepto que la app Salud de Apple). */
-  score: number;
-  deepSleepMinutes: number | null;
-  awakeMinutes: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Registro de pasos diarios (pestaña Lifestyle). */
-export interface StepsEntry {
-  id: string;
-  date: string;
-  steps: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Registro de agua tomada, en litros (pestaña Lifestyle). Varios registros pueden compartir fecha (se suman por día). */
-export interface WaterEntry {
-  id: string;
-  date: string;
-  liters: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 /**
  * Una nota guardada para un ejercicio (identidad = el ejercicio efectivamente
  * hecho, variante incluida) en el momento de una sesión puntual. La "nota
@@ -146,37 +104,33 @@ export interface ExerciseNoteEntry {
 }
 
 /**
- * `version: 1` y `2` ya no se guardan nunca (todo lo que se carga pasa por
- * `normalizeLogs`, que sube hasta 3), pero se aceptan al leer datos viejos
- * (backups, sync) antes de migrarlos. Ver `lib/habitsMigration.ts`.
+ * Versiones viejas (1-4) ya no se guardan nunca (todo lo que se carga pasa
+ * por `normalizeLogs`, que sube hasta la actual), pero se aceptan al leer
+ * datos viejos (backups, sync) antes de migrarlos. `version: 5` (HABI7 v2
+ * Fase 6B) borró las 4 colecciones legacy de Lifestyle (bodyWeightEntries,
+ * sleepEntries, stepsEntries, waterEntries) y `metrics`: ya estaban
+ * reemplazadas desde la Fase 6A por los hábitos nativos de "Métricas". Un
+ * respaldo viejo que todavía las traiga las descarta sin error al migrar
+ * (`normalizeLogs` arma el objeto nuevo leyendo campo por campo; lo que no
+ * está en el esquema actual simplemente no se copia). Ver `lib/habitsMigration.ts`.
  */
 export interface LogsData {
-  version: 4;
+  version: 5;
   sessions: WorkoutSession[];
-  bodyWeightEntries: BodyWeightEntry[];
-  sleepEntries: SleepEntry[];
-  stepsEntries: StepsEntry[];
-  waterEntries: WaterEntry[];
   exerciseNoteEntries: ExerciseNoteEntry[];
   habits: Habit[];
   habitEntries: HabitEntry[];
   /** Registros individuales de hábitos de cantidad/tracking (varios por día posibles). Ver `HabitLog`. */
   habitLogs: HabitLog[];
-  metrics: Metric[];
 }
 
 export const EMPTY_LOGS: LogsData = {
-  version: 4,
+  version: 5,
   sessions: [],
-  bodyWeightEntries: [],
-  sleepEntries: [],
-  stepsEntries: [],
-  waterEntries: [],
   exerciseNoteEntries: [],
   habits: [],
   habitEntries: [],
   habitLogs: [],
-  metrics: [],
 };
 
 /** Peso, reps y RIR completos, sin importar si ya se confirmó con el botón ✓. */

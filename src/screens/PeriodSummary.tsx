@@ -11,7 +11,7 @@ import {
   getPeriodData,
   getExerciseRows,
   getPerformanceVariation,
-  getLifestylePeriod,
+  getMetricsPeriod,
   getMarginToPush,
   getPreviousNonDeloadWeek,
   getTotalWeeks,
@@ -83,8 +83,8 @@ export function PeriodSummaryScreen({ onBack }: Props) {
   const perf = useMemo(() => getPerformanceVariation(rows), [rows]);
   const previousWeek = useMemo(() => getPreviousNonDeloadWeek(program, weekNumber), [program, weekNumber]);
 
-  const lifestyle = useMemo(
-    () => getLifestylePeriod(logs, cycle, weekNumber, previousWeek),
+  const metricsPeriod = useMemo(
+    () => getMetricsPeriod(logs, cycle, weekNumber, previousWeek),
     [logs, cycle, weekNumber, previousWeek]
   );
 
@@ -250,11 +250,11 @@ export function PeriodSummaryScreen({ onBack }: Props) {
         ))}
       </div>
 
-      {lifestyle.length > 0 && (
+      {metricsPeriod.length > 0 && (
         <div className="rounded-card border border-border bg-surface p-4 shadow-elevated-sm">
-          <p className="mb-2 text-sm font-medium text-ink">Lifestyle de la semana</p>
+          <p className="mb-2 text-sm font-medium text-ink">Métricas de la semana</p>
           <div className="space-y-1.5">
-            {lifestyle.map((l) => (
+            {metricsPeriod.map((l) => (
               <div key={l.metricKind} className="flex items-center justify-between text-sm">
                 <span className="text-muted">{l.label}</span>
                 <span className="flex items-center gap-2">
