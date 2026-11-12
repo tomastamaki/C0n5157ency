@@ -1,16 +1,14 @@
 import type { MetricKpi } from "../lib/habitMetricsKpis";
 import type { HabitMetricKind } from "../types/habits";
 
+// A este tamaño (11px) ni text-success ni text-warning llegan a 4.5:1 sobre la superficie en tema
+// claro (3.11:1 y 2.76:1, medido en la revisión de Fase 7) — la flecha ya distingue la dirección
+// sin depender del color, así que el texto queda en text-muted siempre.
 function VariationBadge({ kpi }: { kpi: MetricKpi }) {
   if (kpi.variationPct === null) return null;
   const isUp = kpi.variationPct >= 0;
-  let colorClass = "text-muted";
-  if (kpi.goodness !== "neutral") {
-    const isGood = kpi.goodness === "up-is-good" ? isUp : !isUp;
-    colorClass = isGood ? "text-success" : "text-warning";
-  }
   return (
-    <span className={`font-mono text-[11px] font-semibold ${colorClass}`}>
+    <span className="font-mono text-[11px] font-semibold text-muted">
       {isUp ? "↑" : "↓"} {Math.abs(kpi.variationPct).toFixed(0)}%
     </span>
   );

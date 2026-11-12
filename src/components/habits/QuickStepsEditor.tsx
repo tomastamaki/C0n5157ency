@@ -66,7 +66,8 @@ export function QuickStepsEditor({ steps, unit, onChange, suggested }: Props) {
             <button type="button" aria-label="Mover a la derecha" disabled={i === steps.length - 1} onClick={() => move(i, 1)} className="text-faint disabled:opacity-30">
               <IconChevronRight className="h-3.5 w-3.5" />
             </button>
-            <button type="button" aria-label="Quitar" onClick={() => remove(i)} className="ml-0.5 text-warning">
+            {/* text-ink, no text-warning: directo sobre la superficie no llegaba a 4.5:1 en tema claro (2.76:1). */}
+            <button type="button" aria-label="Quitar" onClick={() => remove(i)} className="ml-0.5 text-ink">
               ×
             </button>
           </div>

@@ -83,7 +83,8 @@ export function HeatGrid({ cells, monthLabels, showLegend = true, nowIndex }: He
       </div>
       {selected !== null && <p className="mt-2 text-center text-xs text-muted">{cells[selected].label}</p>}
       {showLegend && (
-        <div className="mt-2.5 flex items-center gap-2 text-[10.5px] text-faint">
+        // `text-muted` (no `text-faint`): a "0%"/"100%" son texto real de la leyenda, necesitan contraste AA.
+        <div className="mt-2.5 flex items-center gap-2 text-[10.5px] text-muted">
           <span>0 %</span>
           <div
             className="h-2 flex-1 rounded-pill"

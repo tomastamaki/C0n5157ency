@@ -37,7 +37,7 @@ export function HabitsProgressScreen({ onOpenDetail }: Props) {
 
   const summary = buildWeekSummary(habits, entries, today);
 
-  function rankRow(r: (typeof ranked)[number], tone: "ok" | "warn") {
+  function rankRow(r: (typeof ranked)[number]) {
     const Icon = habitIconFor(r.habit.icon);
     return (
       <button
@@ -53,7 +53,9 @@ export function HabitsProgressScreen({ onOpenDetail }: Props) {
           <Icon className="h-4 w-4" />
         </div>
         <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold text-ink">{r.habit.name}</span>
-        <span className={`font-mono text-sm font-extrabold ${tone === "ok" ? "text-ink" : "text-warning"}`}>{r.score}%</span>
+        {/* text-ink siempre (no text-warning para "warn"): directo sobre la superficie no llegaba a 4.5:1 en
+            tema claro (2.76:1); el agrupamiento en "Para darles una mano" ya distingue sin depender del color. */}
+        <span className="font-mono text-sm font-extrabold text-ink">{r.score}%</span>
       </button>
     );
   }
@@ -95,11 +97,11 @@ export function HabitsProgressScreen({ onOpenDetail }: Props) {
       <div className="grid grid-cols-2 gap-2.5">
         <div className="rounded-card border border-border bg-surface p-3.5">
           <p className="mb-2.5 text-xs font-bold text-muted">En su mejor momento</p>
-          <div className="flex flex-col gap-2.5">{best.map((r) => rankRow(r, "ok"))}</div>
+          <div className="flex flex-col gap-2.5">{best.map((r) => rankRow(r))}</div>
         </div>
         <div className="rounded-card border border-border bg-surface p-3.5">
           <p className="mb-2.5 text-xs font-bold text-muted">Para darles una mano</p>
-          <div className="flex flex-col gap-2.5">{worst.map((r) => rankRow(r, "warn"))}</div>
+          <div className="flex flex-col gap-2.5">{worst.map((r) => rankRow(r))}</div>
         </div>
       </div>
 

@@ -107,9 +107,11 @@ function WeeklyBadge({
         </span>
       </div>
       {weekly.atRisk && (
+        // Fondo sólido + texto habitink (no el tinte suave con texto color warning): ese combo no
+        // llegaba a 4.5:1 en tema claro (2.40:1, medido en la revisión de Fase 7).
         <span
           className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-bold ${
-            onColor ? "bg-habitink/[0.16] text-habitink" : "bg-warning/15 text-warning"
+            onColor ? "bg-habitink/[0.16] text-habitink" : "bg-warning text-habitink"
           }`}
         >
           <IconInfo className="h-3 w-3" />
@@ -121,9 +123,12 @@ function WeeklyBadge({
 }
 
 function RecoveryBanner({ streak }: { streak: number }) {
+  // Texto en `text-ink` (no `text-warning`): sobre el tinte suave bg-warning/15, el texto color
+  // warning no llegaba a 4.5:1 en tema claro (2.40:1, medido en la revisión de Fase 7). El ícono
+  // sigue en warning como acento de color — no necesita el mismo piso de contraste que el texto.
   return (
-    <div className="mt-3 flex items-center gap-2 rounded-block bg-warning/15 px-2.5 py-2 text-xs leading-snug text-warning">
-      <IconShield className="h-3.5 w-3.5 shrink-0" />
+    <div className="mt-3 flex items-center gap-2 rounded-block bg-warning/15 px-2.5 py-2 text-xs leading-snug text-ink">
+      <IconShield className="h-3.5 w-3.5 shrink-0 text-warning" />
       <span>
         <b className="font-bold">No dos seguidas.</b> Hoy sostiene tu racha de {streak} días.
       </span>

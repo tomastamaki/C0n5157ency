@@ -36,8 +36,9 @@ export function SwipeToSkip({ onSkip, children }: SwipeToSkipProps) {
 
   return (
     <div className="relative overflow-hidden rounded-card">
-      <div className="absolute inset-y-0 right-0 flex w-[84px] flex-col items-center justify-center gap-1 bg-warning/20 text-xs font-extrabold text-warning">
-        <IconSkipForward className="h-5 w-5" />
+      {/* text-ink, no text-warning: sobre el tinte bg-warning/20 el texto color warning no llegaba a 4.5:1 en tema claro (2.29:1). */}
+      <div className="absolute inset-y-0 right-0 flex w-[84px] flex-col items-center justify-center gap-1 bg-warning/20 text-xs font-extrabold text-ink">
+        <IconSkipForward className="h-5 w-5 text-warning" />
         Saltear
       </div>
       <div

@@ -47,15 +47,6 @@ function latestValue(daily: Map<string, number>, today: string): { value: number
   return { value: daily.get(mostRecentDate)!, date: mostRecentDate, isToday: false };
 }
 
-export type TrendGoodness = "up-is-good" | "down-is-good" | "neutral";
-
-const GOODNESS: Record<HabitMetricKind, TrendGoodness> = {
-  weight: "neutral",
-  sleep: "up-is-good",
-  steps: "up-is-good",
-  water: "up-is-good",
-};
-
 export function formatMetric(kind: HabitMetricKind, value: number, unit: string | null): string {
   if (kind === "steps") return Math.round(value).toLocaleString("es-AR");
   if (kind === "water") return `${(value / 1000).toFixed(1)}L`;
@@ -69,7 +60,6 @@ export interface MetricKpi {
   displayValue: string;
   isToday: boolean;
   variationPct: number | null;
-  goodness: TrendGoodness;
 }
 
 /** KPIs para la fila de Inicio: uno por cada hábito nativo de "Métricas" con algún dato cargado. */
@@ -91,7 +81,6 @@ export function getMetricKpis(habits: Habit[], habitLogs: HabitLog[], today: str
       displayValue: formatMetric(habit.metricKind, latest.value, habit.unit),
       isToday: latest.isToday,
       variationPct,
-      goodness: GOODNESS[habit.metricKind],
     });
   }
   return kpis;
