@@ -27,8 +27,7 @@ import { HeatGrid } from "../components/habits/HeatGrid";
 import { BarChart } from "../components/habits/BarChart";
 import { LogTrendChart } from "../components/habits/LogTrendChart";
 import { TodayLogsList } from "../components/habits/TodayLogsList";
-import { ExactValueField } from "../components/habits/ExactValueField";
-import { SecondaryValueField } from "../components/habits/SecondaryValueField";
+import { QuickAddRow } from "../components/habits/QuickAddRow";
 import { SegmentedControl } from "../components/habits/SegmentedControl";
 import { IconButton } from "../components/habits/IconButton";
 import { IconArchive, IconArrowDown, IconArrowLeft, IconArrowUp, IconChevronLeft, IconChevronRight, IconFlame, IconPencil } from "../components/icons";
@@ -236,43 +235,9 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
           <>
             <div className="rounded-card border border-border bg-surface p-4">
               <b className="text-sm text-ink">Hoy</b>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                {habit.quickSteps.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => handleAddLog(n)}
-                    className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
-                    style={{
-                      backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
-                      borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
-                    }}
-                  >
-                    {habit.aggregation === "sum" ? "+" : ""}
-                    {n} {habit.unit ?? ""}
-                  </button>
-                ))}
-                <ExactValueField unit={habit.unit ?? ""} color={color} onAdd={handleAddLog} />
+              <div className="mt-2.5">
+                <QuickAddRow habit={habit} color={color} onAdd={handleAddLog} />
               </div>
-              {habit.secondaryField && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border pt-2.5">
-                  {habit.secondaryField.quickValues.map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => handleAddLog(null, n)}
-                      className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
-                      style={{
-                        backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
-                        borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
-                      }}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                  <SecondaryValueField field={habit.secondaryField} color={color} onAdd={(v) => handleAddLog(null, v)} />
-                </div>
-              )}
               <div className="mt-3">
                 <TodayLogsList
                   logs={todayLogs}

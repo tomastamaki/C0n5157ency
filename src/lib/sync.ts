@@ -27,6 +27,13 @@ function mergeById<T extends { id: string; updatedAt: string }>(a: T[], b: T[]):
  * cada colección y, si el mismo id existe en ambos lados con contenido
  * distinto, gana el `updatedAt` más reciente. Nunca reemplaza el archivo
  * entero ni pisa datos nuevos con una versión más vieja.
+ *
+ * PENDIENTE antes de activar sync entre dispositivos (verificado con una
+ * simulación en HABI7 v2 Fase 6A): esto es una unión por id, sin manera de
+ * distinguir "nunca existió" de "se borró" — un `habitLog`/`habitEntry`
+ * borrado en un dispositivo reaparece al fusionar con otro que todavía lo
+ * tiene. Hace falta un marcador de borrado (tombstone) para `habitLogs` y
+ * `habitEntries` antes de que el sync sea seguro con más de un dispositivo.
  */
 export function mergeLogs(a: LogsData, b: LogsData): LogsData {
   const sessions = mergeById<WorkoutSession>(a.sessions, b.sessions).sort(

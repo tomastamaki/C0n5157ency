@@ -1,8 +1,7 @@
 import { useApp } from "../context/AppContext";
 import { MiniTrendChart } from "../components/MiniTrendChart";
 import { Pill } from "../components/habits/Pill";
-import { ExactValueField } from "../components/habits/ExactValueField";
-import { SecondaryValueField } from "../components/habits/SecondaryValueField";
+import { QuickAddRow } from "../components/habits/QuickAddRow";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
 import { localDateKey } from "../lib/time";
 import { addLog, latestLoggedValue } from "../lib/habitLogs";
@@ -75,43 +74,9 @@ function MetricCard({ habit, onOpenDetail }: { habit: Habit; onOpenDetail: (habi
         <p className="mt-2 text-xs text-faint">Todavía no hay registros. Cargá el primero acá abajo.</p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-2.5">
-        {habit.quickSteps.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => handleAdd(n)}
-            className="h-8 rounded-pill border px-2.5 font-mono text-[12px] font-bold text-ink"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
-              borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
-            }}
-          >
-            {habit.aggregation === "sum" ? "+" : ""}
-            {n} {habit.unit ?? ""}
-          </button>
-        ))}
-        <ExactValueField unit={habit.unit ?? ""} color={color} onAdd={handleAdd} />
+      <div className="mt-3 border-t border-border pt-2.5">
+        <QuickAddRow habit={habit} color={color} onAdd={handleAdd} />
       </div>
-      {habit.secondaryField && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {habit.secondaryField.quickValues.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => handleAdd(null, n)}
-              className="h-8 rounded-pill border px-2.5 font-mono text-[12px] font-bold text-ink"
-              style={{
-                backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
-                borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
-              }}
-            >
-              {n}
-            </button>
-          ))}
-          <SecondaryValueField field={habit.secondaryField} color={color} onAdd={(v) => handleAdd(null, v)} />
-        </div>
-      )}
     </div>
   );
 }

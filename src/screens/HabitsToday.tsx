@@ -10,6 +10,7 @@ import { WeekStrip } from "../components/habits/WeekStrip";
 import { Chip } from "../components/habits/Chip";
 import { HabitCard, type HabitCardProps } from "../components/habits/HabitCard";
 import { HabitTile } from "../components/habits/HabitTile";
+import { HabitsTodayMetricsStrip } from "../components/habits/HabitsTodayMetricsStrip";
 import { SwipeToSkip } from "../components/habits/SwipeToSkip";
 import { UndoToast } from "../components/habits/UndoToast";
 import { MilestoneModal } from "../components/habits/MilestoneModal";
@@ -256,6 +257,12 @@ export function HabitsTodayScreen({ onCreateHabit, onOpenDetail, onEdit }: Props
           )}
         </div>
       </div>
+
+      <HabitsTodayMetricsStrip
+        habits={logs.habits.filter((h) => !h.archivedAt && h.type === "tracking" && h.metricKind !== null)}
+        habitLogs={logs.habitLogs}
+        onOpenDetail={onOpenDetail}
+      />
 
       <WeekStrip
         days={weekDays.map((d) => ({ letter: d.letter, dayNumber: d.dayNumber, done: d.done, total: d.total, isToday: d.isToday }))}
