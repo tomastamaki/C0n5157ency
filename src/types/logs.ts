@@ -151,7 +151,7 @@ export interface ExerciseNoteEntry {
  * (backups, sync) antes de migrarlos. Ver `lib/habitsMigration.ts`.
  */
 export interface LogsData {
-  version: 3;
+  version: 4;
   sessions: WorkoutSession[];
   bodyWeightEntries: BodyWeightEntry[];
   sleepEntries: SleepEntry[];
@@ -166,7 +166,7 @@ export interface LogsData {
 }
 
 export const EMPTY_LOGS: LogsData = {
-  version: 3,
+  version: 4,
   sessions: [],
   bodyWeightEntries: [],
   sleepEntries: [],

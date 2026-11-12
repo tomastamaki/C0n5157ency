@@ -1,4 +1,6 @@
-import type { LogsData, LoggedExercise, SleepEntry, WorkoutSession } from "../types/logs";
+import type { LogsData, LoggedExercise, WorkoutSession } from "../types/logs";
+import type { Habit, HabitLog } from "../types/habits";
+import { aggregateSecondaryForDate } from "./habitLogs";
 import { isSetLogged, rirToNumber } from "../types/logs";
 import type { FlatProgramDay, Program } from "../types/program";
 import { getLiteralWorkingSets } from "./program";
@@ -262,9 +264,11 @@ function getSessionSetsCompletedPct(session: WorkoutSession): number | null {
   return (done / total) * 100;
 }
 
-function getSessionSleepScore(session: WorkoutSession, sleepEntries: SleepEntry[]): number | null {
+/** Calidad de sueño (0-100) de la noche asociada a una sesión, leída del hábito nativo "Sueño" (ver `Habit.secondaryField`). Una noche con solo horas y sin calidad no cuenta — se necesita el campo secundario. */
+function getSessionSleepQuality(session: WorkoutSession, sleepHabit: Habit | null, habitLogs: HabitLog[]): number | null {
+  if (!sleepHabit) return null;
   const dateKey = localDateKey(session.completedAt ?? session.startedAt);
-  return sleepEntries.find((e) => e.date === dateKey)?.score ?? null;
+  return aggregateSecondaryForDate(sleepHabit, habitLogs, dateKey)?.value ?? null;
 }
 
 function weightedAverage(pairs: { value: number; weight: number }[]): number | null {
@@ -319,7 +323,8 @@ function computeLayer2(
   window: WorkoutSession[],
   allCompletedSessions: WorkoutSession[],
   flatDays: FlatProgramDay[],
-  sleepEntries: SleepEntry[]
+  sleepHabit: Habit | null,
+  habitLogs: HabitLog[]
 ): Layer2Result | null {
   if (window.length < LAYER2_MIN_SESSIONS) return null;
 
@@ -343,7 +348,7 @@ function computeLayer2(
   const progressAvg = paramAverage(window.map((s) => getSessionOwnProgressPct(s, allCompletedSessions)));
   const setsAvg = paramAverage(window.map((s) => getSessionSetsCompletedPct(s)));
 
-  const sleepValues = window.map((s) => getSessionSleepScore(s, sleepEntries));
+  const sleepValues = window.map((s) => getSessionSleepQuality(s, sleepHabit, habitLogs));
   const sleepNights = sleepValues.filter((v) => v !== null).length;
   const sleepAvg = sleepNights >= SLEEP_MIN_NIGHTS ? paramAverage(sleepValues) : null;
 
@@ -444,9 +449,10 @@ export function getRecommendation(
     };
   }
 
+  const sleepHabit = logs.habits.find((h) => h.metricKind === "sleep" && !h.archivedAt) ?? null;
   const eligible = getEligibleSessions(logs, program, cycle);
   const recentWindow = eligible.slice(0, LAYER2_WINDOW_SIZE);
-  const layer2 = computeLayer2(recentWindow, logs.sessions, flatDays, logs.sleepEntries);
+  const layer2 = computeLayer2(recentWindow, logs.sessions, flatDays, sleepHabit, logs.habitLogs);
 
   if (!layer2) {
     return {
@@ -462,7 +468,7 @@ export function getRecommendation(
   const previousWindow = eligible.slice(LAYER2_WINDOW_SIZE, LAYER2_WINDOW_SIZE * 2);
   const previousLayer2 =
     previousWindow.length >= LAYER2_MIN_SESSIONS
-      ? computeLayer2(previousWindow, logs.sessions, flatDays, logs.sleepEntries)
+      ? computeLayer2(previousWindow, logs.sessions, flatDays, sleepHabit, logs.habitLogs)
       : null;
 
   const trendNote =

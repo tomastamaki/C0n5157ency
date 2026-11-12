@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { HabitLog } from "../../types/habits";
+import type { HabitLog, HabitSecondaryField } from "../../types/habits";
 import { IconCheck, IconPencil, IconTrash } from "../icons";
 
 interface Props {
@@ -7,7 +7,9 @@ interface Props {
   logs: HabitLog[];
   unit: string;
   color: string;
-  onEdit: (logId: string, value: number) => void;
+  /** Campo secundario del hábito (ej. calidad de sueño), si tiene. */
+  secondaryField?: HabitSecondaryField | null;
+  onEdit: (logId: string, value: number | null, secondaryValue?: number | null) => void;
   onRemove: (logId: string) => void;
 }
 
@@ -15,10 +17,24 @@ function timeOf(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function parseOrNull(text: string): number | null {
+  if (!text) return null;
+  const n = Number(text.replace(",", "."));
+  return Number.isNaN(n) ? null : n;
+}
+
+function formatLog(log: HabitLog, unit: string, secondaryField?: HabitSecondaryField | null): string {
+  const parts: string[] = [];
+  if (log.value !== null) parts.push(`${log.value.toLocaleString("es-AR", { maximumFractionDigits: 1 })} ${unit}`.trim());
+  if (secondaryField && log.secondaryValue !== null) parts.push(`${secondaryField.label}: ${log.secondaryValue}`);
+  return parts.join(" · ") || "—";
+}
+
 /** Lista de registros de hoy, editables y eliminables uno por uno (menú "mantener presionado" en la tarjeta también abre cantidad exacta, pero esto es por registro individual). */
-export function TodayLogsList({ logs, unit, color, onEdit, onRemove }: Props) {
+export function TodayLogsList({ logs, unit, color, secondaryField = null, onEdit, onRemove }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [secondaryText, setSecondaryText] = useState("");
 
   if (logs.length === 0) {
     return <p className="text-xs text-faint">Todavía no hay registros hoy.</p>;
@@ -26,13 +42,15 @@ export function TodayLogsList({ logs, unit, color, onEdit, onRemove }: Props) {
 
   function startEdit(log: HabitLog) {
     setEditingId(log.id);
-    setText(String(log.value));
+    setText(log.value === null ? "" : String(log.value));
+    setSecondaryText(log.secondaryValue === null ? "" : String(log.secondaryValue));
   }
 
   function confirmEdit(logId: string) {
-    const value = Number(text.replace(",", "."));
-    if (!text || Number.isNaN(value) || value <= 0) return;
-    onEdit(logId, value);
+    const value = parseOrNull(text);
+    const secondaryValue = secondaryField ? parseOrNull(secondaryText) : undefined;
+    if (value === null && (secondaryValue === undefined || secondaryValue === null)) return;
+    onEdit(logId, value, secondaryValue);
     setEditingId(null);
   }
 
@@ -50,8 +68,20 @@ export function TodayLogsList({ logs, unit, color, onEdit, onRemove }: Props) {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && confirmEdit(log.id)}
-                className="h-8 w-20 rounded-pill border border-border bg-surface px-2 font-mono text-[12.5px] text-ink outline-none"
+                placeholder={unit}
+                className="h-8 w-16 rounded-pill border border-border bg-surface px-2 font-mono text-[12.5px] text-ink outline-none"
               />
+              {secondaryField && (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={secondaryText}
+                  onChange={(e) => setSecondaryText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirmEdit(log.id)}
+                  placeholder={secondaryField.label}
+                  className="h-8 w-16 rounded-pill border border-border bg-surface px-2 font-mono text-[12.5px] text-ink outline-none"
+                />
+              )}
               <button
                 type="button"
                 aria-label="Guardar registro"
@@ -64,9 +94,7 @@ export function TodayLogsList({ logs, unit, color, onEdit, onRemove }: Props) {
             </div>
           ) : (
             <>
-              <span className="ml-auto font-mono text-sm font-bold text-ink">
-                {log.value.toLocaleString("es-AR", { maximumFractionDigits: 1 })} {unit}
-              </span>
+              <span className="ml-auto font-mono text-sm font-bold text-ink">{formatLog(log, unit, secondaryField)}</span>
               <button type="button" aria-label="Editar registro" onClick={() => startEdit(log)} className="flex h-7 w-7 items-center justify-center text-muted">
                 <IconPencil className="h-3.5 w-3.5" />
               </button>

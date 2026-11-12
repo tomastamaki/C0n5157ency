@@ -19,50 +19,6 @@ export interface HabitTemplate {
 
 export const HABIT_TEMPLATES: HabitTemplate[] = [
   {
-    name: "Pasos",
-    icon: "walk",
-    color: "verde",
-    type: "quantity",
-    unit: "pasos",
-    goal: 8000,
-    aggregation: "last",
-    quickSteps: [],
-    frequency: { kind: "daily" },
-    category: "Salud",
-    timeOfDay: "Todo el día",
-    caption: "8.000 · Auto",
-    linked: "steps",
-  },
-  {
-    name: "Tomar agua",
-    icon: "drop",
-    color: "azul",
-    type: "quantity",
-    unit: "ml",
-    goal: 2500,
-    aggregation: "sum",
-    quickSteps: [250, 500],
-    frequency: { kind: "daily" },
-    category: "Salud",
-    timeOfDay: "Todo el día",
-    caption: "2,5 L",
-  },
-  {
-    name: "Dormir",
-    icon: "moon",
-    color: "violeta",
-    type: "time",
-    unit: "h",
-    goal: 7,
-    aggregation: null,
-    quickSteps: [],
-    frequency: { kind: "daily" },
-    category: "Salud",
-    timeOfDay: "Noche",
-    caption: "7 h · Auto",
-    linked: "sleep",
-  },
-  {
     name: "Entrenar",
     icon: "dumbbell",
     color: "naranja",
@@ -119,9 +75,37 @@ export const HABIT_TEMPLATES: HabitTemplate[] = [
     timeOfDay: "Tarde",
     caption: "5 min",
   },
+  {
+    name: "% de grasa corporal",
+    icon: "scale",
+    color: "pizarra",
+    type: "tracking",
+    unit: "%",
+    goal: null,
+    aggregation: "last",
+    quickSteps: [],
+    frequency: { kind: "daily" },
+    category: "Métricas",
+    timeOfDay: "Todo el día",
+    caption: "Seguimiento, sin racha",
+  },
+  {
+    name: "Masa muscular",
+    icon: "scale",
+    color: "pizarra",
+    type: "tracking",
+    unit: "kg",
+    goal: null,
+    aggregation: "last",
+    quickSteps: [],
+    frequency: { kind: "daily" },
+    category: "Métricas",
+    timeOfDay: "Todo el día",
+    caption: "Seguimiento, sin racha",
+  },
 ];
 
-export const HABIT_CATEGORIES: HabitCategory[] = ["Salud", "Entrenamiento", "Mente", "Productividad", "Otros"];
+export const HABIT_CATEGORIES: HabitCategory[] = ["Salud", "Entrenamiento", "Mente", "Productividad", "Métricas", "Otros"];
 export const HABIT_TIMES_OF_DAY: HabitTimeOfDay[] = ["Mañana", "Tarde", "Noche", "Todo el día"];
 export const HABIT_TYPE_LABELS: Record<HabitType, string> = {
   yesno: "Sí / No",
@@ -148,5 +132,7 @@ export function emptyDraft(): Omit<Habit, "id" | "createdAt" | "updatedAt" | "ar
     startDate: localDateKey(new Date()),
     why: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
   };
 }

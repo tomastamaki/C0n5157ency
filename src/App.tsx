@@ -7,7 +7,6 @@ import { Wordmark } from "./components/Wordmark";
 import { Watermark } from "./components/Watermark";
 import { TodayScreen } from "./screens/Today";
 import { HistoryScreen } from "./screens/History";
-import { LifestyleScreen } from "./screens/Lifestyle";
 import { HabitsScreen } from "./screens/Habits";
 import { CreateHabitScreen } from "./screens/CreateHabit";
 import { SettingsScreen } from "./screens/Settings";
@@ -15,7 +14,7 @@ import { ActiveWorkoutScreen, WorkoutSummary } from "./screens/ActiveWorkout";
 import { OnboardingScreen } from "./components/Onboarding";
 import { SyncStatusDot } from "./components/SyncStatusDot";
 import { useAppUpdate } from "./lib/useAppUpdate";
-import type { LifestyleMetricKey } from "./lib/lifestyleKpis";
+import type { HabitMetricKind } from "./types/habits";
 import type { WorkoutSession } from "./types/logs";
 
 function AppShell() {
@@ -27,7 +26,7 @@ function AppShell() {
   const [showOnboarding, setShowOnboarding] = useState(
     () => !settings.onboardingSeen && logs.sessions.length === 0
   );
-  const [lifestyleTarget, setLifestyleTarget] = useState<LifestyleMetricKey | null>(null);
+  const [openHabitId, setOpenHabitId] = useState<string | null>(null);
   const [creatingHabit, setCreatingHabit] = useState(false);
 
   const activeDraft = findActiveDraft(logs, settings.programCycle);
@@ -45,9 +44,11 @@ function AppShell() {
     if (!settings.onboardingSeen) updateSettings({ onboardingSeen: true });
   }
 
-  function goToLifestyleMetric(metric: LifestyleMetricKey) {
-    setLifestyleTarget(metric);
-    handleTabChange("lifestyle");
+  function goToMetricHabit(metricKind: HabitMetricKind) {
+    const habit = logs.habits.find((h) => h.metricKind === metricKind);
+    if (!habit) return;
+    setOpenHabitId(habit.id);
+    handleTabChange("habits");
   }
 
   let content;
@@ -75,18 +76,20 @@ function AppShell() {
         activeDraft={activeDraft}
         onNavigateHistory={() => handleTabChange("history")}
         onResumeWorkout={() => setViewingWorkout(true)}
-        onNavigateToLifestyle={goToLifestyleMetric}
+        onNavigateToMetric={goToMetricHabit}
         onNavigateToHabits={() => handleTabChange("habits")}
       />
     );
   } else if (tab === "history") {
     content = <HistoryScreen activeDraft={activeDraft} onResumeWorkout={() => setViewingWorkout(true)} />;
-  } else if (tab === "lifestyle") {
-    content = (
-      <LifestyleScreen initialMetric={lifestyleTarget} onInitialMetricConsumed={() => setLifestyleTarget(null)} />
-    );
   } else if (tab === "habits") {
-    content = <HabitsScreen onCreateHabit={() => setCreatingHabit(true)} />;
+    content = (
+      <HabitsScreen
+        onCreateHabit={() => setCreatingHabit(true)}
+        openHabitId={openHabitId}
+        onOpenHabitIdConsumed={() => setOpenHabitId(null)}
+      />
+    );
   } else {
     content = <SettingsScreen onShowOnboarding={() => setShowOnboarding(true)} />;
   }

@@ -126,7 +126,7 @@ export interface WeekStripDayData {
  */
 export function buildWeekStrip(habits: Habit[], allEntries: HabitEntry[], asOf: string): WeekStripDayData[] {
   const monday = mondayOf(asOf);
-  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly");
+  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly" && h.type !== "tracking");
   const out: WeekStripDayData[] = [];
   for (let i = 0; i < 7; i++) {
     const date = addDays(monday, i);

@@ -1,8 +1,26 @@
 export type HabitType = "yesno" | "quantity" | "time" | "avoid" | "tracking";
-export type HabitCategory = "Salud" | "Entrenamiento" | "Mente" | "Productividad" | "Otros";
+export type HabitCategory = "Salud" | "Entrenamiento" | "Mente" | "Productividad" | "Métricas" | "Otros";
 export type HabitTimeOfDay = "Mañana" | "Tarde" | "Noche" | "Todo el día";
 export type HabitColor = "azul" | "naranja" | "verde" | "ambar" | "violeta" | "turquesa" | "rosa" | "pizarra";
-export type HabitLinkedSource = "steps" | "water" | "sleep" | "workout";
+/** "workout" es la única fuente de vinculación manual que queda (Entrenar); pasos/agua/sueño pasaron a ser hábitos nativos (ver `Habit.metricKind`), no algo a lo que otro hábito se "vincula". */
+export type HabitLinkedSource = "workout";
+/** Qué métrica nativa representa este hábito (los 4 de la categoría "Métricas", HABI7 v2 Fase 6): única fuente de verdad, estable aunque se renombre o archive el hábito. `null` en cualquier otro hábito. */
+export type HabitMetricKind = "weight" | "sleep" | "steps" | "water";
+
+/**
+ * Campo numérico secundario y opcional de un hábito (ej. "Calidad" de sueño,
+ * 0-100, junto a las horas). Genérico en el modelo pero usado solo por el
+ * hábito nativo "Sueño" por ahora (HABI7 v2 Fase 6).
+ */
+export interface HabitSecondaryField {
+  key: string;
+  label: string;
+  unit: string | null;
+  min: number;
+  max: number;
+  quickValues: number[];
+  defaultValue: number | null;
+}
 
 /**
  * `days` usa 0=lunes..6=domingo (mismo criterio que el resto de la app, ver
@@ -41,6 +59,10 @@ export interface Habit {
   /** ISO: si está seteado, el hábito está archivado. Se conserva todo su historial de entradas. */
   archivedAt: string | null;
   linked: { source: HabitLinkedSource } | null;
+  /** Marca los 4 hábitos nativos de "Métricas" (Peso/Sueño/Pasos/Agua). `null` en cualquier otro hábito. */
+  metricKind: HabitMetricKind | null;
+  /** Campo numérico secundario opcional (ej. calidad de sueño). `null` salvo en el hábito nativo "Sueño". */
+  secondaryField: HabitSecondaryField | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,7 +98,10 @@ export interface HabitLog {
   habitId: string;
   /** YYYY-MM-DD local. */
   date: string;
-  value: number;
+  /** `null` si este registro solo cargó el valor secundario (ver `secondaryValue`) — ej. una noche con calidad pero sin horas. */
+  value: number | null;
+  /** Valor del campo secundario del hábito (ver `Habit.secondaryField`), si este registro lo cargó. `null` en cualquier hábito sin campo secundario. */
+  secondaryValue: number | null;
   source: "auto" | "manual";
   createdAt: string;
   updatedAt: string;

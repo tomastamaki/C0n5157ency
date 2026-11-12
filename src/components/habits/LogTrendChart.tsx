@@ -16,6 +16,8 @@ interface Props {
   average?: number | null;
   /** Promedio móvil de 7 días superpuesto (solo peso); mismo índice que `points`. */
   movingAverage?: (number | null)[];
+  /** Líneas de referencia tenues adicionales (ej. umbrales 50/75 de calidad de sueño), más discretas que `goal`. */
+  referenceLines?: number[];
   ariaLabel: string;
 }
 
@@ -34,7 +36,7 @@ function shortDate(d: string): string {
  * mínimo (igual criterio que TrendChart/ProgressChart) — el resto se revela
  * al tocar ese punto, para no amontonar un número en cada uno de hasta 90 días.
  */
-export function LogTrendChart({ points, mode, unit, color, goal, average, movingAverage, ariaLabel }: Props) {
+export function LogTrendChart({ points, mode, unit, color, goal, average, movingAverage, referenceLines, ariaLabel }: Props) {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
   const valueIdxs = points.map((p, i) => (p.value !== null ? i : -1)).filter((i) => i >= 0);
@@ -52,6 +54,10 @@ export function LogTrendChart({ points, mode, unit, color, goal, average, moving
   if (average !== null && average !== undefined) {
     min = Math.min(min, average);
     max = Math.max(max, average);
+  }
+  for (const r of referenceLines ?? []) {
+    min = Math.min(min, r);
+    max = Math.max(max, r);
   }
   if (mode === "bar") min = Math.min(min, 0);
   const range = max - min || 1;
@@ -103,6 +109,9 @@ export function LogTrendChart({ points, mode, unit, color, goal, average, moving
         {goal !== null && goal !== undefined && (
           <line x1={PAD_X} x2={WIDTH - PAD_X} y1={yFor(goal)} y2={yFor(goal)} className="stroke-muted" strokeWidth={1.2} strokeDasharray="4 3" />
         )}
+        {referenceLines?.map((r, i) => (
+          <line key={i} x1={PAD_X} x2={WIDTH - PAD_X} y1={yFor(r)} y2={yFor(r)} className="stroke-faint" strokeWidth={0.75} strokeDasharray="1 4" />
+        ))}
 
         {mode === "bar" &&
           points.map(

@@ -20,6 +20,8 @@ function habit(patch: Partial<Habit> = {}): Habit {
     why: null,
     archivedAt: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...patch,

@@ -1,11 +1,16 @@
-import { IconActivity, IconHabits, IconHistory, IconHome, IconSettings } from "./icons";
+import { IconHabits, IconHistory, IconHome, IconSettings } from "./icons";
 
-export type TabId = "today" | "history" | "lifestyle" | "habits" | "settings";
+/**
+ * "lifestyle" se quitó de la barra en HABI7 v2 Fase 6A: Peso/Sueño/Pasos/Agua
+ * pasaron a los hábitos nativos de la pestaña "Métricas" (dentro de Hábitos).
+ * La pantalla vieja (`screens/Lifestyle.tsx`) sigue en el código con sus
+ * datos intactos, solo deja de montarse — ver `App.tsx`.
+ */
+export type TabId = "today" | "history" | "habits" | "settings";
 
 const TABS: { id: TabId; label: string; Icon: typeof IconHome }[] = [
   { id: "today", label: "Inicio", Icon: IconHome },
   { id: "history", label: "Historial", Icon: IconHistory },
-  { id: "lifestyle", label: "Lifestyle", Icon: IconActivity },
   { id: "habits", label: "Hábitos", Icon: IconHabits },
   { id: "settings", label: "Ajustes", Icon: IconSettings },
 ];

@@ -1,5 +1,5 @@
 import type { LogsData } from "../types/logs";
-import type { Habit, HabitLog, Metric } from "../types/habits";
+import type { Habit, HabitLog, HabitSecondaryField, Metric } from "../types/habits";
 
 /**
  * Forma de los datos durante la migración: igual a `LogsData` pero con una
@@ -150,6 +150,7 @@ export function migrateHabitEntriesToLogs(logs: Pick<LogsData, "habits" | "habit
       habitId: entry.habitId,
       date: entry.date,
       value: entry.value,
+      secondaryValue: null,
       source: "manual",
       createdAt: entry.updatedAt,
       updatedAt: entry.updatedAt,
@@ -163,8 +164,12 @@ export function migrateHabitEntriesToLogs(logs: Pick<LogsData, "habits" | "habit
  * `HabitEntry` de cantidad/tracking existentes (ver `migrateHabitEntriesToLogs`).
  * Igual que con `metrics`, es idempotente — solo migra si `habitLogs` está
  * vacío y hay algo para migrar — y nunca toca `habitEntries`.
+ *
+ * Devuelve `MigratingLogs` (no `LogsData` todavía): esta versión intermedia
+ * nunca se guarda sola, siempre sigue hacia `upgradeLogsToV4`, que es la que
+ * cierra el esquema actual.
  */
-export function upgradeLogsToV3(logs: MigratingLogs): LogsData {
+export function upgradeLogsToV3(logs: MigratingLogs): MigratingLogs & { habitLogs: HabitLog[] } {
   const v2 = upgradeLogsToV2(logs);
   const existingHabitLogs = v2.habitLogs ?? [];
   const needsLogMigration = existingHabitLogs.length === 0 && v2.habitEntries.some((e) => e.value !== null);
@@ -172,6 +177,221 @@ export function upgradeLogsToV3(logs: MigratingLogs): LogsData {
     ...v2,
     version: 3,
     habitLogs: needsLogMigration ? migrateHabitEntriesToLogs(v2) : existingHabitLogs,
+  };
+}
+
+/**
+ * Campo secundario del hábito nativo "Sueño" (HABI7 v2 Fase 6): calidad de
+ * sueño 0-100, mismo concepto que el viejo `SleepEntry.score` pero cargado a
+ * mano junto a las horas, no migrado automáticamente (ver `upgradeLogsToV4`).
+ */
+export const SLEEP_QUALITY_FIELD: HabitSecondaryField = {
+  key: "quality",
+  label: "Calidad",
+  unit: null,
+  min: 0,
+  max: 100,
+  quickValues: [50, 65, 75, 85],
+  defaultValue: 50,
+};
+
+/** Nombre del hábito de agua manual preexistente que, a falta de un hábito vinculado, se convierte en el nativo "Agua" (decisión explícita del usuario en Fase 6A: su "Tomar agua" real ya tenía historial). */
+const FALLBACK_WATER_HABIT_NAME = "Tomar agua";
+
+/** IDs fijos de los 4 hábitos nativos creados desde cero, para que sean estables entre dispositivos (nunca se duplican al sincronizar). Un hábito convertido desde uno ya existente conserva su propio id. */
+const NATIVE_METRIC_IDS = {
+  weight: "metric-weight",
+  sleep: "metric-sleep",
+  steps: "metric-steps",
+  water: "metric-water",
+} as const;
+
+/**
+ * Hábitos de versiones anteriores a esta fase no tienen `metricKind` ni
+ * `secondaryField` (el campo directamente no existe en el JSON guardado, no
+ * es `null`) — completarlos es necesario para que las comparaciones
+ * `h.metricKind === "agua"` etc. funcionen. Pura aditiva.
+ */
+export function backfillHabitMetricFields(habits: Habit[]): Habit[] {
+  return habits.map((h) => ({ ...h, metricKind: h.metricKind ?? null, secondaryField: h.secondaryField ?? null }));
+}
+
+/** Mismo backfill que `backfillHabitMetricFields`, para `HabitLog.secondaryValue`. */
+export function backfillHabitLogSecondaryValue(logs: HabitLog[]): HabitLog[] {
+  return logs.map((l) => ({ ...l, secondaryValue: l.secondaryValue ?? null }));
+}
+
+/**
+ * Crea (o convierte, cuando ya existía un hábito vinculado o — solo para
+ * agua — el hábito manual "Tomar agua") los 4 hábitos nativos de la
+ * categoría "Métricas": Peso, Sueño, Pasos, Agua. Idempotente por
+ * `metricKind`: nunca crea un segundo hábito para la misma métrica, archivado
+ * o no.
+ *
+ * Reglas de conversión (HABI7 v2 Fase 6A, decisiones explícitas del usuario):
+ * - Pasos/Agua: si hay un hábito vinculado (`linked.source`) a esa fuente,
+ *   se convierte en el nativo sin tocar su historial (mismo id). Para agua,
+ *   a falta de uno vinculado, se convierte "Tomar agua" si existe (ver
+ *   `FALLBACK_WATER_HABIT_NAME`) — es un caso puntual de este usuario, no
+ *   una regla general por nombre.
+ * - Sueño: NUNCA se convierte nada existente. Si había un hábito vinculado a
+ *   "sleep" (ej. "Dormir"), se desvincula y queda como un hábito normal,
+ *   intacto; el nativo "Sueño" siempre arranca vacío.
+ * - Peso: siempre se crea nuevo (no existía el concepto de hábito vinculado
+ *   a peso).
+ */
+export function seedNativeMetricHabits(habits: Habit[], today: string): Habit[] {
+  const normalized = backfillHabitMetricFields(habits);
+  const now = new Date().toISOString();
+
+  // "sleep" nunca se convierte: se desvincula y se deja como hábito normal (ver docstring).
+  let result = normalized.map((h) =>
+    (h.linked?.source as string | undefined) === "sleep" ? { ...h, linked: null } : h
+  );
+
+  const hasWeight = result.some((h) => h.metricKind === "weight");
+  const hasSleep = result.some((h) => h.metricKind === "sleep");
+  const hasSteps = result.some((h) => h.metricKind === "steps");
+  const hasWater = result.some((h) => h.metricKind === "water");
+
+  const seeded: Habit[] = [];
+
+  if (!hasWeight) {
+    seeded.push({
+      id: NATIVE_METRIC_IDS.weight,
+      name: "Peso",
+      icon: "scale",
+      color: "pizarra",
+      type: "tracking",
+      unit: "kg",
+      goal: null,
+      quickSteps: [],
+      aggregation: "last",
+      frequency: { kind: "daily" },
+      category: "Métricas",
+      timeOfDay: "Todo el día",
+      startDate: today,
+      why: null,
+      archivedAt: null,
+      linked: null,
+      metricKind: "weight",
+      secondaryField: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (!hasSleep) {
+    seeded.push({
+      id: NATIVE_METRIC_IDS.sleep,
+      name: "Sueño",
+      icon: "moon",
+      color: "violeta",
+      type: "tracking",
+      unit: "h",
+      goal: 8,
+      quickSteps: [6, 7, 8, 9],
+      aggregation: "last",
+      frequency: { kind: "daily" },
+      category: "Métricas",
+      timeOfDay: "Noche",
+      startDate: today,
+      why: null,
+      archivedAt: null,
+      linked: null,
+      metricKind: "sleep",
+      secondaryField: SLEEP_QUALITY_FIELD,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (!hasSteps) {
+    const linked = result.find((h) => !h.archivedAt && (h.linked?.source as string | undefined) === "steps");
+    if (linked) {
+      result = result.map((h) =>
+        h.id === linked.id
+          ? { ...h, linked: null, category: "Métricas" as const, metricKind: "steps" as const, type: "tracking" as const, aggregation: "last" as const }
+          : h
+      );
+    } else {
+      seeded.push({
+        id: NATIVE_METRIC_IDS.steps,
+        name: "Pasos",
+        icon: "walk",
+        color: "verde",
+        type: "tracking",
+        unit: "pasos",
+        goal: 8000,
+        quickSteps: [],
+        aggregation: "last",
+        frequency: { kind: "daily" },
+        category: "Métricas",
+        timeOfDay: "Todo el día",
+        startDate: today,
+        why: null,
+        archivedAt: null,
+        linked: null,
+        metricKind: "steps",
+        secondaryField: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  if (!hasWater) {
+    const linked = result.find((h) => !h.archivedAt && (h.linked?.source as string | undefined) === "water");
+    const fallback = result.find(
+      (h) => !h.archivedAt && h.metricKind === null && h.type === "quantity" && h.name === FALLBACK_WATER_HABIT_NAME
+    );
+    const existing = linked ?? fallback;
+    if (existing) {
+      result = result.map((h) =>
+        h.id === existing.id ? { ...h, linked: null, category: "Métricas" as const, metricKind: "water" as const, name: "Agua" } : h
+      );
+    } else {
+      seeded.push({
+        id: NATIVE_METRIC_IDS.water,
+        name: "Agua",
+        icon: "drop",
+        color: "azul",
+        type: "quantity",
+        unit: "ml",
+        goal: 2500,
+        quickSteps: [250, 500],
+        aggregation: "sum",
+        frequency: { kind: "daily" },
+        category: "Métricas",
+        timeOfDay: "Todo el día",
+        startDate: today,
+        why: null,
+        archivedAt: null,
+        linked: null,
+        metricKind: "water",
+        secondaryField: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+
+  return [...result, ...seeded];
+}
+
+/**
+ * Sube a la versión 4 (HABI7 v2 Fase 6A): crea/convierte los 4 hábitos
+ * nativos de "Métricas" (ver `seedNativeMetricHabits`) y completa los campos
+ * nuevos de hábitos y registros viejos. Idempotente — correr esto de nuevo
+ * sobre datos ya en v4 no crea duplicados ni pisa nada.
+ */
+export function upgradeLogsToV4(logs: MigratingLogs, today: string = new Date().toISOString().slice(0, 10)): LogsData {
+  const v3 = upgradeLogsToV3(logs);
+  return {
+    ...v3,
+    version: 4,
+    habits: seedNativeMetricHabits(v3.habits, today),
+    habitLogs: backfillHabitLogSecondaryValue(v3.habitLogs),
   };
 }
 
@@ -223,7 +443,7 @@ export function verifyHabitLogMigration(logs: Pick<LogsData, "habits" | "habitEn
   const eligible = logs.habitEntries.filter((e) => e.value !== null && aggregationById.get(e.habitId));
   const entriesWithValueBefore = eligible.length;
   const valueSumBefore = eligible.reduce((sum, e) => sum + (e.value ?? 0), 0);
-  const valueSumAfter = migratedLogs.reduce((sum, l) => sum + l.value, 0);
+  const valueSumAfter = migratedLogs.reduce((sum, l) => sum + (l.value ?? 0), 0);
   return {
     entriesWithValueBefore,
     logsAfter: migratedLogs.length,

@@ -32,6 +32,8 @@ function habit(overrides: Partial<Habit> = {}): Habit {
     why: null,
     archivedAt: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -298,6 +300,23 @@ describe("computeGlobalStreak (caso 14)", () => {
     const habits = [h1]; // 1 solo hábito programado: por debajo del mínimo de 2
     const result = computeGlobalStreak(habits, [], "2026-01-05");
     expect(result).toEqual({ streak: 0, best: 0 });
+  });
+
+  it('HABI7 v2 Fase 6A: un hábito "tracking" (ej. Peso) nunca genera entry — no puede arrastrar la racha global hacia abajo', () => {
+    const h1 = habit({ frequency: { kind: "daily" } });
+    const h2 = habit({ frequency: { kind: "daily" } });
+    const tracking = habit({ type: "tracking", goal: null, aggregation: "last", frequency: { kind: "daily" } });
+    const habits = [h1, h2, tracking];
+    // Si "tracking" contara, serían 2/3 (67%) el día 1 y 2/3 el día 2: por encima del 60%, racha de 2.
+    // Si NO cuenta (correcto), son 2/2 ambos días: también racha de 2 — el punto es que nunca puede bajar el % ni aparecer "sin hacer".
+    const entries = [
+      entry(h1.id, "2026-01-01", "done"),
+      entry(h2.id, "2026-01-01", "done"),
+      entry(h1.id, "2026-01-02", "done"),
+      entry(h2.id, "2026-01-02", "done"),
+    ];
+    const result = computeGlobalStreak(habits, entries, "2026-01-02");
+    expect(result.streak).toBe(2);
   });
 });
 

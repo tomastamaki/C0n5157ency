@@ -37,7 +37,7 @@ function shortDate(d: string): string {
 
 /** Mapa de calor global: % de hábitos programados (no semanales, activos) cumplidos cada día. */
 export function buildGlobalHeatCells(habits: Habit[], entries: HabitEntry[], asOf: string, weeks = 16): GlobalDayHeat[] {
-  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly");
+  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly" && h.type !== "tracking");
   const maps = new Map(active.map((h) => [h.id, entryMapFor(h.id, entries)]));
   const mondays = weeksWindow(asOf, weeks);
   const cells: GlobalDayHeat[] = [];
@@ -171,14 +171,14 @@ export interface HabitRank {
 /** Hábitos activos ordenados por puntaje de constancia, de mayor a menor. */
 export function rankHabitsByConsistency(habits: Habit[], entries: HabitEntry[], asOf: string): HabitRank[] {
   return habits
-    .filter((h) => !h.archivedAt)
+    .filter((h) => !h.archivedAt && h.type !== "tracking")
     .map((habit) => ({ habit, score: consistencyScore(habit, entries, asOf) }))
     .sort((a, b) => b.score - a.score);
 }
 
-/** Promedio del puntaje de constancia de todos los hábitos activos a una fecha dada (para comparar "hoy" vs "hace 30 días"). */
+/** Promedio del puntaje de constancia de todos los hábitos activos a una fecha dada (para comparar "hoy" vs "hace 30 días"). "tracking" (ej. Peso) no tiene racha ni cumplimiento, no entra en el promedio. */
 export function overallConsistency(habits: Habit[], entries: HabitEntry[], asOf: string): number | null {
-  const active = habits.filter((h) => !h.archivedAt);
+  const active = habits.filter((h) => !h.archivedAt && h.type !== "tracking");
   if (active.length === 0) return null;
   const sum = active.reduce((acc, h) => acc + consistencyScore(h, entries, asOf), 0);
   return Math.round(sum / active.length);
@@ -191,7 +191,7 @@ export interface WeekdayStat {
 
 /** % de cumplimiento promedio por día de la semana, sobre los últimos `windowDays` días (hábitos no semanales). */
 export function bestWeekdays(habits: Habit[], entries: HabitEntry[], asOf: string, windowDays = 90): WeekdayStat[] {
-  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly");
+  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly" && h.type !== "tracking");
   const maps = new Map(active.map((h) => [h.id, entryMapFor(h.id, entries)]));
   const from = addDays(asOf, -(windowDays - 1));
   const buckets = DAY_LETTERS.map(() => ({ done: 0, elapsed: 0 }));
@@ -224,7 +224,7 @@ export interface WeekSummary {
 }
 
 function weekCompliance(habits: Habit[], entries: HabitEntry[], monday: string, asOf: string): { done: number; total: number; dayRatios: number[] } {
-  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly");
+  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly" && h.type !== "tracking");
   const maps = new Map(active.map((h) => [h.id, entryMapFor(h.id, entries)]));
   let done = 0;
   let total = 0;

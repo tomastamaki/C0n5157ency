@@ -95,40 +95,15 @@ function sumByDate<T>(entries: T[], dateOf: (e: T) => string, valueOf: (e: T) =>
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function DailyTarget({
-  label,
-  unit,
-  value,
-  decimals = 0,
-  onSave,
-}: {
-  label: string;
-  unit: string;
-  value: number;
-  decimals?: number;
-  onSave: (value: number) => void;
-}) {
-  const [draft, setDraft] = useState<number | null>(value);
+/** Objetivo de solo lectura: desde HABI7 v2 Fase 6 se edita en el hábito nativo correspondiente (Pasos/Agua), no acá. */
+function GoalNotice({ label, value, unit, habitName }: { label: string; value: number; unit: string; habitName: string }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-block border border-border bg-surface2 px-3 py-2">
       <span className="text-xs text-faint">{label}</span>
-      <div className="flex items-center gap-2">
-        <NumericInput
-          value={draft}
-          onChange={setDraft}
-          allowDecimal={decimals > 0}
-          className="h-8 w-20 rounded-pill border border-border bg-surface px-2 text-right font-mono text-sm text-ink"
-        />
-        <span className="text-xs text-faint">{unit}</span>
-        <button
-          type="button"
-          onClick={() => draft !== null && onSave(draft)}
-          disabled={draft === null || draft === value}
-          className="rounded-pill bg-primary px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-40"
-        >
-          Guardar
-        </button>
-      </div>
+      <span className="font-mono text-sm text-ink">
+        {value.toLocaleString("es-AR")} {unit}
+        <small className="ml-1 text-[10px] font-normal text-faint">· editá en "{habitName}"</small>
+      </span>
     </div>
   );
 }
@@ -338,14 +313,14 @@ function SleepForm() {
 }
 
 function StepsForm() {
-  const { logs, settings, updateSettings, upsertStepsEntry, removeStepsEntry } = useApp();
+  const { logs, upsertStepsEntry, removeStepsEntry } = useApp();
   const [date, setDate] = useState(todayKey());
   const [steps, setSteps] = useState<number | null>(null);
 
   const listDesc = [...logs.stepsEntries].sort((a, b) => b.date.localeCompare(a.date));
   const today = todayKey();
   const todaySteps = logs.stepsEntries.filter((e) => e.date === today).reduce((sum, e) => sum + e.steps, 0);
-  const target = settings.dailyStepsTarget;
+  const target = logs.habits.find((h) => h.metricKind === "steps")?.goal ?? 8000;
   const pct = target > 0 ? Math.min(100, (todaySteps / target) * 100) : 0;
 
   function save() {
@@ -369,12 +344,7 @@ function StepsForm() {
         </div>
       </div>
 
-      <DailyTarget
-        label="Meta diaria de pasos"
-        unit="pasos"
-        value={target}
-        onSave={(value) => updateSettings({ dailyStepsTarget: Math.round(value) })}
-      />
+      <GoalNotice label="Meta diaria de pasos" unit="pasos" value={target} habitName="Pasos" />
 
       <div className="mt-3 space-y-2">
         <label className="block">
@@ -437,14 +407,14 @@ function StepsForm() {
 }
 
 function WaterForm() {
-  const { logs, settings, updateSettings, upsertWaterEntry, removeWaterEntry } = useApp();
+  const { logs, upsertWaterEntry, removeWaterEntry } = useApp();
   const [date, setDate] = useState(todayKey());
   const [liters, setLiters] = useState<number | null>(null);
 
   const listDesc = [...logs.waterEntries].sort((a, b) => b.date.localeCompare(a.date));
   const today = todayKey();
   const todayLiters = logs.waterEntries.filter((e) => e.date === today).reduce((sum, e) => sum + e.liters, 0);
-  const target = settings.dailyWaterTargetLiters;
+  const target = (logs.habits.find((h) => h.metricKind === "water")?.goal ?? 2500) / 1000;
   const pct = target > 0 ? (todayLiters / target) * 100 : 0;
 
   function save() {
@@ -462,13 +432,7 @@ function WaterForm() {
       </p>
 
       <div className="mt-3">
-        <DailyTarget
-          label="Meta diaria de agua"
-          unit="L"
-          value={target}
-          decimals={1}
-          onSave={(value) => updateSettings({ dailyWaterTargetLiters: value })}
-        />
+        <GoalNotice label="Meta diaria de agua" unit="L" value={target} habitName="Agua" />
       </div>
 
       <div className="mt-3 space-y-2">

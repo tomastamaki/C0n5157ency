@@ -21,7 +21,7 @@ import type {
 } from "../types/logs";
 import type { Habit, HabitEntry, HabitLog } from "../types/habits";
 import { deriveMetricsFromLegacyLifestyle } from "../lib/habitsMigration";
-import { autoMarkEntriesForMetric, autoMarkWorkoutCompletion } from "../lib/habitAutoLink";
+import { autoMarkWorkoutCompletion } from "../lib/habitAutoLink";
 import { localDateKey } from "../lib/time";
 import { EMPTY_LOGS } from "../types/logs";
 import {
@@ -308,12 +308,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
         const next = { ...prev, sleepEntries: entries };
-        const metrics = deriveMetricsFromLegacyLifestyle(next);
-        const metric = metrics.find((m) => m.date === entry.date);
-        const habitEntries = metric
-          ? mergeHabitEntryUpdates(prev.habitEntries, autoMarkEntriesForMetric(prev.habits, prev.habitEntries, metric))
-          : prev.habitEntries;
-        return { ...next, metrics, habitEntries };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
       });
     },
     [mutateLogs]
@@ -338,12 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
         const next = { ...prev, stepsEntries: entries };
-        const metrics = deriveMetricsFromLegacyLifestyle(next);
-        const metric = metrics.find((m) => m.date === entry.date);
-        const habitEntries = metric
-          ? mergeHabitEntryUpdates(prev.habitEntries, autoMarkEntriesForMetric(prev.habits, prev.habitEntries, metric))
-          : prev.habitEntries;
-        return { ...next, metrics, habitEntries };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
       });
     },
     [mutateLogs]
@@ -368,12 +358,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         else entries.push(entry);
         entries.sort((a, b) => a.date.localeCompare(b.date));
         const next = { ...prev, waterEntries: entries };
-        const metrics = deriveMetricsFromLegacyLifestyle(next);
-        const metric = metrics.find((m) => m.date === entry.date);
-        const habitEntries = metric
-          ? mergeHabitEntryUpdates(prev.habitEntries, autoMarkEntriesForMetric(prev.habits, prev.habitEntries, metric))
-          : prev.habitEntries;
-        return { ...next, metrics, habitEntries };
+        return { ...next, metrics: deriveMetricsFromLegacyLifestyle(next) };
       });
     },
     [mutateLogs]

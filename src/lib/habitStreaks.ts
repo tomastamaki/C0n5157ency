@@ -360,7 +360,7 @@ function groupEntriesByHabit(allEntries: HabitEntry[]): Map<string, Map<string, 
  * así que no entran en el denominador diario).
  */
 export function computeGlobalStreak(habits: Habit[], allEntries: HabitEntry[], asOf: string, config = HABITS_CONFIG): StreakResult {
-  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly");
+  const active = habits.filter((h) => !h.archivedAt && h.frequency.kind !== "weekly" && h.type !== "tracking");
   if (active.length === 0) return { streak: 0, best: 0 };
   const entriesByHabit = groupEntriesByHabit(allEntries);
   const earliestStart = active.reduce((min, h) => (h.startDate < min ? h.startDate : min), asOf);

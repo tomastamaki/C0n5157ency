@@ -10,8 +10,16 @@ import {
   weeklyDoneSeries,
 } from "../lib/habitProgress";
 import { archiveHabit, setEntryStatus } from "../lib/habitActions";
+import { PARAM_THRESHOLDS } from "../lib/recoveryConfig";
 import { addLog, editLog, logsForDate, removeLog } from "../lib/habitLogs";
-import { averageOf, buildHabitTrendSeries, changeVsPreviousWeek, movingAverage7, type TrendRange } from "../lib/habitTrend";
+import {
+  averageOf,
+  buildHabitSecondaryTrendSeries,
+  buildHabitTrendSeries,
+  changeVsPreviousWeek,
+  movingAverage7,
+  type TrendRange,
+} from "../lib/habitTrend";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
 import { colorForPct } from "../lib/heatScale";
 import { Ring } from "../components/habits/Ring";
@@ -20,6 +28,7 @@ import { BarChart } from "../components/habits/BarChart";
 import { LogTrendChart } from "../components/habits/LogTrendChart";
 import { TodayLogsList } from "../components/habits/TodayLogsList";
 import { ExactValueField } from "../components/habits/ExactValueField";
+import { SecondaryValueField } from "../components/habits/SecondaryValueField";
 import { SegmentedControl } from "../components/habits/SegmentedControl";
 import { IconButton } from "../components/habits/IconButton";
 import { IconArchive, IconArrowDown, IconArrowLeft, IconArrowUp, IconChevronLeft, IconChevronRight, IconFlame, IconPencil } from "../components/icons";
@@ -45,6 +54,7 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
   const today = localDateKey(new Date());
   const [evoMode, setEvoMode] = useState<"sem" | "mes">("sem");
   const [range, setRange] = useState<TrendRange>(7);
+  const [chartField, setChartField] = useState<"primary" | "secondary">("primary");
   const [cal, setCal] = useState(() => ({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) }));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -77,15 +87,19 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
   const movingAvg = isWeightLike ? movingAverage7(trendPoints) : undefined;
   const weekChange = isWeightLike ? changeVsPreviousWeek(habit, logs.habitLogs, today) : null;
 
-  function handleAddLog(value: number) {
-    const result = addLog(habit, logs.habitLogs, entries, today, value);
+  const secondaryTrendPoints = habit.secondaryField ? buildHabitSecondaryTrendSeries(habit, logs.habitLogs, today, range) : [];
+  const secondaryTrendAvg = habit.secondaryField ? averageOf(secondaryTrendPoints) : null;
+  const showingSecondary = habit.secondaryField !== null && chartField === "secondary";
+
+  function handleAddLog(value: number | null, secondaryValue: number | null = null) {
+    const result = addLog(habit, logs.habitLogs, entries, today, value, "manual", secondaryValue);
     upsertHabitLog(result.log);
     if (result.entry) upsertHabitEntry(result.entry);
     else if (result.previousEntry) removeHabitEntry(result.previousEntry.id);
   }
 
-  function handleEditLog(logId: string, value: number) {
-    const result = editLog(habit, logs.habitLogs, entries, logId, value);
+  function handleEditLog(logId: string, value: number | null, secondaryValue?: number | null) {
+    const result = editLog(habit, logs.habitLogs, entries, logId, value, secondaryValue);
     if (!result) return;
     upsertHabitLog(result.log);
     if (result.entry) upsertHabitEntry(result.entry);
@@ -234,13 +248,40 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
                       borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
                     }}
                   >
-                    +{n} {habit.unit ?? ""}
+                    {habit.aggregation === "sum" ? "+" : ""}
+                    {n} {habit.unit ?? ""}
                   </button>
                 ))}
                 <ExactValueField unit={habit.unit ?? ""} color={color} onAdd={handleAddLog} />
               </div>
+              {habit.secondaryField && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border pt-2.5">
+                  {habit.secondaryField.quickValues.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => handleAddLog(null, n)}
+                      className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
+                      style={{
+                        backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
+                        borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
+                      }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <SecondaryValueField field={habit.secondaryField} color={color} onAdd={(v) => handleAddLog(null, v)} />
+                </div>
+              )}
               <div className="mt-3">
-                <TodayLogsList logs={todayLogs} unit={habit.unit ?? ""} color={color} onEdit={handleEditLog} onRemove={handleRemoveLog} />
+                <TodayLogsList
+                  logs={todayLogs}
+                  unit={habit.unit ?? ""}
+                  color={color}
+                  secondaryField={habit.secondaryField}
+                  onEdit={handleEditLog}
+                  onRemove={handleRemoveLog}
+                />
               </div>
             </div>
 
@@ -259,7 +300,19 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
                   />
                 </div>
               </div>
-              {isWeightLike && weekChange && (
+              {habit.secondaryField && (
+                <div className="mb-2.5 w-[170px]">
+                  <SegmentedControl<"primary" | "secondary">
+                    options={[
+                      { value: "primary", label: habit.unit ?? "Horas" },
+                      { value: "secondary", label: habit.secondaryField.label },
+                    ]}
+                    value={chartField}
+                    onChange={setChartField}
+                  />
+                </div>
+              )}
+              {isWeightLike && !showingSecondary && weekChange && (
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
                   {weekChange.deltaAbs >= 0 ? (
                     <IconArrowUp className="h-3.5 w-3.5 text-muted" />
@@ -273,16 +326,28 @@ export function HabitDetailScreen({ habit, onBack, onEdit }: Props) {
                   </span>
                 </div>
               )}
-              <LogTrendChart
-                points={trendPoints}
-                mode={habit.aggregation === "sum" ? "bar" : "line"}
-                unit={habit.unit ?? ""}
-                color={color}
-                goal={habit.goal}
-                average={trendAvg}
-                movingAverage={movingAvg}
-                ariaLabel={`Variación de ${habit.name} en los últimos ${range} días`}
-              />
+              {showingSecondary ? (
+                <LogTrendChart
+                  points={secondaryTrendPoints}
+                  mode="line"
+                  unit={habit.secondaryField?.unit ?? ""}
+                  color={color}
+                  average={secondaryTrendAvg}
+                  referenceLines={[PARAM_THRESHOLDS.sleepScore.low, PARAM_THRESHOLDS.sleepScore.high]}
+                  ariaLabel={`${habit.secondaryField?.label} de ${habit.name} en los últimos ${range} días`}
+                />
+              ) : (
+                <LogTrendChart
+                  points={trendPoints}
+                  mode={habit.aggregation === "sum" ? "bar" : "line"}
+                  unit={habit.unit ?? ""}
+                  color={color}
+                  goal={habit.goal}
+                  average={trendAvg}
+                  movingAverage={movingAvg}
+                  ariaLabel={`Variación de ${habit.name} en los últimos ${range} días`}
+                />
+              )}
             </div>
           </>
         )}

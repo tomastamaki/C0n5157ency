@@ -11,7 +11,8 @@ import { roundToStep } from "./suggestions";
 import { parseRepRange } from "./repRange";
 import { SUMMARY_CONFIG } from "./summaryConfig";
 import { DAY_ORDER } from "./history";
-import { dailyValues, metricConfigs, type LifestyleMetricKey } from "./lifestyleKpis";
+import { allDailyValues } from "./habitMetricsKpis";
+import type { HabitMetricKind } from "../types/habits";
 import { getExerciseProgressForWeek, getWeeksWithData, type ExerciseProgressStatus } from "./progressEngine";
 import { getExtraTonnageKg } from "./techniques";
 
@@ -247,10 +248,10 @@ export function getPerformanceVariation(rows: ExerciseRow[]): { vsAnterior: numb
 // ---------------------------------------------------------------------------
 
 export interface LifestylePeriodRow {
-  key: LifestyleMetricKey;
+  metricKind: HabitMetricKind;
   label: string;
+  unit: string | null;
   avg: number | null;
-  format: (v: number) => string;
   vsPreviousPct: number | null;
 }
 
@@ -280,14 +281,15 @@ export function getLifestylePeriod(
   if (!range) return [];
 
   const rows: LifestylePeriodRow[] = [];
-  for (const cfg of metricConfigs(logs)) {
-    if (cfg.entries.length === 0) continue;
-    const daily = dailyValues(cfg.entries, cfg.dateOf, cfg.valueOf, cfg.combine);
+  for (const habit of logs.habits) {
+    if (!habit.metricKind || habit.archivedAt) continue;
+    const daily = allDailyValues(habit, logs.habitLogs);
+    if (daily.size === 0) continue;
     const avg = averageInRange(daily, range);
     if (avg === null) continue;
     const prevAvg = prevRange ? averageInRange(daily, prevRange) : null;
     const vsPreviousPct = prevAvg !== null && prevAvg !== 0 ? ((avg - prevAvg) / prevAvg) * 100 : null;
-    rows.push({ key: cfg.key, label: cfg.label, avg, format: cfg.format, vsPreviousPct });
+    rows.push({ metricKind: habit.metricKind, label: habit.name, unit: habit.unit, avg, vsPreviousPct });
   }
   return rows;
 }

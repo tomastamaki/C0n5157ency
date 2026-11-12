@@ -1,7 +1,7 @@
 import { useApp } from "../context/AppContext";
 import { getCurrentWeekDays } from "../lib/schedule";
 import { HomeDashboard } from "../components/HomeDashboard";
-import type { LifestyleMetricKey } from "../lib/lifestyleKpis";
+import type { HabitMetricKind } from "../types/habits";
 import type { WorkoutSession } from "../types/logs";
 
 function ProgramCompleteView() {
@@ -19,7 +19,7 @@ interface Props {
   activeDraft: WorkoutSession | null;
   onNavigateHistory: () => void;
   onResumeWorkout: () => void;
-  onNavigateToLifestyle: (metric: LifestyleMetricKey) => void;
+  onNavigateToMetric: (metricKind: HabitMetricKind) => void;
   onNavigateToHabits: () => void;
 }
 
@@ -27,7 +27,7 @@ export function TodayScreen({
   activeDraft,
   onNavigateHistory,
   onResumeWorkout,
-  onNavigateToLifestyle,
+  onNavigateToMetric,
   onNavigateToHabits,
 }: Props) {
   const { flatDays, logs, settings } = useApp();
@@ -47,7 +47,7 @@ export function TodayScreen({
       activeDraft={activeDraft}
       onNavigateHistory={onNavigateHistory}
       onEnterWorkout={onResumeWorkout}
-      onNavigateToLifestyle={onNavigateToLifestyle}
+      onNavigateToMetric={onNavigateToMetric}
       onNavigateToHabits={onNavigateToHabits}
     />
   );

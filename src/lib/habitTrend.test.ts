@@ -20,6 +20,8 @@ function habit(patch: Partial<Habit> = {}): Habit {
     why: null,
     archivedAt: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
     createdAt: "x",
     updatedAt: "x",
     ...patch,
@@ -27,7 +29,16 @@ function habit(patch: Partial<Habit> = {}): Habit {
 }
 
 function log(date: string, value: number): HabitLog {
-  return { id: `l-${date}`, habitId: "h1", date, value, source: "manual", createdAt: `${date}T08:00:00.000Z`, updatedAt: `${date}T08:00:00.000Z` };
+  return {
+    id: `l-${date}`,
+    habitId: "h1",
+    date,
+    value,
+    secondaryValue: null,
+    source: "manual",
+    createdAt: `${date}T08:00:00.000Z`,
+    updatedAt: `${date}T08:00:00.000Z`,
+  };
 }
 
 describe("buildHabitTrendSeries", () => {

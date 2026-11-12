@@ -31,6 +31,8 @@ function habit(patch: Partial<Habit> = {}): Habit {
     why: null,
     archivedAt: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
     ...patch,
@@ -79,6 +81,12 @@ describe("buildGlobalHeatCells", () => {
     const weeklyHabit = habit({ frequency: { kind: "weekly", n: 3 } });
     const cells = buildGlobalHeatCells([weeklyHabit], [], "2026-01-15", 1);
     // Sin hábitos no-semanales programados ese día: gris neutro, no 0% rojo.
+    expect(cells.every((c) => c.pct === null)).toBe(true);
+  });
+
+  it('HABI7 v2 Fase 6A: un hábito "tracking" (ej. Peso) tampoco participa — nunca genera entry, no puede aparecer "sin hacer"', () => {
+    const trackingHabit = habit({ type: "tracking", goal: null, aggregation: "last" });
+    const cells = buildGlobalHeatCells([trackingHabit], [], "2026-01-15", 1);
     expect(cells.every((c) => c.pct === null)).toBe(true);
   });
 });
@@ -182,6 +190,17 @@ describe("rankHabitsByConsistency / overallConsistency", () => {
 
   it("overallConsistency devuelve null sin hábitos activos", () => {
     expect(overallConsistency([], [], "2026-01-15")).toBeNull();
+  });
+
+  it('HABI7 v2 Fase 6A: "tracking" (ej. Peso) no entra en el ranking ni en el promedio general', () => {
+    const good = habit({ id: "good", startDate: "2026-01-01" });
+    const tracking = habit({ id: "peso", type: "tracking", goal: null, aggregation: "last", startDate: "2026-01-01" });
+    const entries: HabitEntry[] = [
+      { id: "e1", habitId: "good", date: "2026-01-14", status: "done", value: null, source: "manual", updatedAt: "x" },
+    ];
+    const ranked = rankHabitsByConsistency([good, tracking], entries, "2026-01-15");
+    expect(ranked.map((r) => r.habit.id)).toEqual(["good"]);
+    expect(overallConsistency([good, tracking], entries, "2026-01-15")).toBe(overallConsistency([good], entries, "2026-01-15"));
   });
 });
 

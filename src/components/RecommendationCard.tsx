@@ -56,7 +56,9 @@ export function RecommendationCard({ recommendation }: { recommendation: Recomme
               <span className="text-muted">{p.label}</span>
               <span className="font-mono text-ink">
                 {p.rawValue === null
-                  ? "sin datos"
+                  ? p.key === "sleep"
+                    ? "cargá la calidad de sueño (no alcanza con las horas)"
+                    : "sin datos"
                   : `${p.rawValue.toFixed(1)}${PARAM_UNIT[p.key] ?? ""} → ${
                       p.classified === -1 ? "−1" : p.classified === 1 ? "+1" : "0"
                     } (peso ${p.weight})`}

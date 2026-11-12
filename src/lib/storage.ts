@@ -1,6 +1,6 @@
 import { EMPTY_LOGS, type LogsData } from "../types/logs";
 import { migrateLegacySessionNotes } from "./exerciseNotes";
-import { upgradeLogsToV3 } from "./habitsMigration";
+import { upgradeLogsToV4 } from "./habitsMigration";
 import { idbDelete, idbGet, idbSet } from "./db";
 import { DEFAULT_LOGS_PATH } from "./github";
 
@@ -33,10 +33,6 @@ export interface AppSettings {
   exerciseVariantDefaults: Record<string, string>;
   /** Si ya se vio (o saltó) la introducción. No bloquea volver a verla desde Ajustes. */
   onboardingSeen: boolean;
-  /** Meta diaria de pasos, editable desde Lifestyle. */
-  dailyStepsTarget: number;
-  /** Meta diaria de agua en litros, editable desde Lifestyle. */
-  dailyWaterTargetLiters: number;
   /** Última vez que se exportó un respaldo manual (ISO), para el aviso de "hace mucho que no exportás". */
   lastExportedAt: string | null;
 }
@@ -58,8 +54,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   programCycle: 0,
   exerciseVariantDefaults: {},
   onboardingSeen: false,
-  dailyStepsTarget: 8000,
-  dailyWaterTargetLiters: 2.5,
   lastExportedAt: null,
 };
 
@@ -128,7 +122,7 @@ export function normalizeLogs(parsed: unknown): LogsData | null {
     habitLogs: Array.isArray(p.habitLogs) ? p.habitLogs : [],
     metrics: Array.isArray(p.metrics) ? p.metrics : [],
   };
-  return migrateLegacySessionNotes(upgradeLogsToV3(base));
+  return migrateLegacySessionNotes(upgradeLogsToV4(base));
 }
 
 export async function loadSettings(): Promise<AppSettings> {
@@ -149,8 +143,9 @@ export async function loadLogs(): Promise<LogsData> {
   await migrateFromLocalStorageIfNeeded();
   try {
     const raw = await idbGet<unknown>(LOGS_KEY);
-    if (!raw) return { ...EMPTY_LOGS };
-    return normalizeLogs(raw) ?? { ...EMPTY_LOGS };
+    // Una instalación nueva (sin datos todavía) también tiene que pasar por `normalizeLogs`: ahí es donde se
+    // siembran los 4 hábitos nativos de Métricas (HABI7 v2 Fase 6A), no solo al migrar datos viejos.
+    return normalizeLogs(raw ?? EMPTY_LOGS) ?? { ...EMPTY_LOGS };
   } catch {
     return { ...EMPTY_LOGS };
   }

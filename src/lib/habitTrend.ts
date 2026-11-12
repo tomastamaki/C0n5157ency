@@ -1,6 +1,6 @@
 import type { Habit, HabitLog } from "../types/habits";
 import { addDays } from "./habitStreaks";
-import { aggregateForDate } from "./habitLogs";
+import { aggregateForDate, aggregateSecondaryForDate } from "./habitLogs";
 
 export type TrendRange = 7 | 30 | 90;
 
@@ -21,6 +21,17 @@ export function buildHabitTrendSeries(habit: Habit, allLogs: HabitLog[], asOf: s
   const out: TrendPoint[] = [];
   for (let d = from; d <= asOf; d = addDays(d, 1)) {
     const agg = aggregateForDate(habit, allLogs, d);
+    out.push({ date: d, value: agg ? agg.value : null });
+  }
+  return out;
+}
+
+/** Igual que `buildHabitTrendSeries` pero para `Habit.secondaryField` (ej. calidad de sueño). */
+export function buildHabitSecondaryTrendSeries(habit: Habit, allLogs: HabitLog[], asOf: string, range: TrendRange): TrendPoint[] {
+  const from = addDays(asOf, -(range - 1));
+  const out: TrendPoint[] = [];
+  for (let d = from; d <= asOf; d = addDays(d, 1)) {
+    const agg = aggregateSecondaryForDate(habit, allLogs, d);
     out.push({ date: d, value: agg ? agg.value : null });
   }
   return out;

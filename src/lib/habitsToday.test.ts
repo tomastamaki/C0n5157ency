@@ -20,6 +20,8 @@ function habit(patch: Partial<Habit> = {}): Habit {
     why: null,
     archivedAt: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...patch,
@@ -133,6 +135,12 @@ describe("buildWeekStrip", () => {
     // jueves/viernes/sábado/domingo todavía no pasaron
     expect(days[3]).toMatchObject({ done: 0, total: 0 });
     expect(days[6]).toMatchObject({ done: 0, total: 0 });
+  });
+
+  it('HABI7 v2 Fase 6A: un hábito "tracking" (ej. Peso) no suma al total de la tira semanal', () => {
+    const tracking = habit({ type: "tracking", goal: null, aggregation: "last" });
+    const days = buildWeekStrip([tracking], [], "2026-01-14");
+    expect(days[2].total).toBe(0);
   });
 });
 

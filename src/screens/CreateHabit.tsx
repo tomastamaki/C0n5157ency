@@ -14,7 +14,6 @@ import { IconArrowLeft } from "../components/icons";
 import { habitIconFor, HABIT_COLORS } from "../components/habits/habitVisuals";
 import { HABIT_CATEGORIES, HABIT_TEMPLATES, HABIT_TIMES_OF_DAY, HABIT_TYPE_LABELS, emptyDraft } from "../lib/habitTemplates";
 import { newHabit } from "../lib/habitActions";
-import type { AppSettings } from "../lib/storage";
 import type { Habit, HabitFrequency, HabitLinkedSource, HabitType } from "../types/habits";
 
 type Draft = Omit<Habit, "id" | "createdAt" | "updatedAt" | "archivedAt">;
@@ -35,26 +34,17 @@ function suggestedStepsFor(unit: string | null): number[] {
 }
 
 const LINK_LABELS: Record<HabitLinkedSource, string> = {
-  steps: "Pasos",
-  water: "Agua",
-  sleep: "Sueño",
   workout: "Entrenar",
 };
 
-/** Qué fuentes tiene sentido vincular según el tipo de hábito (cantidad/tiempo/sí-no comparan contra una métrica; "a evitar" no tiene con qué vincularse). */
+/**
+ * Qué fuentes tiene sentido vincular según el tipo de hábito. Pasos, agua y
+ * sueño pasaron a ser los hábitos nativos de "Métricas" (HABI7 v2 Fase 6):
+ * ya no se vinculan hábitos nuevos a ellos, son la fuente del dato.
+ */
 function linkOptionsFor(type: HabitType): HabitLinkedSource[] {
-  if (type === "quantity") return ["steps", "water"];
-  if (type === "time") return ["sleep"];
   if (type === "yesno") return ["workout"];
   return [];
-}
-
-/** Al vincular, el objetivo pasa a ser el mismo dato que hoy vive en Ajustes (o un valor razonable para sueño). */
-function linkDefaults(source: HabitLinkedSource, settings: AppSettings): { goal: number; unit: string } {
-  if (source === "steps") return { goal: settings.dailyStepsTarget, unit: "pasos" };
-  if (source === "water") return { goal: Math.round(settings.dailyWaterTargetLiters * 1000), unit: "ml" };
-  if (source === "sleep") return { goal: 7, unit: "h" };
-  return { goal: 1, unit: "" };
 }
 
 function buildPreviewProps(draft: Draft): HabitCardProps {
@@ -103,7 +93,7 @@ interface Props {
 }
 
 export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
-  const { upsertHabit, settings } = useApp();
+  const { upsertHabit } = useApp();
   const [draft, setDraft] = useState<Draft>(() => editing ?? emptyDraft());
 
   function patch(p: Partial<Draft>) {
@@ -146,11 +136,7 @@ export function CreateHabitScreen({ onDone, onCancel, editing }: Props) {
   }
 
   function setLink(source: HabitLinkedSource | null) {
-    if (source === null) {
-      patch({ linked: null });
-      return;
-    }
-    patch({ linked: { source }, ...linkDefaults(source, settings) });
+    patch({ linked: source === null ? null : { source } });
   }
 
   function setFrequencyKind(kind: HabitFrequency["kind"]) {

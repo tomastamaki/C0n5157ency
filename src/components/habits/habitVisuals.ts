@@ -9,6 +9,7 @@ import {
   IconMoon,
   IconPhoneOff,
   IconPill,
+  IconScale,
   IconStretch,
   IconWalking,
   IconWind,
@@ -54,6 +55,7 @@ export const HABIT_ICONS: Record<string, HabitIconComponent> = {
   heart: IconHeart,
   zap: IconZap,
   archive: IconArchive,
+  scale: IconScale,
 };
 
 export const HABIT_ICON_ORDER = Object.keys(HABIT_ICONS);

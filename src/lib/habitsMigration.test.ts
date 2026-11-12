@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
+  backfillHabitMetricFields,
   backfillLegacyAggregation,
   deriveMetricsFromLegacyLifestyle,
   migrateHabitEntriesToLogs,
+  seedNativeMetricHabits,
   upgradeLogsToV2,
   upgradeLogsToV3,
+  upgradeLogsToV4,
   verifyHabitLogMigration,
   verifyMigrationCounts,
   type MigratingLogs,
@@ -35,6 +38,8 @@ function habit(patch: Partial<Habit> = {}): Habit {
     why: null,
     archivedAt: null,
     linked: null,
+    metricKind: null,
+    secondaryField: null,
     createdAt: "x",
     updatedAt: "x",
     ...patch,
@@ -261,5 +266,93 @@ describe("verifyHabitLogMigration / upgradeLogsToV3", () => {
     // esté vacío, sí se re-derivan, mismo espíritu que `metrics`.
     const v3Again = upgradeLogsToV3(v3);
     expect(v3Again.habitLogs).toHaveLength(1);
+  });
+});
+
+describe("backfillHabitMetricFields", () => {
+  /** Simula un hábito guardado antes de Fase 6: metricKind/secondaryField directamente no existen. */
+  function legacyHabit(patch: Partial<Habit> = {}): Habit {
+    const { metricKind: _m, secondaryField: _s, ...rest } = habit(patch);
+    return rest as unknown as Habit;
+  }
+
+  it("completa metricKind/secondaryField en null cuando no existían", () => {
+    const [h] = backfillHabitMetricFields([legacyHabit()]);
+    expect(h.metricKind).toBeNull();
+    expect(h.secondaryField).toBeNull();
+  });
+
+  it("no pisa un metricKind ya seteado", () => {
+    const [h] = backfillHabitMetricFields([habit({ metricKind: "steps" })]);
+    expect(h.metricKind).toBe("steps");
+  });
+});
+
+describe("seedNativeMetricHabits (HABI7 v2 Fase 6A)", () => {
+  const TODAY = "2026-11-12";
+
+  it("sin hábitos previos, crea los 4 nativos con sus valores por defecto", () => {
+    const habits = seedNativeMetricHabits([], TODAY);
+    const byKind = Object.fromEntries(habits.map((h) => [h.metricKind, h]));
+
+    expect(byKind.weight).toMatchObject({ name: "Peso", type: "tracking", unit: "kg", goal: null, category: "Métricas" });
+    expect(byKind.sleep).toMatchObject({ name: "Sueño", type: "tracking", unit: "h", goal: 8, category: "Métricas" });
+    expect(byKind.sleep.secondaryField).toMatchObject({ key: "quality", min: 0, max: 100 });
+    expect(byKind.steps).toMatchObject({ name: "Pasos", type: "tracking", unit: "pasos", goal: 8000, category: "Métricas" });
+    expect(byKind.water).toMatchObject({ name: "Agua", type: "quantity", aggregation: "sum", unit: "ml", goal: 2500, category: "Métricas" });
+  });
+
+  it("es idempotente: correrlo de nuevo sobre el resultado no duplica nada", () => {
+    const first = seedNativeMetricHabits([], TODAY);
+    const second = seedNativeMetricHabits(first, TODAY);
+    expect(second).toHaveLength(4);
+    expect(second.filter((h) => h.metricKind === "steps")).toHaveLength(1);
+  });
+
+  it("convierte un hábito vinculado a pasos/agua en el nativo, sin perder su id (historial intacto)", () => {
+    const linkedSteps = habit({ id: "real-steps-id", name: "Pasos", linked: { source: "steps" } as never, goal: 9000 });
+    const [h] = seedNativeMetricHabits([linkedSteps], TODAY);
+    expect(h.id).toBe("real-steps-id");
+    expect(h.metricKind).toBe("steps");
+    expect(h.category).toBe("Métricas");
+    expect(h.linked).toBeNull();
+    expect(h.goal).toBe(9000); // conserva su propio objetivo, no se pisa con el default
+  });
+
+  it('a falta de un hábito vinculado al agua, convierte "Tomar agua" (decisión puntual del usuario) y lo renombra a "Agua"', () => {
+    const tomarAgua = habit({ id: "real-water-id", name: "Tomar agua", type: "quantity", linked: null, goal: 2500 });
+    const habits = seedNativeMetricHabits([tomarAgua], TODAY);
+    const water = habits.find((h) => h.metricKind === "water");
+    expect(water?.id).toBe("real-water-id");
+    expect(water?.name).toBe("Agua");
+    expect(habits.filter((h) => h.metricKind === "water")).toHaveLength(1);
+  });
+
+  it('sueño nunca se convierte: un hábito vinculado a "sleep" se desvincula pero queda intacto, y "Sueño" arranca vacío', () => {
+    const dormir = habit({ id: "real-sleep-id", name: "Dormir", type: "time", linked: { source: "sleep" } as never, goal: 7 });
+    const habits = seedNativeMetricHabits([dormir], TODAY);
+
+    const dormirAfter = habits.find((h) => h.id === "real-sleep-id");
+    expect(dormirAfter).toMatchObject({ name: "Dormir", type: "time", goal: 7, linked: null, metricKind: null });
+
+    const sueno = habits.find((h) => h.metricKind === "sleep");
+    expect(sueno?.id).not.toBe("real-sleep-id");
+    expect(sueno).toMatchObject({ name: "Sueño", goal: 8 });
+  });
+});
+
+describe("upgradeLogsToV4", () => {
+  it("sube a la versión 4 y siembra los 4 hábitos nativos", () => {
+    const logs = logsV1({ version: 3 });
+    const v4 = upgradeLogsToV4(logs, "2026-11-12");
+    expect(v4.version).toBe(4);
+    expect(v4.habits.filter((h) => h.metricKind !== null)).toHaveLength(4);
+  });
+
+  it("es idempotente end-to-end", () => {
+    const logs = logsV1({ version: 3 });
+    const v4 = upgradeLogsToV4(logs, "2026-11-12");
+    const v4Again = upgradeLogsToV4(v4, "2026-11-12");
+    expect(v4Again.habits.filter((h) => h.metricKind !== null)).toHaveLength(4);
   });
 });

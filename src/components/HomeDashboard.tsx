@@ -13,10 +13,11 @@ import {
   getMuscleChips,
   getWeeksUntilDeload,
 } from "../lib/insights";
-import { formatDate, formatDuration } from "../lib/time";
+import { formatDate, formatDuration, localDateKey } from "../lib/time";
 import { getRecommendation } from "../lib/recommendation";
-import { getLifestyleKpis, type LifestyleMetricKey } from "../lib/lifestyleKpis";
+import { getMetricKpis } from "../lib/habitMetricsKpis";
 import { getPeriodData, getExerciseRows, getPerformanceVariation } from "../lib/periodSummary";
+import type { HabitMetricKind } from "../types/habits";
 import { IconFlame, IconTrophy } from "./icons";
 import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner";
 import { RecommendationCard } from "./RecommendationCard";
@@ -33,8 +34,8 @@ interface Props {
   onNavigateHistory: () => void;
   /** Se llama después de empezar un entrenamiento nuevo o al tocar el banner de "retomar". */
   onEnterWorkout: () => void;
-  /** Lleva a la pestaña Lifestyle, directo a la vista de Tendencias de esa métrica. */
-  onNavigateToLifestyle: (metric: LifestyleMetricKey) => void;
+  /** Lleva a la pestaña Hábitos, directo al Detalle de ese hábito nativo de Métricas. */
+  onNavigateToMetric: (metricKind: HabitMetricKind) => void;
   /** Lleva a la pestaña Hábitos. */
   onNavigateToHabits: () => void;
 }
@@ -44,7 +45,7 @@ export function HomeDashboard({
   activeDraft,
   onNavigateHistory,
   onEnterWorkout,
-  onNavigateToLifestyle,
+  onNavigateToMetric,
   onNavigateToHabits,
 }: Props) {
   const { logs, program, settings, flatDays } = useApp();
@@ -93,7 +94,7 @@ export function HomeDashboard({
     [logs, program, flatDays, selected, cycle]
   );
 
-  const lifestyleKpis = useMemo(() => getLifestyleKpis(logs), [logs]);
+  const metricKpis = useMemo(() => getMetricKpis(logs.habits, logs.habitLogs, localDateKey(new Date())), [logs]);
 
   if (showSummary) {
     return <PeriodSummaryScreen onBack={() => setShowSummary(false)} />;
@@ -130,7 +131,7 @@ export function HomeDashboard({
 
       <HabitsTodayCard logs={logs} onNavigate={onNavigateToHabits} />
 
-      <LifestyleKpiRow kpis={lifestyleKpis} onSelect={onNavigateToLifestyle} />
+      <LifestyleKpiRow kpis={metricKpis} onSelect={onNavigateToMetric} />
 
       <button
         type="button"

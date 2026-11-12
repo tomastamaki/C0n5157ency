@@ -1,6 +1,7 @@
-import type { LifestyleKpi, LifestyleMetricKey } from "../lib/lifestyleKpis";
+import type { MetricKpi } from "../lib/habitMetricsKpis";
+import type { HabitMetricKind } from "../types/habits";
 
-function VariationBadge({ kpi }: { kpi: LifestyleKpi }) {
+function VariationBadge({ kpi }: { kpi: MetricKpi }) {
   if (kpi.variationPct === null) return null;
   const isUp = kpi.variationPct >= 0;
   let colorClass = "text-muted";
@@ -16,11 +17,11 @@ function VariationBadge({ kpi }: { kpi: LifestyleKpi }) {
 }
 
 interface Props {
-  kpis: LifestyleKpi[];
-  onSelect: (metric: LifestyleMetricKey) => void;
+  kpis: MetricKpi[];
+  onSelect: (metricKind: HabitMetricKind) => void;
 }
 
-/** Fila con los últimos valores de peso/sueño/pasos/agua. Cada tile se omite si no hay ningún dato cargado para esa métrica. */
+/** Fila con los últimos valores de los hábitos nativos de Métricas (Peso/Sueño/Pasos/Agua). Cada tile se omite si no hay ningún dato cargado todavía. */
 export function LifestyleKpiRow({ kpis, onSelect }: Props) {
   if (kpis.length === 0) return null;
 
@@ -28,9 +29,9 @@ export function LifestyleKpiRow({ kpis, onSelect }: Props) {
     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${kpis.length}, minmax(0, 1fr))` }}>
       {kpis.map((kpi) => (
         <button
-          key={kpi.key}
+          key={kpi.habitId}
           type="button"
-          onClick={() => onSelect(kpi.key)}
+          onClick={() => onSelect(kpi.metricKind)}
           className="rounded-card border border-border bg-surface p-2.5 text-center shadow-elevated-sm"
         >
           <p className="text-[11px] text-faint">{kpi.label}</p>

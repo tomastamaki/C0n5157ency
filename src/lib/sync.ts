@@ -53,7 +53,7 @@ export function mergeLogs(a: LogsData, b: LogsData): LogsData {
   const metrics = mergeById<Metric>(a.metrics, b.metrics).sort((x, y) => x.date.localeCompare(y.date));
 
   return {
-    version: 3,
+    version: 4,
     sessions,
     bodyWeightEntries,
     sleepEntries,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { HabitsTodayScreen } from "./HabitsToday";
 import { HabitsProgressScreen } from "./HabitsProgress";
@@ -19,14 +19,25 @@ const SUBTABS: { id: SubTab; label: string }[] = [
 
 interface Props {
   onCreateHabit: () => void;
+  /** Deep-link desde Inicio (ej. tocar un KPI de métrica): abre ese hábito directo en Detalle, pestaña Métricas. */
+  openHabitId?: string | null;
+  onOpenHabitIdConsumed?: () => void;
 }
 
-export function HabitsScreen({ onCreateHabit }: Props) {
+export function HabitsScreen({ onCreateHabit, openHabitId, onOpenHabitIdConsumed }: Props) {
   const { logs } = useApp();
   const [sub, setSub] = useState<SubTab>("hoy");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+
+  useEffect(() => {
+    if (!openHabitId) return;
+    setSub("metricas");
+    setDetailId(openHabitId);
+    onOpenHabitIdConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openHabitId]);
 
   if (editingId) {
     const habit = logs.habits.find((h) => h.id === editingId);

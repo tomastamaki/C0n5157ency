@@ -6,6 +6,7 @@ import { getAttentionFlags } from "../lib/insights";
 import { getPersonalRecordEvents } from "../lib/records";
 import { formatDate, formatDuration } from "../lib/time";
 import { DELOAD_MESSAGE } from "../lib/trainingConfig";
+import { formatMetric } from "../lib/habitMetricsKpis";
 import {
   getPeriodData,
   getExerciseRows,
@@ -254,10 +255,10 @@ export function PeriodSummaryScreen({ onBack }: Props) {
           <p className="mb-2 text-sm font-medium text-ink">Lifestyle de la semana</p>
           <div className="space-y-1.5">
             {lifestyle.map((l) => (
-              <div key={l.key} className="flex items-center justify-between text-sm">
+              <div key={l.metricKind} className="flex items-center justify-between text-sm">
                 <span className="text-muted">{l.label}</span>
                 <span className="flex items-center gap-2">
-                  <span className="font-mono text-ink">{l.format(l.avg as number)}</span>
+                  <span className="font-mono text-ink">{formatMetric(l.metricKind, l.avg as number, l.unit)}</span>
                   <VariationPill pct={l.vsPreviousPct} neutral />
                 </span>
               </div>
