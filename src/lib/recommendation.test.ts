@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { checkMuscleRecovery } from "./recommendation";
+import { checkMuscleRecovery, getRecommendation } from "./recommendation";
+import { flattenProgram } from "./schedule";
 import { EMPTY_LOGS } from "../types/logs";
+import programJson from "../data/program.json";
 import type { LoggedExercise, LoggedSet, LogsData, WorkoutSession } from "../types/logs";
+import type { Habit, HabitLog } from "../types/habits";
 import type { ExerciseGroup, FlatProgramDay, ProgramDay } from "../types/program";
+import type { Program } from "../types/program";
 
 function loggedSet(weightKg: number, reps: number, rir: LoggedSet["rir"]): LoggedSet {
   return { setIndex: 0, weightKg, reps, rir, confirmed: true };
@@ -125,5 +129,119 @@ describe("checkMuscleRecovery — umbral de estímulo y factor de volumen por m�
     expect(alerts.find((a) => a.muscle === "Glúteos")).toBeUndefined();
     // Cuádriceps (primario, 3 series) sí llega al mínimo.
     expect(alerts.find((a) => a.muscle === "Cuádriceps")).toBeDefined();
+  });
+});
+
+describe("getRecommendation — capa 2 lee la calidad de sueño del hábito nativo 'Sueño' (HABI7 v2 Fase 6A)", () => {
+  const program = programJson as unknown as Program;
+  const flatDays = flattenProgram(program);
+
+  function findProgramIndex(weekNumber: number, dayName: string): number {
+    return flatDays.findIndex((d) => d.weekNumber === weekNumber && d.day.name === dayName);
+  }
+
+  /** Sesión sin ejercicios: aísla la capa 2 al parámetro de sueño (RIR, feeling, progreso y series completadas quedan todos "sin dato", nunca generan alerta muscular). Fecha en 2020 para que la Capa 1 (recuperación muscular, que usa el reloj real) nunca dispare, sin importar cuándo corra el test. */
+  function emptySession(id: string, weekNumber: number, dayName: string, isoDate: string): WorkoutSession {
+    const programIndex = findProgramIndex(weekNumber, dayName);
+    return {
+      id,
+      cycle: 0,
+      programIndex,
+      blockName: "Bloque 1",
+      weekLabel: `Semana ${weekNumber}`,
+      weekNumber,
+      dayName,
+      status: "completed",
+      startedAt: isoDate,
+      completedAt: isoDate,
+      durationSec: 3600,
+      runningSince: null,
+      pausedElapsedSec: 0,
+      updatedAt: isoDate,
+      exercises: [],
+      // "Normal" (umbral 4-7): mantiene la capa 2 con dato propio, independiente de lo que se prueba acá (sueño).
+      feeling: 6,
+    };
+  }
+
+  function sleepHabit(): Habit {
+    return {
+      id: "metric-sleep",
+      name: "Sueño",
+      icon: "moon",
+      color: "violeta",
+      type: "tracking",
+      unit: "h",
+      goal: 8,
+      aggregation: "last",
+      quickSteps: [6, 7, 8, 9],
+      frequency: { kind: "daily" },
+      category: "Métricas",
+      timeOfDay: "Noche",
+      startDate: "2020-01-01",
+      why: null,
+      archivedAt: null,
+      linked: null,
+      metricKind: "sleep",
+      secondaryField: { key: "quality", label: "Calidad", unit: null, min: 0, max: 100, quickValues: [50, 65, 75, 85], defaultValue: 50 },
+      createdAt: "x",
+      updatedAt: "x",
+    };
+  }
+
+  function qualityLog(date: string, quality: number): HabitLog {
+    return { id: `q-${date}`, habitId: "metric-sleep", date, value: null, secondaryValue: quality, source: "manual", createdAt: `${date}T08:00:00.000Z`, updatedAt: `${date}T08:00:00.000Z` };
+  }
+
+  function hoursOnlyLog(date: string, hours: number): HabitLog {
+    return { id: `h-${date}`, habitId: "metric-sleep", date, value: hours, secondaryValue: null, source: "manual", createdAt: `${date}T08:00:00.000Z`, updatedAt: `${date}T08:00:00.000Z` };
+  }
+
+  const sessions: WorkoutSession[] = [
+    emptySession("s1", 1, "Upper", "2020-01-06T08:00:00.000Z"),
+    emptySession("s2", 2, "Upper", "2020-01-13T08:00:00.000Z"),
+    emptySession("s3", 3, "Upper", "2020-01-20T08:00:00.000Z"),
+  ];
+
+  it("con calidad cargada en >= 2 noches de la ventana, el parámetro 'sleep' usa la calidad, no las horas", () => {
+    const habits = [sleepHabit()];
+    // Calidad alta (85) las 3 noches: el param "sleep" debería clasificar +1 (umbral alto = 75).
+    const habitLogs = [qualityLog("2020-01-06", 85), qualityLog("2020-01-13", 85), qualityLog("2020-01-20", 85)];
+    const logs: LogsData = { ...EMPTY_LOGS, sessions, habits, habitLogs };
+
+    const rec = getRecommendation(logs, program, flatDays, "Upper", 4, 0);
+    expect(rec.level).not.toBe("not-enough-data");
+    const sleepParam = rec.layer2?.params.find((p) => p.key === "sleep");
+    expect(sleepParam?.rawValue).toBe(85);
+    expect(sleepParam?.classified).toBe(1);
+  });
+
+  it("horas cargadas pero SIN calidad en ninguna noche: el parámetro 'sleep' queda sin dato (no usa las horas como sustituto)", () => {
+    const habits = [sleepHabit()];
+    const habitLogs = [hoursOnlyLog("2020-01-06", 8), hoursOnlyLog("2020-01-13", 7.5), hoursOnlyLog("2020-01-20", 8)];
+    const logs: LogsData = { ...EMPTY_LOGS, sessions, habits, habitLogs };
+
+    const rec = getRecommendation(logs, program, flatDays, "Upper", 4, 0);
+    const sleepParam = rec.layer2?.params.find((p) => p.key === "sleep");
+    expect(sleepParam?.rawValue).toBeNull();
+    expect(sleepParam?.classified).toBeNull();
+  });
+
+  it("calidad en una sola noche (menos del mínimo de 2): tampoco cuenta", () => {
+    const habits = [sleepHabit()];
+    const habitLogs = [qualityLog("2020-01-06", 90)];
+    const logs: LogsData = { ...EMPTY_LOGS, sessions, habits, habitLogs };
+
+    const rec = getRecommendation(logs, program, flatDays, "Upper", 4, 0);
+    const sleepParam = rec.layer2?.params.find((p) => p.key === "sleep");
+    expect(sleepParam?.rawValue).toBeNull();
+  });
+
+  it("sin hábito nativo 'Sueño' en absoluto: no rompe, el parámetro queda sin dato", () => {
+    const logs: LogsData = { ...EMPTY_LOGS, sessions, habits: [], habitLogs: [] };
+    const rec = getRecommendation(logs, program, flatDays, "Upper", 4, 0);
+    expect(rec.level).not.toBe("muscle-alert");
+    const sleepParam = rec.layer2?.params.find((p) => p.key === "sleep");
+    expect(sleepParam?.rawValue).toBeNull();
   });
 });
