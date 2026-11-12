@@ -61,6 +61,29 @@ input[type="number"]::-webkit-inner-spin-button {
   display: none;
 }
 
+/**
+ * Zona táctil mínima de 44x44 sin cambiar el tamaño visual del botón (HABI7
+ * v2 Fase 7): un ::before invisible, centrado y absoluto, expande el área
+ * donde el toque registra, sin agrandar el botón en el layout. `max(100%,
+ * 44px)` evita encoger el área en botones que ya son más anchos que 44px
+ * (ej. los botones rápidos de "+250 ml"): ahí solo crece el alto. El
+ * elemento con esta clase necesita `position: relative` (ya lo tiene,
+ * viene con la clase) y no debe tener `overflow: hidden` o el pseudo-
+ * elemento queda recortado y deja de recibir toques fuera de la caja visual.
+ */
+.tap-target {
+  position: relative;
+}
+.tap-target::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

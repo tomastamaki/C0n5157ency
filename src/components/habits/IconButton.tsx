@@ -13,7 +13,7 @@ export function IconButton({ children, onClick, variant = "surface", ...rest }: 
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill border text-muted active:scale-95 ${
+      className={`tap-target flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill border text-muted active:scale-95 ${
         variant === "onColor"
           ? "border-transparent bg-habitink/[0.14] text-habitink"
           : "border-border bg-surface"

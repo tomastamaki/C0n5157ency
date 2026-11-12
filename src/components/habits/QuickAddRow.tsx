@@ -22,7 +22,7 @@ export function QuickAddRow({ habit, color, onAdd }: Props) {
             key={n}
             type="button"
             onClick={() => onAdd(n)}
-            className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
+            className="tap-target h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
             style={{
               backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
               borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,
@@ -41,7 +41,7 @@ export function QuickAddRow({ habit, color, onAdd }: Props) {
               key={n}
               type="button"
               onClick={() => onAdd(null, n)}
-              className="h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
+              className="tap-target h-9 rounded-pill border px-3 font-mono text-[13px] font-bold text-ink"
               style={{
                 backgroundColor: `color-mix(in srgb, ${color} 20%, rgb(var(--surface)))`,
                 borderColor: `color-mix(in srgb, ${color} 50%, rgb(var(--border)))`,

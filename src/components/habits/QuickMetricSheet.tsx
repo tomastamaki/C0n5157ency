@@ -30,7 +30,7 @@ function WeightStepper({ habit, color, lastValue, onAdd }: { habit: Habit; color
           type="button"
           aria-label="Restar 0,1 kg"
           onClick={() => setBoth(round1(value - 0.1))}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-lg font-bold text-ink"
+          className="tap-target flex h-10 w-10 items-center justify-center rounded-full border border-border text-lg font-bold text-ink"
         >
           −
         </button>
@@ -46,7 +46,7 @@ function WeightStepper({ habit, color, lastValue, onAdd }: { habit: Habit; color
           type="button"
           aria-label="Sumar 0,1 kg"
           onClick={() => setBoth(round1(value + 0.1))}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-border text-lg font-bold text-ink"
+          className="tap-target flex h-10 w-10 items-center justify-center rounded-full border border-border text-lg font-bold text-ink"
         >
           +
         </button>

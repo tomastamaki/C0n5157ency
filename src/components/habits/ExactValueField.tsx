@@ -27,7 +27,7 @@ export function ExactValueField({ unit, color, onAdd }: { unit: string; color: s
         type="button"
         aria-label="Agregar valor exacto"
         onClick={submit}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-habitink"
+        className="tap-target flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-habitink"
         style={{ backgroundColor: color }}
       >
         <IconCheck className="h-4 w-4" strokeWidth={2.6} />

@@ -36,7 +36,7 @@ export function SecondaryValueField({
         type="button"
         aria-label={`Agregar ${field.label.toLowerCase()}`}
         onClick={submit}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-habitink"
+        className="tap-target flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-habitink"
         style={{ backgroundColor: color }}
       >
         <IconCheck className="h-4 w-4" strokeWidth={2.6} />
